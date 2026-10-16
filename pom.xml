@@ -15,7 +15,7 @@
 
     <groupId>br.com.pixmanager</groupId>
     <artifactId>ms-pix-manager</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>ms-pix-manager</name>
     <description>Gestão Pix (recebedor, pagador, DICT, MED) — Arquitetura Hexagonal por módulo</description>
 
