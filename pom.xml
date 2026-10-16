@@ -31,7 +31,7 @@
         <avro.version>1.11.4</avro.version>
         <confluent.version>7.9.9</confluent.version>
         <springdoc.version>2.8.17</springdoc.version>
-        <springwolf.version>1.21.0</springwolf.version>
+        <springwolf.version>2.8.0</springwolf.version>
         <resilience4j.version>2.3.0</resilience4j.version>
         <shedlock.version>6.9.2</shedlock.version>
         <logstash-encoder.version>7.4</logstash-encoder.version>
