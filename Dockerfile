@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build: Maven + JDK 21 (gera as classes Avro e o jar executável). Testes rodam no CI/`./mvn.sh verify`, não aqui.
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -B -q -Dmaven.test.skip=true dependency:go-offline
