@@ -118,3 +118,7 @@ docker/**/*.env
 .claude/
 *.orig
 *.rej
+
+# Python
+__pycache__/
+*.pyc
