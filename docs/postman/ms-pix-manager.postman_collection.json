@@ -1262,6 +1262,302 @@
       "name": "Gestão — /v1 (token_backoffice)",
       "item": [
         {
+          "name": "Pix Agendado / MED / Pix Automático (back-office)",
+          "item": [
+            {
+              "name": "Agendar Pix mensal (3x)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/scheduled-payments",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "scheduled-payments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payerAccountId\": \"{{account_id}}\",\n  \"recurrence\": \"MONTHLY\",\n  \"method\": \"KEY\",\n  \"amount\": \"10.00\",\n  \"firstDate\": \"{{future_date}}\",\n  \"occurrencesTotal\": 3,\n  \"destination\": {\n    \"pixKeyType\": \"EMAIL\",\n    \"pixKey\": \"outra@example.com\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Data posterior a hoje (America/Sao_Paulo). O worker dispara na data; ver docs/05."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set('future_date', new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar agendamentos",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/scheduled-payments?payerAccountId={{account_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "scheduled-payments"
+                  ],
+                  "query": [
+                    {
+                      "key": "payerAccountId",
+                      "value": "{{account_id}}"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Agendamento com data passada ⇒ 422 PIX-422-061",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/scheduled-payments",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "scheduled-payments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payerAccountId\": \"{{account_id}}\",\n  \"recurrence\": \"ONCE\",\n  \"method\": \"KEY\",\n  \"amount\": \"10.00\",\n  \"firstDate\": \"2020-01-01\",\n  \"destination\": {\n    \"pixKeyType\": \"EMAIL\",\n    \"pixKey\": \"outra@example.com\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 422', () => pm.expect(pm.response.code).to.be.oneOf([422]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "MED sobre Pix inexistente ⇒ 404",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/med-cases",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "med-cases"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"REPORTED\",\n  \"endToEndId\": \"E0000000000000000000000000000000\",\n  \"caseType\": \"FRAUD\",\n  \"description\": \"golpe\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Para um caso real: receba um Pix (scripts/simulate-spi.py pix-received) e abra o caso com o endToEndId dele."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 404', () => pm.expect(pm.response.code).to.be.oneOf([404]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar casos MED",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/med-cases",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "med-cases"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Solicitação de Pix Automático (entrada do recebedor)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/automatic-authorizations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "automatic-authorizations"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idRec\": \"{{id_rec}}\",\n  \"payerAccountId\": \"{{account_id}}\",\n  \"payerDocument\": \"52998224725\",\n  \"receiverDocument\": \"11222333000181\",\n  \"receiverName\": \"Academia Forma\",\n  \"contract\": \"CONTRATO-77\",\n  \"periodicity\": \"MENSAL\",\n  \"startDate\": \"2026-10-01\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "idRec: 29 caracteres (R + R|N + 27 alfanuméricos); o pre-request gera um válido. O documento do pagador é o do titular da conta seed."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set('id_rec', 'RR' + 'xxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16)));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar autorizações de Pix Automático",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/automatic-authorizations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "automatic-authorizations"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Chaves Pix",
           "item": [
             {

@@ -6,7 +6,8 @@
   ... [--qr]   também desenha o QR no terminal (precisa de `npx` + internet, usa o pacote npm `qrcode`) ou grava --png arquivo.png
 
 static  = valor da chave Pix (com ou sem valor fixo), pagável por QR_STATIC. dynamic = aponta p/ o `location` devolvido por POST/PUT /api/pix/v2/cob
-(o campo `location` da resposta). O ms ainda NÃO paga QR dinâmico (backlog: responde erro explícito 422).
+(o campo `location` da resposta). O ms paga QR dinâmico: busca o payload JWS em https://<url>, valida assinatura/cadeia e paga o valor da cobrança.
+  No dev, o PSP fictício do serviço `mocks` serve /qr/v2/{ok|v-<valor>|paga|expirada|adulterado} em mocks:8443.
 """
 import argparse, shutil, subprocess, sys
 

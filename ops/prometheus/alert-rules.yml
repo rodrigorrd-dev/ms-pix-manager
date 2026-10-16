@@ -74,6 +74,21 @@ groups:
         for: 10m
         labels: { severity: warning }
         annotations: { summary: "Entregas de webhook DEAD (receptor do cliente fora do ar ou recusando): o cliente não está sendo avisado dos Pix recebidos", runbook: "docs/runbooks/webhook-entregas.md" }
+      - alert: PixScheduledOccurrencesOverdue
+        expr: pix_scheduled_occurrences_overdue > 0
+        for: 15m
+        labels: { severity: critical }
+        annotations: { summary: "Pix agendado de dias anteriores ainda sem executar: o cliente combinou um pagamento que NÃO saiu (worker parado ou DICT fora)", runbook: "docs/runbooks/pix-agendado.md" }
+      - alert: PixMedCasesOverdue
+        expr: pix_med_cases_overdue > 0
+        for: 30m
+        labels: { severity: critical }
+        annotations: { summary: "Caso MED recebido há mais de 7 dias sem análise: prazo do PSP do recebedor estourado", runbook: "docs/runbooks/med-e-pix-automatico.md" }
+      - alert: PixAutomaticAttemptsOverdue
+        expr: pix_automatic_attempts_overdue > 0
+        for: 15m
+        labels: { severity: critical }
+        annotations: { summary: "Cobrança de Pix Automático vencida sem ser debitada: o recebedor não recebeu e o pagador pode ser cobrado fora do esquema", runbook: "docs/runbooks/med-e-pix-automatico.md" }
       - alert: PixWebhookDeliveriesOverdue
         expr: pix_webhook_deliveries_overdue > 0
         for: 10m

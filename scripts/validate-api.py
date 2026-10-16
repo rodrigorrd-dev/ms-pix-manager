@@ -160,6 +160,18 @@ s,h,j=call("GET","/api/pix/v2/webhook/"+KEY,P); chk("  GET após remover ⇒ 404
 s,h,j=call("POST","/v1/webhook-deliveries/%s/resend"%uuid.uuid4(),O); chk("resend de entrega inexistente ⇒ 404 (token back-office)",s==404,s)
 s,h,j=call("POST","/v1/webhook-deliveries/%s/resend"%uuid.uuid4(),P); chk("  resend com token de parceiro ⇒ 403 (escopo)",s==403,s)
 
+print("== Pix Agendado / MED / Pix Automático (negativos e escopos)")
+_rnd=str(uuid.uuid4())
+s,h,j=call("POST","/v1/scheduled-payments",O,{"payerAccountId":ACC,"recurrence":"ONCE","method":"KEY","amount":"10.00","firstDate":"2020-01-01","destination":{"pixKeyType":"EMAIL","pixKey":"a@b.com"}},{"Idempotency-Key":str(uuid.uuid4())}); chk("agendamento com data passada ⇒ 422 PIX-422-061",s==422 and j.get("code")=="PIX-422-061",(s,j.get("code") if j else j))
+s,h,j=call("GET","/v1/scheduled-payments/"+_rnd,O); chk("  agendamento inexistente ⇒ 404",s==404,s)
+s,h,j=call("POST","/v1/scheduled-payments",P,{"payerAccountId":ACC,"recurrence":"ONCE","method":"KEY","amount":"10.00","firstDate":"2030-01-01"},{"Idempotency-Key":str(uuid.uuid4())}); chk("  token de parceiro (sem schedule.write) ⇒ 403",s==403,s)
+s,h,j=call("POST","/v1/med-cases",O,{"role":"REPORTED","endToEndId":"E"+"0"*31,"caseType":"FRAUD","description":"x"},{"Idempotency-Key":str(uuid.uuid4())}); chk("MED sobre Pix inexistente ⇒ 404",s==404,s)
+s,h,j=call("GET","/v1/med-cases/"+_rnd,O); chk("  caso MED inexistente ⇒ 404",s==404,s)
+s,h,j=call("GET","/v1/med-cases",P); chk("  token de parceiro (sem med.read) ⇒ 403",s==403,s)
+s,h,j=call("GET","/v1/automatic-authorizations/"+_rnd,O); chk("autorização inexistente ⇒ 404",s==404,s)
+s,h,j=call("POST","/v1/automatic-authorizations",O,{"idRec":"X","payerAccountId":ACC,"payerDocument":"52998224725","receiverDocument":"11222333000181","receiverName":"A","contract":"C","periodicity":"MENSAL","startDate":"2026-10-01"}); chk("  idRec inválido ⇒ 400",s==400,s)
+s,h,j=call("GET","/v1/automatic-authorizations",P); chk("  token de parceiro (sem automatic.read) ⇒ 403",s==403,s)
+
 print("== Ordens de pagamento")
 BR="00020126580014br.gov.bcb.pix0136123e4567-e89b-42d3-a456-426655440000520400005303986540510.005802BR5913Fulano de Tal6009SAO PAULO62070503***63048654"
 s,h,j=call("POST","/v1/payment-orders/decodings",O,{"payload":BR}); chk("decodings BR Code válido → 200",s==200,(s,{k:j.get(k) for k in list(j)[:6]} if s==200 else j))
@@ -175,7 +187,7 @@ s,h2,j2=call("POST","/v1/payment-orders",O,dict(po,amount="101.00"),{"Idempotenc
 s,h2,j2=call("POST","/v1/payment-orders",O,dict(po,amount="0.00"),{"Idempotency-Key":str(uuid.uuid4())}); chk("  amount 0.00 → 4xx",400<=s<500,(s,j2.get("code")))
 s,h2,j2=call("POST","/v1/payment-orders",O,dict(po,payerAccountId="00000000-0000-0000-0000-0000000000ff"),{"Idempotency-Key":str(uuid.uuid4())}); chk("  conta pagadora inexistente → 404",s==404,s)
 s,h2,j2=call("POST","/v1/payment-orders",O,{"method":"KEY"},{"Idempotency-Key":str(uuid.uuid4())}); chk("  payload incompleto → 400",s==400,s)
-s,h2,j2=call("POST","/v1/payment-orders",O,dict(po,method="QR_DYNAMIC"),{"Idempotency-Key":str(uuid.uuid4())}); chk("  QR_DYNAMIC (backlog) → erro explícito 4xx/5xx não-500",s!=500 and s>=400,(s,j2.get("code")))
+s,h2,j2=call("POST","/v1/payment-orders",O,dict(po,method="QR_DYNAMIC"),{"Idempotency-Key":str(uuid.uuid4())}); chk("  QR_DYNAMIC sem BR Code válido → 422 (nunca 500)",s==422 and j2.get("code") in ("PIX-422-013","PIX-422-001"),(s,j2.get("code")))
 if pid:
     s,h,j=call("GET","/v1/payment-orders/"+pid,O); et=h.get("ETag"); chk("GET payment-order → 200 + ETag",s==200 and j["id"]==pid and et,(s,et,j.get("status")))
     s,h3,j3=call("GET","/v1/payment-orders/"+pid,O,h={"If-None-Match":et}); chk("GET payment-order If-None-Match → 304",s==304,s)

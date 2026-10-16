@@ -26,13 +26,72 @@ Regras para simular cenários (valores fixos, só dev):
   • reserva com amount == 50.50 -> 503 (falha técnica do core, para ver retry/circuit breaker)
   (valores baixos de propósito: o limite p/ NOVO favorecido é 100.00 e o noturno 1000.00, aplicados ANTES do ledger)
 """
-import base64, hashlib, hmac, json, os, ssl, threading, time, uuid, datetime
+import base64, hashlib, hmac, json, os, re, ssl, threading, time, uuid, datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE = {"dict": {}, "reservations": {}, "otp": [], "webhooks": []}
 WEBHOOK_KEY = base64.b64decode(os.environ.get("WEBHOOK_SIGNING_KEY_B64", "ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ=="))   # = PIX_WEBHOOK_SIGNING_KEY de dev
 now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# ---- PSP do recebedor (QR dinâmico): serve o payload JWS RS256 assinado com a chave de DEV (x5c = dev-cert.pem) ------------------
+def _der(data, pos=0):
+    tag, ln = data[pos], data[pos + 1]
+    pos += 2
+    if ln & 0x80:
+        n = ln & 0x7F
+        ln = int.from_bytes(data[pos:pos + n], "big")
+        pos += n
+    return tag, data[pos:pos + ln], pos + ln
+
+
+def _load_rsa(path):
+    der = base64.b64decode("".join(l for l in open(path).read().splitlines() if not l.startswith("-----")))
+    _, body, _ = _der(der)                                        # PrivateKeyInfo
+    pos = 0
+    items = []
+    while pos < len(body):
+        t, v, pos = _der(body, pos)
+        items.append((t, v))
+    _, rsa_key, _ = _der(items[2][1])                             # OCTET STRING -> RSAPrivateKey
+    ints, pos = [], 0
+    while pos < len(rsa_key):
+        t, v, pos = _der(rsa_key, pos)
+        ints.append(int.from_bytes(v, "big"))
+    return ints[1], ints[3]                                       # n, d
+
+
+_SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
+
+
+def _rs256(n, d, signing_input):
+    k = (n.bit_length() + 7) // 8
+    t = _SHA256_PREFIX + hashlib.sha256(signing_input).digest()
+    em = b"\x00\x01" + b"\xff" * (k - len(t) - 3) + b"\x00" + t
+    return pow(int.from_bytes(em, "big"), d, n).to_bytes(k, "big")
+
+
+_b64u = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def signed_cob(name):
+    """/qr/v2/<nome>: ok (R$ 25,00 ATIVA) | v-<valor> | paga (CONCLUIDA) | expirada | adulterado (assinatura inválida)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    n, d = _load_rsa(os.path.join(here, "dev-key.pem"))
+    cert = "".join(l for l in open(os.path.join(here, "dev-cert.pem")).read().splitlines() if not l.startswith("-----"))
+    amount = name[2:] if name.startswith("v-") else "25.00"
+    created = datetime.datetime.now(datetime.timezone.utc) - (datetime.timedelta(hours=2) if name == "expirada" else datetime.timedelta())
+    payload = {"txid": re.sub(r"[^A-Za-z0-9]", "", "mock" + name)[:35].ljust(26, "0"), "revisao": 0,
+               "calendario": {"criacao": created.isoformat().replace("+00:00", "Z"), "expiracao": 3600},
+               "status": "CONCLUIDA" if name == "paga" else "ATIVA", "chave": "123e4567-e89b-42d3-a456-426655440000",
+               "valor": {"original": amount}}
+    header = {"alg": "RS256", "typ": "JWT", "x5c": [cert]}
+    signing_input = (_b64u(json.dumps(header).encode()) + "." + _b64u(json.dumps(payload).encode())).encode()
+    sig = _rs256(n, d, signing_input)
+    if name == "adulterado":
+        signing_input = (_b64u(json.dumps(header).encode()) + "." + _b64u(json.dumps({**payload, "valor": {"original": "0.01"}}).encode())).encode()
+    return signing_input.decode() + "." + _b64u(sig)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,6 +128,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             return self.reply(200, {"status": "UP"})
+        if self.path.startswith("/qr/v2/"):
+            body = signed_cob(self.path[len("/qr/v2/"):].split("?")[0]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/jose")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/webhook-receiver/last":
             return self.reply(200, STATE["webhooks"][-1]) if STATE["webhooks"] else self.reply(404, {"message": "nenhum webhook recebido"})
         if self.path.startswith("/otp/v1/last"):
@@ -114,6 +181,14 @@ class Handler(BaseHTTPRequestHandler):
                                       "body": json.loads(raw or b"{}")})
             del STATE["webhooks"][:-50]
             return self.reply(503 if mode == "fail" else 200, {})
+        if p.startswith("/spi/v1/automatic/authorizations/"):       # Pix Automático: resposta do pagador ao recebedor (contrato rascunho)
+            STATE.setdefault("automatic", []).append({"path": p, "body": b})
+            return self.reply(200, {})
+        if p == "/dict/v1/funds-recoveries":                      # MED: notificação de infração (contrato rascunho)
+            STATE.setdefault("med", []).append(b)
+            return self.reply(201, {"id": "FR-" + uuid.uuid4().hex[:16]})
+        if p.startswith("/dict/v1/funds-recoveries/") and p.endswith("/cancellation"):
+            return self.reply(200, {})
         if p == "/otp/v1/messages":
             STATE["otp"].append({"channel": b.get("channel"), "destination": b.get("destination"), "code": b.get("code"), "validForSeconds": b.get("validForSeconds"), "at": now()})
             del STATE["otp"][:-50]                                   # guarda só os 50 últimos

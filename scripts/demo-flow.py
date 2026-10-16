@@ -117,8 +117,79 @@ step("SPI liquidou → SETTLED", st == "SETTLED", st)
 q = pay({"payerAccountId": ACC, "method": "QR_STATIC", "qrPayload": static}, 201)
 step("pagamento por QR estático criado com o valor do código", q.get("amount") == "12.34", q.get("status"))
 call("POST", "/v1/payment-orders/%s/cancellation" % q["id"], O, None, {"If-Match": call("GET", "/v1/payment-orders/" + q["id"], O)[1]["ETag"]})
-d = pay({"payerAccountId": ACC, "method": "QR_DYNAMIC", "qrPayload": dyn}, 422)
-step("QR dinâmico: recusado de forma explícita (backlog)", d.get("status") == 422 or d.get("code") == "PIX-422-000", d.get("code"))
+def qr_dyn(name):
+    return script("brcode.py", "dynamic", "--url", "mocks:8443/qr/v2/" + name)      # PSP do recebedor fictício (payload JWS assinado)
+
+
+dq = pay({"payerAccountId": ACC, "method": "QR_DYNAMIC", "qrPayload": qr_dyn("v-12.34")}, 201)
+step("QR dinâmico: o app buscou o payload JWS, validou a assinatura e pagou o valor da cobrança (12.34), sem o cliente informar valor",
+     dq.get("amount") == "12.34" and dq.get("method") == "QR_DYNAMIC", dq.get("amount"))
+call("POST", "/v1/payment-orders/%s/cancellation" % dq["id"], O, None, {"If-Match": call("GET", "/v1/payment-orders/" + dq["id"], O)[1]["ETag"]})
+for name, why in (("adulterado", "assinatura inválida (payload alterado)"), ("paga", "cobrança já CONCLUIDA"), ("expirada", "cobrança vencida")):
+    bad = pay({"payerAccountId": ACC, "method": "QR_DYNAMIC", "qrPayload": qr_dyn(name)}, 422)
+    step("QR dinâmico recusado: " + why + " (PIX-422-018)", bad.get("code") == "PIX-422-018", bad.get("code"))
+bad = pay({"payerAccountId": ACC, "method": "QR_DYNAMIC", "qrPayload": dyn}, 422)
+step("QR dinâmico cuja URL não resolve é recusado sem erro 500", bad.get("code") == "PIX-422-018", bad.get("code"))
+
+print("3b) PIX AGENDADO — criar, listar ocorrências e cancelar")
+import datetime as _dt
+first = (_dt.date.today() + _dt.timedelta(days=3)).isoformat()
+s, _, sch = call("POST", "/v1/scheduled-payments", O, {"payerAccountId": ACC, "recurrence": "MONTHLY", "method": "KEY", "amount": "10.00", "firstDate": first,
+                                                       "occurrencesTotal": 3, "destination": {"pixKeyType": "EMAIL", "pixKey": "outra@example.com"}},
+                 {"Idempotency-Key": str(uuid.uuid4())})
+step("agendamento mensal (3x) criado", s == 201 and sch["status"] == "ACTIVE", s)
+s, _, occ = call("GET", "/v1/scheduled-payments/%s/occurrences" % sch["id"], O)
+step("3 ocorrências SCHEDULED, a 1ª na data pedida", s == 200 and len(occ) == 3 and occ[0]["dueDate"] == first and all(o["status"] == "SCHEDULED" for o in occ), s)
+s, _, bad = call("POST", "/v1/scheduled-payments", O, {"payerAccountId": ACC, "recurrence": "ONCE", "method": "KEY", "amount": "10.00",
+                                                       "firstDate": _dt.date.today().isoformat(), "destination": {"pixKeyType": "EMAIL", "pixKey": "outra@example.com"}},
+                 {"Idempotency-Key": str(uuid.uuid4())})
+step("data de hoje é recusada (PIX-422-061)", s == 422 and bad["code"] == "PIX-422-061", bad.get("code"))
+s, h, _ = call("GET", "/v1/scheduled-payments/" + sch["id"], O)
+s, _, c = call("POST", "/v1/scheduled-payments/%s/cancellation" % sch["id"], O, None, {"If-Match": h["ETag"]})
+step("cancelado: agendamento e ocorrências", s == 200 and c["status"] == "CANCELLED", s)
+
+print("3c) MED — o cliente RECEBEU um Pix suspeito: abrir, aceitar (bloqueio no core), devolver com natureza MED")
+out = script("simulate-spi.py", "pix-received", "--amount", "20.00")
+med_e2e = [l.split()[1] for l in out.splitlines() if l.startswith("endToEndId:")][0]
+wait(lambda: call("GET", "/api/pix/v2/pix/" + med_e2e, P)[0], 200)
+s, _, mc = call("POST", "/v1/med-cases", O, {"role": "REPORTED", "endToEndId": med_e2e, "caseType": "FRAUD", "description": "golpe do falso suporte (demo)", "layer": 1},
+                {"Idempotency-Key": str(uuid.uuid4())})
+step("caso MED aberto (REPORTED, OPEN)", s == 201 and mc["status"] == "OPEN" and mc["trackedAmount"] == "20.00", s)
+s, _, dup = call("POST", "/v1/med-cases", O, {"role": "REPORTED", "endToEndId": med_e2e, "caseType": "FRAUD", "description": "de novo"}, {"Idempotency-Key": str(uuid.uuid4())})
+step("segundo caso para o mesmo Pix/camada é recusado (409)", s == 409, s)
+s, _, mc = call("POST", "/v1/med-cases/%s/acceptance" % mc["id"], O)
+step("aceito → ACCEPTED", s == 200 and mc["status"] == "ACCEPTED", s)
+bl = wait(lambda: call("GET", "/v1/med-cases/" + mc["id"], O)[2]["blockedAmount"], "20.00")
+step("o core bloqueou o valor (bloqueio cautelar 20.00)", bl == "20.00", bl)
+s, _, mc = call("POST", "/v1/med-cases/%s/refund" % mc["id"], O)
+step("devolução MED solicitada → REFUNDING", s == 200 and mc["status"] == "REFUNDING", s)
+rtr = wait(lambda: (call("GET", "/api/pix/v2/pix/" + med_e2e, P)[2].get("devolucoes") or [{}])[0].get("rtrId"), None) or call("GET", "/api/pix/v2/pix/" + med_e2e, P)[2]["devolucoes"][0]["rtrId"]
+script("simulate-spi.py", "refund-status", rtr, "SETTLED", "--e2e", med_e2e)
+st = wait(lambda: call("GET", "/v1/med-cases/" + mc["id"], O)[2]["status"], "CLOSED")
+step("SPI liquidou a devolução → caso CLOSED (acompanhamento automático)", st == "CLOSED", st)
+s, _, hist = call("GET", "/v1/med-cases/%s/history" % mc["id"], O)
+step("histórico auditável: OPEN → ACCEPTED → (bloqueio) → REFUNDING → CLOSED", s == 200 and [h["to"] for h in hist][0] == "OPEN" and hist[-1]["to"] == "CLOSED", len(hist))
+
+print("3d) PIX AUTOMÁTICO (pagador) — solicitação, aceite, cobrança e cancelamento")
+rec = "RR" + uuid.uuid4().hex[:27]
+s, _, au = call("POST", "/v1/automatic-authorizations", O, {"idRec": rec, "payerAccountId": ACC, "payerDocument": "52998224725", "receiverDocument": "11222333000181",
+                                                              "receiverName": "Academia Forma", "contract": "CONTRATO-77", "objectDescription": "mensalidade",
+                                                              "periodicity": "MENSAL", "startDate": _dt.date.today().isoformat(), "fixedAmount": "50.00"})
+step("solicitação do recebedor recebida (CRIADA/RECEBIDA, allow_retry pelo idRec)", s == 201 and au["status"] == "CRIADA" and au["allowRetry"], au.get("code") or s)
+if s == 201:
+    s, _, ap = call("POST", "/v1/automatic-authorizations/%s/approval" % au["id"], O, {"payerMaxAmount": "80.00"})
+    step("pagador aceita com teto de 80.00 → APROVADA", s == 200 and ap["status"] == "APROVADA", s)
+    due = (_dt.date.today() + _dt.timedelta(days=3)).isoformat()
+    s, _, ch = call("POST", "/v1/automatic-authorizations/%s/charges" % au["id"], O, {"txid": uuid.uuid4().hex, "dueDate": due, "amount": "50.00", "receiverIspb": "12345678",
+                                                                                       "receiverBranch": "0001", "receiverAccount": "998877", "receiverAccountType": "CACC"})
+    step("cobrança recorrente registrada (ATIVA, tentativa AGND na data)", s == 201 and ch["status"] == "ATIVA", ch.get("code") or s)
+    s, _, bad = call("POST", "/v1/automatic-authorizations/%s/charges" % au["id"], O, {"txid": uuid.uuid4().hex, "dueDate": due, "amount": "90.00", "receiverIspb": "12345678",
+                                                                                        "receiverBranch": "0001", "receiverAccount": "998877", "receiverAccountType": "CACC"})
+    step("cobrança acima do valor fixo/teto é recusada (422)", s == 422, s)
+    s, _, cc = call("POST", "/v1/automatic-authorizations/%s/charges/%s/cancellation" % (au["id"], ch["id"]), O)
+    step("pagador cancela a cobrança antes da véspera → CANCELADA", s == 200 and cc["status"] == "CANCELADA", s)
+    s, _, ca = call("POST", "/v1/automatic-authorizations/%s/cancellation" % au["id"], O, {"cancelledBy": "PAYER"})
+    step("pagador cancela a autorização → CANCELADA (recebedor avisado)", s == 200 and ca["status"] == "CANCELADA", s)
 
 print("4) FALHAS — saldo insuficiente e rejeição do SPI")
 r = pay({"payerAccountId": ACC, "method": "KEY", "amount": "99.99", "destination": {"pixKeyType": "EMAIL", "pixKey": "outra@example.com"}}, 201)

@@ -119,6 +119,19 @@ bcb=folder("API BCB — /api/pix/v2 (token_partner)",[
 
 # ---------------- Gestão /v1 ----------------
 gestao=folder("Gestão — /v1 (token_backoffice)",[
+  folder("Pix Agendado / MED / Pix Automático (back-office)",[
+    req("Agendar Pix mensal (3x)","POST","{{base_url}}/v1/scheduled-payments",{"payerAccountId":"{{account_id}}","recurrence":"MONTHLY","method":"KEY","amount":"10.00","firstDate":"{{future_date}}","occurrencesTotal":3,"destination":{"pixKeyType":"EMAIL","pixKey":"outra@example.com"}},
+        auth="token_backoffice",headers={"Idempotency-Key":"{{$guid}}"},test=status_test(201),pre=["pm.variables.set('future_date', new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10));"],desc="Data posterior a hoje (America/Sao_Paulo). O worker dispara na data; ver docs/05."),
+    req("Listar agendamentos","GET","{{base_url}}/v1/scheduled-payments?payerAccountId={{account_id}}",auth="token_backoffice",test=status_test(200)),
+    req("Agendamento com data passada ⇒ 422 PIX-422-061","POST","{{base_url}}/v1/scheduled-payments",{"payerAccountId":"{{account_id}}","recurrence":"ONCE","method":"KEY","amount":"10.00","firstDate":"2020-01-01","destination":{"pixKeyType":"EMAIL","pixKey":"outra@example.com"}},
+        auth="token_backoffice",headers={"Idempotency-Key":"{{$guid}}"},test=status_test(422)),
+    req("MED sobre Pix inexistente ⇒ 404","POST","{{base_url}}/v1/med-cases",{"role":"REPORTED","endToEndId":"E0000000000000000000000000000000","caseType":"FRAUD","description":"golpe"},
+        auth="token_backoffice",headers={"Idempotency-Key":"{{$guid}}"},test=status_test(404),desc="Para um caso real: receba um Pix (scripts/simulate-spi.py pix-received) e abra o caso com o endToEndId dele."),
+    req("Listar casos MED","GET","{{base_url}}/v1/med-cases",auth="token_backoffice",test=status_test(200)),
+    req("Solicitação de Pix Automático (entrada do recebedor)","POST","{{base_url}}/v1/automatic-authorizations",{"idRec":"{{id_rec}}","payerAccountId":"{{account_id}}","payerDocument":"52998224725","receiverDocument":"11222333000181","receiverName":"Academia Forma","contract":"CONTRATO-77","periodicity":"MENSAL","startDate":"2026-10-01"},
+        auth="token_backoffice",test=status_test(201),pre=["pm.variables.set('id_rec', 'RR' + 'xxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16)));"],desc="idRec: 29 caracteres (R + R|N + 27 alfanuméricos); o pre-request gera um válido. O documento do pagador é o do titular da conta seed."),
+    req("Listar autorizações de Pix Automático","GET","{{base_url}}/v1/automatic-authorizations",auth="token_backoffice",test=status_test(200)),
+  ]),
   folder("Chaves Pix",[
     req("0. Liberar chaves (limpeza; limite de 5 chaves vivas por conta PF)","GET","{{base_url}}/v1/pix-keys?accountId={{account_id}}&size=100",
         test=status_test(200)+CLEANUP,

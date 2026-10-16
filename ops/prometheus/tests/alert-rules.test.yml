@@ -76,3 +76,41 @@ tests:
         exp_alerts:
           - exp_labels: { severity: warning }
             exp_annotations: { summary: "Entregas de webhook DEAD (receptor do cliente fora do ar ou recusando): o cliente não está sendo avisado dos Pix recebidos", runbook: "docs/runbooks/webhook-entregas.md" }
+
+  - interval: 1m
+    input_series:
+      - series: 'pix_scheduled_occurrences_overdue{application="ms-pix-manager"}'
+        values: '0x5 2x25'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PixScheduledOccurrencesOverdue
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: PixScheduledOccurrencesOverdue
+        exp_alerts:
+          - exp_labels: { severity: critical, application: ms-pix-manager }
+            exp_annotations:
+              summary: "Pix agendado de dias anteriores ainda sem executar: o cliente combinou um pagamento que NÃO saiu (worker parado ou DICT fora)"
+              runbook: "docs/runbooks/pix-agendado.md"
+
+  - interval: 1m
+    input_series:
+      - series: 'pix_med_cases_overdue{application="ms-pix-manager"}'
+        values: '0x5 1x50'
+      - series: 'pix_automatic_attempts_overdue{application="ms-pix-manager"}'
+        values: '0x5 3x50'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: PixMedCasesOverdue
+        exp_alerts:
+          - exp_labels: { severity: critical, application: ms-pix-manager }
+            exp_annotations:
+              summary: "Caso MED recebido há mais de 7 dias sem análise: prazo do PSP do recebedor estourado"
+              runbook: "docs/runbooks/med-e-pix-automatico.md"
+      - eval_time: 25m
+        alertname: PixAutomaticAttemptsOverdue
+        exp_alerts:
+          - exp_labels: { severity: critical, application: ms-pix-manager }
+            exp_annotations:
+              summary: "Cobrança de Pix Automático vencida sem ser debitada: o recebedor não recebeu e o pagador pode ser cobrado fora do esquema"
+              runbook: "docs/runbooks/med-e-pix-automatico.md"

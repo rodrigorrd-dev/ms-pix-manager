@@ -217,6 +217,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       SCHEMA_REGISTRY_USER_INFO: ${SCHEMA_REGISTRY_USER_INFO:-}
+      PIX_WEBHOOK_SIGNING_KEY: ${PIX_WEBHOOK_SIGNING_KEY:-ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==}
       PIX_OTP_SENDER: ${PIX_OTP_SENDER:-http}                                  # dev: o mock recebe o código; em prd aponte p/ o serviço de notificação real
       PIX_OTP_GATEWAY_URL: ${PIX_OTP_GATEWAY_URL_COMPOSE:-http://mocks:8080}
       KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL_COMPOSE:-PLAINTEXT}      # o Kafka do compose é PLAINTEXT; p/ cluster seguro use KAFKA_SECURITY_PROTOCOL_COMPOSE
@@ -259,6 +260,8 @@ services:
     image: python:3.12-alpine
     container_name: pix-mocks
     command: ["python", "-u", "/mocks/mock_servers.py"]
+    environment:
+      WEBHOOK_SIGNING_KEY_B64: ${PIX_WEBHOOK_SIGNING_KEY:-ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==}      # o receptor fictício valida a assinatura com a MESMA chave do app
     volumes: ["./docker/mocks:/mocks:ro"]
     ports: ["${MOCKS_PORT:-18090}:8080", "${MOCKS_TLS_PORT:-18443}:8443"]
     healthcheck:
