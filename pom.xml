@@ -15,7 +15,7 @@
 
     <groupId>br.com.pixmanager</groupId>
     <artifactId>ms-pix-manager</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>ms-pix-manager</name>
     <description>Gestão Pix (recebedor, pagador, DICT, MED) — Arquitetura Hexagonal por módulo</description>
 
@@ -345,7 +345,18 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.70</minimum>
+                                            <minimum>0.85</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                                <!-- Piso global de branches (hoje ~72%); só sobe, nunca desce. -->
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.65</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

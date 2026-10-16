@@ -1,0 +1,12 @@
+name: Segurança (não sensível)
+description: "Hardening e achados de scanners já públicos. Vulnerabilidade explorável: use o aviso privado (SECURITY.md)."
+labels: [type/security, status/triage]
+body:
+  - type: textarea
+    id: achado
+    attributes: { label: Achado, description: "Ferramenta, identificador (CVE/regra) e onde aparece. NUNCA cole segredos ou dados de clientes." }
+    validations: { required: true }
+  - type: textarea
+    id: acao
+    attributes: { label: Ação proposta }
+    validations: { required: true }
