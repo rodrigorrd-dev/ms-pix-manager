@@ -74,6 +74,7 @@ class CreatePaymentOrderServiceTest {
     @Mock TrustedDevicePortOut devices;
     @Mock DomainEventPublisherPortOut events;
     @Mock EndToEndIdGeneratorPortOut e2eIds;
+    @Mock br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut dynamicQr;
 
     final UUID payerId = SequentialIds.id(100);
     final Caller caller = Caller.forAccounts("client", payerId);
@@ -88,7 +89,7 @@ class CreatePaymentOrderServiceTest {
             }
         };
         service = new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds,
-                new SequentialIds(), tx, FixedClock.at("2026-10-15T15:00:00Z"));
+                new SequentialIds(), tx, FixedClock.at("2026-10-15T15:00:00Z"), dynamicQr);
     }
 
     @Test
@@ -264,15 +265,61 @@ class CreatePaymentOrderServiceTest {
         assertThat(saved.getValue().destination().pixKey()).isNull();
     }
 
+    private static final String DYNAMIC_KEY = "123e4567-e89b-42d3-a456-426655440000";
+
+    private CreatePaymentOrderCommand dynamicCmd(Money amount) {
+        return new CreatePaymentOrderCommand(payerId, PaymentMethod.QR_DYNAMIC, null, amount, null, null, null,
+                null, null, null, null, null, null, br.com.pixmanager.support.BrCodeFactory.dynamicQr("pix.example.com/qr/v2/abc"), null, null, false);
+    }
+
+    private static br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut.DynamicQrPayload payload(String status, Instant expiresAt) {
+        return new br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut.DynamicQrPayload("abc123", DYNAMIC_KEY, Money.of("25.00"), status, expiresAt);
+    }
+
     @Test
-    void shouldRefuseDynamicQrCodeAsNotYetSupported() {
+    @DisplayName("QR dinâmico: valor e chave vêm do payload assinado (o cliente pode omitir o valor); txid vira o da ordem")
+    void shouldPayADynamicQrWithTheSignedPayloadAmount() {
         activePayer();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.QR_DYNAMIC, null, Money.of("10.00"), null, null, null,
-                null, null, null, null, null, null, "payload", null, null, false);
+        when(dynamicQr.fetch("pix.example.com/qr/v2/abc")).thenReturn(payload("ATIVA", NOW.plusSeconds(600)));
+        when(lookup.lookup(any(), eq(payerId), eq(PixKeyType.EVP), eq(DYNAMIC_KEY))).thenReturn(Optional.of(
+                new DictEntry("Favorecido", Cpf.of(OWNER_CPF), "87654321", "0002", "98765", "CACC", NOW)));
+        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(limits.consume(eq(payerId), eq(Money.of("25.00")), eq(NOW), eq(false)))
+                .thenReturn(new LimitDecision.Allowed(null, false, Money.of("25.00")));
+        when(reservations.request(eq(E2E), eq(payerId), eq(LedgerPurpose.PAYMENT), eq("PAYMENT_ORDER"), any(UUID.class), eq(Money.of("25.00"))))
+                .thenReturn(reservation(SequentialIds.id(901)));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PaymentOrderResult result = service.create(caller, dynamicCmd(null));
+
+        assertThat(result).isInstanceOf(PaymentOrderResult.Created.class);
+        assertThat(((PaymentOrderResult.Created) result).order().amount()).isEqualTo(Money.of("25.00"));
+        assertThat(((PaymentOrderResult.Created) result).order().qrTxid()).isEqualTo("abc123");
+    }
+
+    @Test
+    @DisplayName("QR dinâmico: cobrança não ATIVA, vencida ou com valor divergente do informado ⇒ recusa sem tocar em limite nem DICT")
+    void shouldRefuseInactiveExpiredOrMismatchedDynamicQr() {
+        activePayer();
+        when(dynamicQr.fetch(any())).thenReturn(payload("CONCLUIDA", null), payload("ATIVA", NOW), payload("ATIVA", NOW.plusSeconds(5)));
+
+        assertThatThrownBy(() -> service.create(caller, dynamicCmd(null))).isInstanceOf(BusinessException.class).hasMessageContaining("CONCLUIDA");
+        assertThatThrownBy(() -> service.create(caller, dynamicCmd(null))).isInstanceOf(BusinessException.class).hasMessageContaining("vencida");
+        assertThatThrownBy(() -> service.create(caller, dynamicCmd(Money.of("1.00")))).isInstanceOf(BusinessException.class).hasMessageContaining("difere");
+
+        verifyNoInteractions(lookup, limits);
+    }
+
+    @Test
+    @DisplayName("QR estático enviado como dinâmico ⇒ recusa antes de qualquer chamada externa")
+    void shouldRefuseAStaticBrCodeSentAsDynamic() {
+        activePayer();
+        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.QR_DYNAMIC, null, null, null, null, null,
+                null, null, null, null, null, null, br.com.pixmanager.support.BrCodeFactory.staticQr(DYNAMIC_KEY, "10.00", "Loja", "SAO PAULO", "***"), null, null, false);
 
         assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BusinessException.class);
 
-        verifyNoInteractions(lookup, limits);
+        verifyNoInteractions(dynamicQr, lookup, limits);
     }
 
     // ------------------------------------------------------------------ helpers

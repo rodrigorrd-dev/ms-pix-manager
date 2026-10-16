@@ -35,6 +35,12 @@ public interface CreatePaymentOrderUseCase {
                                      String payerMessage, String deviceId, boolean systemInitiated) {}
 
     sealed interface PaymentOrderResult {
+        PaymentOrder order();
+
+        default java.util.UUID orderId() {
+            return order().id();
+        }
+
 
         /** Ordem validada, limite consumido e reserva PENDING no core (o sweeper reserva e o fluxo segue). */
         record Created(PaymentOrder order) implements PaymentOrderResult {}

@@ -26,6 +26,10 @@ public final class ScopeAuthorization {
     public static final String LIMIT_READ = "hasAuthority('SCOPE_limit.read')";
     public static final String LIMIT_WRITE = "hasAuthority('SCOPE_limit.write')";
     public static final String MED_READ = "hasAuthority('SCOPE_med.read')";
+    public static final String SCHEDULE_READ = "hasAuthority('SCOPE_schedule.read')";
+    public static final String SCHEDULE_WRITE = "hasAuthority('SCOPE_schedule.write')";
+    public static final String AUTOMATIC_READ = "hasAuthority('SCOPE_automatic.read')";
+    public static final String AUTOMATIC_WRITE = "hasAuthority('SCOPE_automatic.write')";
     public static final String MED_WRITE = "hasAuthority('SCOPE_med.write')";
     public static final String REPORT_READ = "hasAuthority('SCOPE_report.read')";
 

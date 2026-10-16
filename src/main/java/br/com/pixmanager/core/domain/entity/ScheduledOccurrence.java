@@ -29,6 +29,23 @@ public record ScheduledOccurrence(UUID id, UUID scheduledPaymentId, int sequence
                 customerNotifiedAt, orderId, lastErrorCode, version);
     }
 
+    /** A ordem de pagamento nasceu (mesma transação que a gravou): a ocorrência segue PROCESSING até a ordem andar. */
+    public ScheduledOccurrence linkedTo(UUID orderId) {
+        require(status == OccurrenceStatus.PROCESSING, OccurrenceStatus.PROCESSING);
+        return new ScheduledOccurrence(id, scheduledPaymentId, sequenceNo, dueDate, status, attemptCount, nextAttemptAt, customerNotifiedAt,
+                orderId, lastErrorCode, version);
+    }
+
+    /**
+     * Falha técnica ANTES de existir ordem (DICT/rede): volta a aguardar sem contar como tentativa nem avisar o cliente. Esgotado o
+     * limite de tentativas técnicas, vira {@code FAILED}.
+     */
+    public ScheduledOccurrence technicalRetry(Instant at, String errorCode) {
+        require(status == OccurrenceStatus.PROCESSING && paymentOrderId == null, OccurrenceStatus.SCHEDULED);
+        return new ScheduledOccurrence(id, scheduledPaymentId, sequenceNo, dueDate, OccurrenceStatus.SCHEDULED, Math.max(0, attemptCount - 1),
+                at, customerNotifiedAt, null, errorCode, version);
+    }
+
     public ScheduledOccurrence executed() {
         require(status == OccurrenceStatus.PROCESSING, OccurrenceStatus.EXECUTED);
         return with(OccurrenceStatus.EXECUTED, null, customerNotifiedAt, null);
@@ -51,7 +68,7 @@ public record ScheduledOccurrence(UUID id, UUID scheduledPaymentId, int sequence
 
     public ScheduledOccurrence cancelled() {
         if (!status.isCancellable()) {
-            throw new InvalidTransitionException(ErrorCodes.BUSINESS_RULE, "Ocorrência em " + status + " não pode ser cancelada.");
+            throw new InvalidTransitionException(ErrorCodes.SCHEDULE_NOT_CANCELLABLE, "Ocorrência em " + status + " não pode ser cancelada.");
         }
         return with(OccurrenceStatus.CANCELLED, null, customerNotifiedAt, lastErrorCode);
     }

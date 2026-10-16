@@ -27,6 +27,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>{@code pix_ledger_reservations_pending_stuck} — reservas PENDING no core há mais de {@code stuck-after};</li>
  *   <li>{@code pix_webhook_deliveries_dead} — entregas de webhook que esgotaram as tentativas (o cliente não foi avisado do Pix);</li>
  *   <li>{@code pix_webhook_deliveries_overdue} — entregas PENDING/RETRYING vencidas há mais de {@code stuck-after} (job parado ou receptores lentos);</li>
+ *   <li>{@code pix_scheduled_occurrences_overdue} — ocorrências de Pix Agendado vencidas há mais de {@code stuck-after} sem ordem criada (worker parado ou DICT fora);</li>
+ *   <li>{@code pix_med_cases_overdue} — casos MED REPORTED ainda OPEN depois do prazo de análise (7 dias);</li>
+ *   <li>{@code pix_automatic_attempts_overdue} — tentativas de Pix Automático vencidas e não disparadas (worker parado ou DICT fora);</li>
  *   <li>{@code pix_outbox_rows} — linhas na outbox (cresce se a limpeza ou o Debezium pararem);</li>
  *   <li>{@code pix_outbox_slot_lag_bytes} — atraso do slot do Debezium no WAL (precisa de permissão para ler o WAL; sem ela fica fora, e em
  *       produção use o postgres_exporter).</li>
@@ -48,6 +51,9 @@ public class OperationalMetrics implements MeterBinder {
     private final AtomicLong reservationsStuck = new AtomicLong();
     private final AtomicLong webhookDead = new AtomicLong();
     private final AtomicLong webhookOverdue = new AtomicLong();
+    private final AtomicLong scheduledOverdue = new AtomicLong();
+    private final AtomicLong medOverdue = new AtomicLong();
+    private final AtomicLong automaticOverdue = new AtomicLong();
     private final AtomicLong outboxRows = new AtomicLong();
     private final AtomicLong slotLag = new AtomicLong(-1);
 
@@ -69,6 +75,9 @@ public class OperationalMetrics implements MeterBinder {
         Gauge.builder("pix.ledger.reservations.pending.stuck", reservationsStuck, AtomicLong::get).register(registry);
         Gauge.builder("pix.webhook.deliveries.dead", webhookDead, AtomicLong::get).register(registry);
         Gauge.builder("pix.webhook.deliveries.overdue", webhookOverdue, AtomicLong::get).register(registry);
+        Gauge.builder("pix.scheduled.occurrences.overdue", scheduledOverdue, AtomicLong::get).register(registry);
+        Gauge.builder("pix.med.cases.overdue", medOverdue, AtomicLong::get).register(registry);
+        Gauge.builder("pix.automatic.attempts.overdue", automaticOverdue, AtomicLong::get).register(registry);
         Gauge.builder("pix.outbox.rows", outboxRows, AtomicLong::get).register(registry);
         Gauge.builder("pix.outbox.slot.lag.bytes", slotLag, AtomicLong::get).register(registry);   // -1 = indisponível
     }
@@ -84,6 +93,11 @@ public class OperationalMetrics implements MeterBinder {
             reservationsStuck.set(count("SELECT count(*) FROM ledger_reservation WHERE status = :s AND updated_at < :c", "PENDING", cutoff));
             webhookDead.set(jdbc.sql("SELECT count(*) FROM webhook_delivery WHERE status = 'DEAD'").query(Long.class).single());
             webhookOverdue.set(jdbc.sql("SELECT count(*) FROM webhook_delivery WHERE status IN ('PENDING','RETRYING') AND next_attempt_at < :c")
+                    .param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
+            scheduledOverdue.set(jdbc.sql("SELECT count(*) FROM scheduled_payment_occurrence WHERE status IN ('SCHEDULED','RETRY_PENDING') AND due_date < (now() AT TIME ZONE 'America/Sao_Paulo')::date\n"
+                    + " AND (next_attempt_at IS NULL OR next_attempt_at < :c)\n").param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
+            medOverdue.set(jdbc.sql("SELECT count(*) FROM med_case WHERE role = 'REPORTED' AND status = 'OPEN' AND analysis_deadline_at < now()").query(Long.class).single());
+            automaticOverdue.set(jdbc.sql("SELECT count(*) FROM pix_automatic_attempt WHERE status = 'AGENDADA' AND settlement_date < (now() AT TIME ZONE 'America/Sao_Paulo')::date AND updated_at < :c")
                     .param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
             outboxRows.set(jdbc.sql("SELECT count(*) FROM outbox_event").query(Long.class).single());
         } catch (RuntimeException e) {

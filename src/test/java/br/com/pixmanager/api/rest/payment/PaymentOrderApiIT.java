@@ -15,6 +15,7 @@ import br.com.pixmanager.support.TestDocuments;
 import br.com.pixmanager.support.integration.AbstractApplicationIT;
 import br.com.pixmanager.support.integration.AccountFixtures.Account;
 import br.com.pixmanager.support.integration.DictGatewayStub;
+import br.com.pixmanager.support.integration.QrReceiverStub;
 import br.com.pixmanager.support.integration.TestJwt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -305,7 +306,7 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
     }
 
     @Test
-    @DisplayName("QR estático: decodifica (CRC), paga com o valor do QR; CRC inválido e QR dinâmico são recusados")
+    @DisplayName("QR estático: decodifica (CRC), paga com o valor do QR; CRC inválido e QR dinâmico fica em outro teste")
     void shouldPayAndDecodeStaticQr() throws Exception {
         String qr = BrCodeFactory.staticQr("alguem@exemplo.com.br", "75.90", "Loja do Joao", "SAO PAULO", "PED123");
         mvc.perform(post("/v1/payment-orders/decodings").with(jwt("payment.read")).contentType(MediaType.APPLICATION_JSON)
@@ -321,11 +322,32 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         // CRC adulterado
         mvc.perform(post("/v1/payment-orders/decodings").with(jwt("payment.read")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":\"" + qr.replace("75.90", "99.90") + "\"}")).andExpect(status().isUnprocessableEntity());
-        // dinâmico: backlog explícito
-        mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "q2-" + UUID.randomUUID())
-                .contentType(MediaType.APPLICATION_JSON).content("{\"payerAccountId\":\"%s\",\"method\":\"QR_DYNAMIC\",\"amount\":\"1.00\",\"qrPayload\":\"%s\"}"
-                        .formatted(payer.id(), BrCodeFactory.dynamicQr("pix.example.com/qr/v2/abc"))))
-                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    @DisplayName("QR dinâmico: paga com o valor do payload ASSINADO; cobrança inativa/divergente/inexistente ⇒ 422 PIX-422-018|PIX-422-003; receptor fora ⇒ 503")
+    void shouldPayDynamicQr() throws Exception {
+        String key = "alguem@exemplo.com.br";
+        QrReceiverStub.publish("/qr/v2/ok", QrReceiverStub.cob("dyn001", key, "31.00", "ATIVA"));
+        QrReceiverStub.publish("/qr/v2/paga", QrReceiverStub.cob("dyn002", key, "31.00", "CONCLUIDA"));
+        QrReceiverStub.status("/qr/v2/nao", 404);
+        QrReceiverStub.status("/qr/v2/fora", 503);
+        String body = "{\"payerAccountId\":\"%s\",\"method\":\"QR_DYNAMIC\",\"qrPayload\":\"%s\"%s,\"deviceId\":\"device-ok\"}";
+        java.util.function.BiFunction<String, String, String> pay = (path, amount) -> body.formatted(payer.id(),
+                BrCodeFactory.dynamicQr(QrReceiverStub.urlFor(path)), amount);
+
+        JsonNode order = create(pay.apply("/qr/v2/ok", ""));
+        assertThat(order.get("amount").asText()).isEqualTo("31.00");
+        assertThat(order.get("method").asText()).isEqualTo("QR_DYNAMIC");
+
+        for (var c : java.util.List.of(java.util.Map.entry("/qr/v2/paga", ""), java.util.Map.entry("/qr/v2/nao", ""),
+                java.util.Map.entry("/qr/v2/ok", ",\"amount\":\"1.00\""))) {
+            mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "qd-" + UUID.randomUUID())
+                    .contentType(MediaType.APPLICATION_JSON).content(pay.apply(c.getKey(), c.getValue())))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "qd-" + UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON).content(pay.apply("/qr/v2/fora", ""))).andExpect(status().isServiceUnavailable());
     }
 
     @Test

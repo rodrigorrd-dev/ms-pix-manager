@@ -1,5 +1,23 @@
 package br.com.pixmanager.shared.config;
 
+import br.com.pixmanager.core.application.service.automatic.ExecuteAutomaticService;
+import br.com.pixmanager.core.application.service.automatic.ManageAutomaticService;
+import br.com.pixmanager.core.port.in.automatic.ExecuteAutomaticUseCase;
+import br.com.pixmanager.core.port.in.automatic.ManageAutomaticUseCase;
+import br.com.pixmanager.core.port.out.AutomaticGatewayPortOut;
+import br.com.pixmanager.core.port.out.persistence.AutomaticPersistencePortOut;
+import br.com.pixmanager.shared.properties.AutomaticProperties;
+import br.com.pixmanager.core.application.service.med.MedBlockReservationHandler;
+import br.com.pixmanager.core.application.service.med.MedCaseService;
+import br.com.pixmanager.core.port.out.MedGatewayPortOut;
+import br.com.pixmanager.core.port.out.persistence.MedCasePersistencePortOut;
+import br.com.pixmanager.core.application.service.schedule.ExecuteScheduledPaymentsService;
+import br.com.pixmanager.core.application.service.schedule.ManageScheduledPaymentService;
+import br.com.pixmanager.core.domain.entity.ScheduleRetryPolicy;
+import br.com.pixmanager.core.port.in.schedule.ExecuteScheduledPaymentsUseCase;
+import br.com.pixmanager.core.port.in.schedule.ManageScheduledPaymentUseCase;
+import br.com.pixmanager.core.port.out.persistence.ScheduledPaymentPersistencePortOut;
+import br.com.pixmanager.shared.properties.ScheduleProperties;
 import br.com.pixmanager.core.application.service.limit.ConsumeLimitService;
 import br.com.pixmanager.core.application.service.limit.ManageLimitService;
 import br.com.pixmanager.core.domain.entity.LimitPolicy;
@@ -276,6 +294,43 @@ public class UseCaseConfig {
                 new RefundReservationHandler(refunds, receivedPix, events), tx);
     }
 
+    // ---- Pix Automático ----
+
+    /** Sem TransactionalUseCases: o gateway (HTTP) roda fora de transação; o service abre as próprias janelas. */
+    @Bean
+    ManageAutomaticUseCase manageAutomaticUseCase(AutomaticPersistencePortOut persistence, FindAccountUseCase accounts, AutomaticGatewayPortOut gateway,
+                                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut e2eIds,
+                                                  TransactionRunnerPortOut tx, Clock clock, AutomaticProperties properties) {
+        return new ManageAutomaticService(persistence, accounts, gateway, events, ids, e2eIds, tx, clock, properties);
+    }
+
+    @Bean
+    ExecuteAutomaticUseCase executeAutomaticUseCase(AutomaticPersistencePortOut persistence, PaymentOrderPersistencePortOut orders,
+                                                    CreatePaymentOrderUseCase createOrder, DomainEventPublisherPortOut events,
+                                                    EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock,
+                                                    AutomaticProperties properties) {
+        return new ExecuteAutomaticService(persistence, orders, createOrder, events, e2eIds, ids, tx, clock, properties);
+    }
+
+    // ---- MED ----
+
+    /** Sem TransactionalUseCases: o gateway (DICT) e o core são HTTP e rodam FORA de transação; o service abre as próprias janelas. */
+    @Bean
+    MedCaseService medCaseService(MedCasePersistencePortOut cases, ReceivedPixPersistencePortOut receivedPix,
+                                  PaymentOrderPersistencePortOut orders, RefundPersistencePortOut refunds, MedGatewayPortOut gateway,
+                                  RequestReservationUseCase reservations, ExecuteReservationUseCase ledger, RequestRefundUseCase refundUseCase,
+                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock,
+                                  PixPolicyProperties policy) {
+        return new MedCaseService(cases, receivedPix, orders, refunds, gateway, reservations, ledger, refundUseCase, events, ids, tx, clock,
+                policy.med());
+    }
+
+    @Bean
+    ReservationOutcomeHandler medBlockReservationHandler(MedCasePersistencePortOut cases, DomainEventPublisherPortOut events, Clock clock,
+                                                         PlatformTransactionManager tx) {
+        return TransactionalUseCases.wrap(ReservationOutcomeHandler.class, new MedBlockReservationHandler(cases, events, clock), tx);
+    }
+
     // ---- Reserva no core: reserva (HTTP, sem TX) e despacha ao fluxo dono ----
 
     @Bean
@@ -309,6 +364,28 @@ public class UseCaseConfig {
         return TransactionalUseCases.wrap(ManageLimitUseCase.class, new ManageLimitService(limits, accounts, ids, clock, defaults, ceilings), tx);
     }
 
+    // ---- Pix Agendado ----
+
+    @Bean
+    ManageScheduledPaymentUseCase manageScheduledPaymentUseCase(ScheduledPaymentPersistencePortOut persistence, FindAccountUseCase accounts,
+                                                                DomainEventPublisherPortOut events, IdGeneratorPortOut ids, Clock clock,
+                                                                ScheduleProperties properties, PlatformTransactionManager tx) {
+        return TransactionalUseCases.wrap(ManageScheduledPaymentUseCase.class,
+                new ManageScheduledPaymentService(persistence, accounts, events, ids, clock, properties), tx);
+    }
+
+    /** Sem TransactionalUseCases: o DICT (HTTP) roda fora de transação; o service abre as suas janelas transacionais. */
+    @Bean
+    ExecuteScheduledPaymentsUseCase executeScheduledPaymentsUseCase(ScheduledPaymentPersistencePortOut schedules,
+                                                                    PaymentOrderPersistencePortOut orders, CreatePaymentOrderUseCase createOrder,
+                                                                    DomainEventPublisherPortOut events, TransactionRunnerPortOut tx, Clock clock,
+                                                                    ScheduleProperties properties, PixPolicyProperties policy) {
+        var window = policy.scheduling();
+        ScheduleRetryPolicy retry = new ScheduleRetryPolicy(properties.zone(), window.retryWindowStart(), window.retryWindowEnd(), 2);
+        return new ExecuteScheduledPaymentsService(schedules, orders, createOrder, events, tx, clock, properties, retry,
+                () -> java.util.concurrent.ThreadLocalRandom.current().nextDouble());
+    }
+
     // ---- Pagamento (ordens Pix) ----
 
     /** Sem TransactionalUseCases: resolve o favorecido no DICT (HTTP) antes e abre a transação só para limite + reserva + ordem + evento. */
@@ -317,8 +394,10 @@ public class UseCaseConfig {
                                                         ConsumeLimitUseCase limits, RequestReservationUseCase reservations,
                                                         PaymentOrderPersistencePortOut persistence, TrustedDevicePortOut devices,
                                                         DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut e2eIds,
-                                                        IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock) {
-        return new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, tx, clock);
+                                                        IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock,
+                                                        org.springframework.beans.factory.ObjectProvider<br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut> dynamicQr) {
+        return new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, tx, clock,
+                dynamicQr.getIfAvailable());
     }
 
     @Bean

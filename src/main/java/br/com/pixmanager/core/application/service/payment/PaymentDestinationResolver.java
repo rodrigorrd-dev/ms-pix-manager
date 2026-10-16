@@ -1,5 +1,6 @@
 package br.com.pixmanager.core.application.service.payment;
 
+import br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut;
 import br.com.pixmanager.core.domain.entity.BrCode;
 import br.com.pixmanager.core.domain.entity.Caller;
 import br.com.pixmanager.core.domain.entity.Money;
@@ -19,9 +20,13 @@ import java.util.Optional;
 class PaymentDestinationResolver {
 
     private final LookupExternalKeyUseCase lookup;
+    private final DynamicQrPayloadPortOut dynamicQr;
+    private final java.time.Clock clock;
 
-    PaymentDestinationResolver(LookupExternalKeyUseCase lookup) {
+    PaymentDestinationResolver(LookupExternalKeyUseCase lookup, DynamicQrPayloadPortOut dynamicQr, java.time.Clock clock) {
         this.lookup = lookup;
+        this.dynamicQr = dynamicQr;
+        this.clock = clock;
     }
 
     record Resolved(PaymentDestination destination, Money amount, String qrTxid) {}
@@ -39,8 +44,7 @@ class PaymentDestinationResolver {
                 Money amount = amountFor(cmd.amount(), qr.amount());
                 yield byKey(caller, cmd, key.type(), key.value(), amount, qr.txid().orElse(null));
             }
-            case QR_DYNAMIC -> throw new BusinessException(ErrorCodes.BUSINESS_RULE,
-                    "QR dinâmico: obtenção e validação do payload (JWS) ainda não suportadas (backlog).");
+            case QR_DYNAMIC -> dynamic(caller, cmd);
             case MANUAL -> manual(cmd);
         };
     }
@@ -62,6 +66,27 @@ class PaymentDestinationResolver {
         }
         return new Resolved(new PaymentDestination(type, rawKey, entry.ownerDocument(), entry.ownerName(), entry.ispb(), entry.branch(),
                 entry.accountNumber(), entry.accountType()), amount, qrTxid);
+    }
+
+    /** QR dinâmico: o valor e a chave vêm do payload ASSINADO do recebedor, não do que o cliente digitou. */
+    private Resolved dynamic(Caller caller, CreatePaymentOrderCommand cmd) {
+        BrCode qr = BrCode.parse(cmd.qrPayload());
+        if (!qr.isDynamic()) {
+            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O BR Code informado não é um QR dinâmico.");
+        }
+        var payload = dynamicQr.fetch(qr.paymentUrl().get());
+        if (!"ATIVA".equals(payload.status())) {
+            throw new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A cobrança do QR não está ativa (status " + payload.status() + ").");
+        }
+        if (payload.expiresAt() != null && !clock.instant().isBefore(payload.expiresAt())) {
+            throw new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A cobrança do QR está vencida.");
+        }
+        if (cmd.amount() != null && !cmd.amount().equals(payload.amount())) {
+            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O valor informado difere do valor da cobrança.");
+        }
+        PixKeyValue key = PixKeyValue.infer(payload.pixKey())
+                .orElseThrow(() -> new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A chave da cobrança é inválida."));
+        return byKey(caller, cmd, key.type(), key.value(), payload.amount(), payload.txid());
     }
 
     private Resolved manual(CreatePaymentOrderCommand cmd) {

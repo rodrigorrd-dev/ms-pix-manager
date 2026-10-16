@@ -73,6 +73,16 @@ class HttpWebhookSenderAdapterContractTest {
     }
 
     @Test
+    @DisplayName("o /pix entra no caminho, antes da query; barras finais e porta são preservadas")
+    void buildsTheEndpointPath() {
+        assertThat(HttpWebhookSenderAdapter.pixEndpoint("https://loja.example/hook")).hasToString("https://loja.example/hook/pix");
+        assertThat(HttpWebhookSenderAdapter.pixEndpoint("https://loja.example/hook///")).hasToString("https://loja.example/hook/pix");
+        assertThat(HttpWebhookSenderAdapter.pixEndpoint("https://loja.example")).hasToString("https://loja.example/pix");
+        assertThat(HttpWebhookSenderAdapter.pixEndpoint("https://loja.example:8443/a/b?token=x&y=1")).hasToString("https://loja.example:8443/a/b/pix?token=x&y=1");
+        assertThat(HttpWebhookSenderAdapter.pixEndpoint(" https://loja.example/a%20b ")).hasToString("https://loja.example/a%20b/pix");
+    }
+
+    @Test
     @DisplayName("assinatura muda com o corpo e com o timestamp (anti-adulteração e anti-replay)")
     void signatureCoversBodyAndTimestamp() {
         String a = sender.sign("100", BODY);

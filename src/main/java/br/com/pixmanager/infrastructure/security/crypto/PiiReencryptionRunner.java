@@ -35,7 +35,7 @@ public class PiiReencryptionRunner implements ApplicationRunner {
     static final List<Target> TARGETS = List.of(
             new Target("account_holder", "document_enc"), new Target("pix_key", "key_value_enc"),
             new Target("pix_charge", "debtor_document_enc"), new Target("pix_received", "payer_document_enc"),
-            new Target("payment_order", "dest_document_enc"), new Target("scheduled_payment", "dest_document_enc"),
+            new Target("payment_order", "dest_document_enc"), new Target("scheduled_payment", "dest_document_enc"), new Target("scheduled_payment", "destination_key_enc"),
             new Target("pix_automatic_authorization", "receiver_document_enc"));
 
     record Target(String table, String column) {}

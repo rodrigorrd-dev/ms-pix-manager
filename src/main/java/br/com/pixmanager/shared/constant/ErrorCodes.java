@@ -28,6 +28,7 @@ public final class ErrorCodes {
     public static final String INVALID_BR_CODE          = "PIX-422-013";   // BR Code ilegível, CRC inválido ou não é Pix
     public static final String INVALID_VALUE_FORMAT     = "PIX-422-003";   // valor monetário / endToEndId fora do formato
     public static final String WEBHOOK_URL_REJECTED     = "PIX-422-017";   // URL do webhook fora da política (HTTPS, host público)
+    public static final String QR_DYNAMIC_INVALID       = "PIX-422-018";   // QR dinâmico: payload/assinatura inválidos, cobrança inativa ou vencida
     public static final String OTP_INVALID              = "PIX-422-014";   // código de prova de posse errado
     public static final String OTP_EXPIRED              = "PIX-422-015";   // código vencido (peça outro)
     public static final String OTP_ATTEMPTS_EXCEEDED    = "PIX-422-016";   // tentativas esgotadas (peça outro)

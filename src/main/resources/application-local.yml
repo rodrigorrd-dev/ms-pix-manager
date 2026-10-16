@@ -14,6 +14,9 @@ pix:
     signing-key-base64: ${PIX_WEBHOOK_SIGNING_KEY:ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==}   # SÓ dev (32 bytes)
     insecure-tls: ${PIX_WEBHOOK_INSECURE_TLS:true}
     allow-private-hosts: ${PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS:true}
+  qr:
+    allow-unverified-chain: ${PIX_QR_ALLOW_UNVERIFIED_CHAIN:true}   # SÓ dev: o mock assina com certificado autoassinado
+    insecure-tls: ${PIX_QR_INSECURE_TLS:true}
   crypto:
     # 32 bytes cada, DISTINTAS entre si (geradas só para dev)
     aes-key-base64: ${PIX_CRYPTO_AES_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}

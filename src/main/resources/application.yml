@@ -188,13 +188,40 @@ pix:
     dispatch-batch: ${PIX_WEBHOOK_DISPATCH_BATCH:20}
     connect-timeout: ${PIX_WEBHOOK_CONNECT_TIMEOUT:3s}
     request-timeout: ${PIX_WEBHOOK_REQUEST_TIMEOUT:5s}
+  qr:                                                   # QR dinâmico: base das cobranças que ESTE PSP gera + pagar QR de terceiros (busca/valida o JWS)
+    base-url: ${PIX_QR_BASE_URL:pix.example.com/qr/v2/}   # URL (sem esquema) gravada no BR Code das cobranças que geramos
+    trust-store-path: ${PIX_QR_TRUST_STORE_PATH:}       # cadeia ICP-Brasil (PKCS12/JKS). SEM ela o QR dinâmico é recusado (falha fechada)
+    trust-store-password: ${PIX_QR_TRUST_STORE_PASSWORD:}
+    trust-store-type: ${PIX_QR_TRUST_STORE_TYPE:PKCS12}
+    allow-unverified-chain: ${PIX_QR_ALLOW_UNVERIFIED_CHAIN:false}   # SÓ dev/teste: aceita o JWS sem validar a cadeia (confere só a assinatura)
+    insecure-tls: ${PIX_QR_INSECURE_TLS:false}          # SÓ dev/teste: não valida o TLS do recebedor
+    connect-timeout: ${PIX_QR_CONNECT_TIMEOUT:3s}
+    request-timeout: ${PIX_QR_REQUEST_TIMEOUT:5s}
+    max-bytes: ${PIX_QR_MAX_BYTES:65536}
+  schedule:                                              # Pix Agendado (worker)
+    zone: ${PIX_SCHEDULE_ZONE:America/Sao_Paulo}         # a "data" do agendamento é o dia neste fuso
+    dispatch-delay: ${PIX_SCHEDULE_DISPATCH_DELAY:PT30S}
+    batch: ${PIX_SCHEDULE_BATCH:20}
+    max-horizon-days: ${PIX_SCHEDULE_MAX_HORIZON_DAYS:730}   # DE PROJETO (não é regra do BCB): até onde se pode agendar
+    max-late-days: ${PIX_SCHEDULE_MAX_LATE_DAYS:3}           # sistema parado além disso ⇒ a ocorrência vira FAILED(MISSED), não paga fora de hora
+    max-technical-attempts: ${PIX_SCHEDULE_MAX_TECHNICAL_ATTEMPTS:5}
+    technical-backoff: ${PIX_SCHEDULE_TECHNICAL_BACKOFF:PT2M}
+    stuck-after: ${PIX_SCHEDULE_STUCK_AFTER:PT10M}
+  automatic:                                             # Pix Automático (lado pagador): VALORES DE PROJETO, não confirmados no regulamento
+    zone: ${PIX_AUTOMATIC_ZONE:America/Sao_Paulo}
+    dispatch-delay: ${PIX_AUTOMATIC_DISPATCH_DELAY:PT30S}
+    batch: ${PIX_AUTOMATIC_BATCH:20}
+    min-notice-days: ${PIX_AUTOMATIC_MIN_NOTICE_DAYS:2}     # antecedência mínima da cobrança (dias corridos antes do vencimento)
+    max-notice-days: ${PIX_AUTOMATIC_MAX_NOTICE_DAYS:10}    # antecedência máxima
+    retry-days: ${PIX_AUTOMATIC_RETRY_DAYS:3}               # novas tentativas (dias seguintes ao vencimento) por saldo insuficiente, só com allow_retry
+    max-late-days: ${PIX_AUTOMATIC_MAX_LATE_DAYS:1}         # sistema parado além disso ⇒ a tentativa expira
+    request-validity: ${PIX_AUTOMATIC_REQUEST_VALIDITY:P7D} # prazo do pagador para decidir a solicitação
+    stuck-after: ${PIX_AUTOMATIC_STUCK_AFTER:PT10M}
   outbox:
     retention: ${PIX_OUTBOX_RETENTION:P7D}          # linhas da outbox_event mais antigas que isto são apagadas (o Debezium lê o WAL, não a tabela)
     cleanup-delay: ${PIX_OUTBOX_CLEANUP_DELAY:PT10M}
   metrics:
     stuck-after: ${PIX_METRICS_STUCK_AFTER:PT5M}      # após quanto tempo sem avançar a ordem/chave/reserva conta como PRESA (alertas)
-  qr:
-    base-url: ${PIX_QR_BASE_URL:pix.example.com/qr/v2/}
   policy: {}                                            # defaults em PixPolicyProperties; sobrescreva por pix.policy.*
 
 resilience4j:

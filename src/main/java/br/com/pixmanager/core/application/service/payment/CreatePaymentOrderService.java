@@ -34,6 +34,7 @@ import br.com.pixmanager.shared.model.document.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut;
 import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +47,10 @@ import java.util.UUID;
 public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(CreatePaymentOrderService.class);
+
+    private static final DynamicQrPayloadPortOut UNSUPPORTED = url -> {
+        throw new BusinessException(ErrorCodes.BUSINESS_RULE, "QR dinâmico não está habilitado nesta instalação.");
+    };
 
     private final FindAccountUseCase accounts;
     private final PaymentDestinationResolver destinations;
@@ -63,8 +68,17 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
                                      RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
                                      TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
                                      EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock) {
+        this(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, tx, clock, null);
+    }
+
+    /** {@code dynamicQr} nulo ⇒ QR dinâmico indisponível (422). */
+    public CreatePaymentOrderService(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup, ConsumeLimitUseCase limits,
+                                     RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
+                                     TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
+                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock,
+                                     DynamicQrPayloadPortOut dynamicQr) {
         this.accounts = accounts;
-        this.destinations = new PaymentDestinationResolver(lookup);
+        this.destinations = new PaymentDestinationResolver(lookup, dynamicQr == null ? UNSUPPORTED : dynamicQr, clock);
         this.limits = limits;
         this.reservations = reservations;
         this.persistence = persistence;

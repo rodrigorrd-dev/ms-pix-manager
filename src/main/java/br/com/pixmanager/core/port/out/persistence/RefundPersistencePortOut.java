@@ -10,6 +10,8 @@ public interface RefundPersistencePortOut {
 
     Refund save(Refund refund);
 
+    Optional<Refund> findById(UUID id);
+
     Optional<Refund> findByEndToEndIdAndClientId(String endToEndId, String clientRefundId);
 
     Optional<Refund> findByRtrId(String rtrId);

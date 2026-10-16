@@ -167,15 +167,21 @@ class RequestRefundServiceTest {
     @EnumSource(value = RefundNature.class, names = {"MED_OPERACIONAL", "MED_FRAUDE", "MED_PIX_AUTOMATICO"})
     @DisplayName("BR-REF-06: natureza MED não é aceita por esta porta")
     void shouldRefuseMedNatures(RefundNature nature) {
-        when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix()));
-        when(refunds.findByEndToEndIdAndClientId(E2E, CLIENT_ID)).thenReturn(Optional.empty());
-
         assertThatThrownBy(() -> service.request(caller, command("10.00", nature, null)))
                 .as("natureza %s", nature)
                 .isInstanceOf(BusinessException.class);
 
         verify(receivedPix, never()).reserveRefundable(any(), any());
-        verifyNoInteractions(reservations, events);
+        verifyNoInteractions(receivedPix, refunds, reservations, events);       // falha antes de qualquer consulta
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = RefundNature.class, names = {"ORIGINAL", "RETIRADA"})
+    @DisplayName("O fluxo MED (requestMed) recusa natureza comum")
+    void shouldRefuseNonMedNaturesOnTheMedEntry(RefundNature nature) {
+        assertThatThrownBy(() -> service.requestMed(caller, command("10.00", nature, null))).isInstanceOf(BusinessException.class);
+
+        verifyNoInteractions(receivedPix, refunds, reservations, events);
     }
 
     @Test

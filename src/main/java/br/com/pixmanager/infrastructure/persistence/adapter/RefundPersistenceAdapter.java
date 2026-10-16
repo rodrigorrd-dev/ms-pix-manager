@@ -56,6 +56,12 @@ public class RefundPersistenceAdapter implements RefundPersistencePortOut {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Refund> findById(UUID id) {
+        return repository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Refund> findByRtrId(String rtrId) {
         return repository.findByRtrId(rtrId).map(mapper::toDomain);
     }

@@ -58,6 +58,19 @@ public class RequestRefundService implements RequestRefundUseCase {
 
     @Override
     public RequestRefundResult request(Caller caller, RequestRefundCommand cmd) {
+        RefundPolicy.assertNatureAllowedForClient(cmd.nature());
+        return doRequest(caller, cmd);
+    }
+
+    @Override
+    public RequestRefundResult requestMed(Caller caller, RequestRefundCommand cmd) {
+        if (cmd.nature() == null || !cmd.nature().isMed()) {
+            throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O fluxo MED exige uma natureza MED.");
+        }
+        return doRequest(caller, cmd);
+    }
+
+    private RequestRefundResult doRequest(Caller caller, RequestRefundCommand cmd) {
         EndToEndId e2e = new EndToEndId(cmd.endToEndId());
         ReceivedPix pix = receivedPix.findByEndToEndId(e2e.value())
                 .filter(p -> caller.canAccess(p.receiverAccountId()))           // fora do escopo ⇒ 404
@@ -70,7 +83,6 @@ public class RequestRefundService implements RequestRefundUseCase {
             }
             throw new BusinessException(ErrorCodes.IDEMPOTENCY_MISMATCH, "O id da devolução já foi usado com outro conteúdo.");
         }
-        RefundPolicy.assertNatureAllowedForClient(cmd.nature());
         RefundPolicy.assertWithinWindow(pix.settledAt(), clock.instant(), refundWindow);
 
         Refund refund = Refund.request(ids.newId(), cmd.clientRefundId(), pix.id(), e2e, e2eIds.nextReturnId(), cmd.amount(),

@@ -2,27 +2,25 @@ package br.com.pixmanager.core.domain.enums;
 
 import java.time.LocalDate;
 
-/** Recorrência do Pix Agendado (BR-SCH-01). A data de cada ocorrência é calculada a partir da PRIMEIRA, nunca da anterior, para não derivar em fins de mês. */
+/** Periodicidade do Pix Agendado. Datas mensais saem SEMPRE da data inicial (31/01 → 28/02 → 31/03), nunca encadeadas. */
 public enum Recurrence {
-    ONCE(0), WEEKLY(0), BIWEEKLY(0), MONTHLY(1), BIMONTHLY(2), QUARTERLY(3), SEMIANNUAL(6), ANNUAL(12);
+    ONCE, WEEKLY, BIWEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL;
 
-    private final int months;
-
-    Recurrence(int months) {
-        this.months = months;
-    }
-
-    /** Data da ocorrência {@code sequenceNo} (1 = primeira). Mensais caem no último dia do mês quando o dia não existe (31/01 → 28/02). */
-    public LocalDate dateOf(LocalDate first, int sequenceNo) {
-        if (sequenceNo < 1) {
-            throw new IllegalArgumentException("sequenceNo deve ser >= 1");
+    /** Data da ocorrência de número {@code n} (1 = a primeira). Dia inexistente no mês cai no último dia do mês. */
+    public LocalDate dateOf(LocalDate first, int n) {
+        if (n < 1) {
+            throw new IllegalArgumentException("O número da ocorrência começa em 1.");
         }
-        int n = sequenceNo - 1;
+        int i = n - 1;
         return switch (this) {
             case ONCE -> first;
-            case WEEKLY -> first.plusWeeks(n);
-            case BIWEEKLY -> first.plusWeeks(2L * n);
-            default -> first.plusMonths((long) months * n);
+            case WEEKLY -> first.plusWeeks(i);
+            case BIWEEKLY -> first.plusWeeks(2L * i);
+            case MONTHLY -> first.plusMonths(i);
+            case BIMONTHLY -> first.plusMonths(2L * i);
+            case QUARTERLY -> first.plusMonths(3L * i);
+            case SEMIANNUAL -> first.plusMonths(6L * i);
+            case ANNUAL -> first.plusYears(i);
         };
     }
 }

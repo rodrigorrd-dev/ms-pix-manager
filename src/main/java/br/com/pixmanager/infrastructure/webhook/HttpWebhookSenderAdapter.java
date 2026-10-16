@@ -65,7 +65,7 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
     public SendResult send(String url, String body) {
         try {
             String timestamp = String.valueOf(clock.instant().getEpochSecond());
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url.trim().replaceAll("/+$", "") + "/pix")).timeout(requestTimeout)
+            HttpRequest request = HttpRequest.newBuilder(pixEndpoint(url)).timeout(requestTimeout)
                     .header("Content-Type", "application/json").header("User-Agent", "ms-pix-manager")
                     .header("x-pix-timestamp", timestamp).header("x-pix-signature", "v1=" + sign(timestamp, body))
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
@@ -77,6 +77,13 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
         } catch (IOException | RuntimeException e) {
             return new SendResult(null, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+    }
+
+    /** {@code <webhookUrl>/pix}: o "/pix" entra no CAMINHO (antes da query, se houver) e barras finais não geram "//pix". */
+    static URI pixEndpoint(String webhookUrl) {
+        URI u = URI.create(webhookUrl.trim());
+        String path = (u.getRawPath() == null ? "" : u.getRawPath()).replaceAll("/+$", "") + "/pix";
+        return URI.create(u.getScheme() + "://" + u.getRawAuthority() + path + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery()));
     }
 
     /** SÓ dev/teste (receptores com certificado autoassinado). Em hml/prd o padrão é validar a cadeia normalmente. */

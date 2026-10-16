@@ -9,6 +9,9 @@ public interface RequestRefundUseCase {
 
     RequestRefundResult request(Caller caller, RequestRefundCommand command);
 
+    /** Devolução pelo fluxo MED (BR-REF-06): aceita as naturezas MED, que {@link #request} recusa. Só para uso interno do módulo MED. */
+    RequestRefundResult requestMed(Caller caller, RequestRefundCommand command);
+
     record RequestRefundCommand(String endToEndId, String clientRefundId, Money amount, RefundNature nature, String description) {}
 
     sealed interface RequestRefundResult {
