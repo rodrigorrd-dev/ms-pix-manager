@@ -182,7 +182,7 @@ pix:
     read-timeout: ${PIX_OTP_READ_TIMEOUT:3s}
   webhook:                                              # notificação de Pix recebido (entrega ao recebedor)
     signing-key-base64: ${PIX_WEBHOOK_SIGNING_KEY:}     # OBRIGATÓRIO (>= 32 bytes, Base64): assina cada envio (x-pix-signature). Cofre em hml/prd
-    allow-http: ${PIX_WEBHOOK_ALLOW_HTTP:false}         # SÓ dev/teste: aceita http://
+    insecure-tls: ${PIX_WEBHOOK_INSECURE_TLS:false}     # SÓ dev/teste: NÃO valida o certificado do receptor (autoassinado)
     allow-private-hosts: ${PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS:false}   # SÓ dev/teste: aceita host interno/loopback (desliga a proteção anti-SSRF)
     dispatch-delay: ${PIX_WEBHOOK_DISPATCH_DELAY:PT2S}
     dispatch-batch: ${PIX_WEBHOOK_DISPATCH_BATCH:20}

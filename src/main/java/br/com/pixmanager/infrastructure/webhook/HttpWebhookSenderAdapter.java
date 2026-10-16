@@ -1,7 +1,15 @@
 package br.com.pixmanager.infrastructure.webhook;
 
 import br.com.pixmanager.core.port.out.WebhookSenderPortOut;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.net.Socket;
+import java.security.cert.X509Certificate;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -32,7 +40,8 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
 
     public HttpWebhookSenderAdapter(@Value("${pix.webhook.signing-key-base64:}") String signingKeyBase64,
                                     @Value("${pix.webhook.connect-timeout:3s}") Duration connectTimeout,
-                                    @Value("${pix.webhook.request-timeout:5s}") Duration requestTimeout, Clock clock) {
+                                    @Value("${pix.webhook.request-timeout:5s}") Duration requestTimeout,
+                                    @Value("${pix.webhook.insecure-tls:false}") boolean insecureTls, Clock clock) {
         if (signingKeyBase64 == null || signingKeyBase64.isBlank()) {
             throw new IllegalStateException("pix.webhook.signing-key-base64 (PIX_WEBHOOK_SIGNING_KEY) é obrigatório: assina os webhooks enviados");
         }
@@ -41,8 +50,13 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
             throw new IllegalStateException("pix.webhook.signing-key-base64 deve ter ao menos 32 bytes");
         }
         this.signingKey = new SecretKeySpec(key, "HmacSHA256");
-        this.client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(connectTimeout)
-                .followRedirects(HttpClient.Redirect.NEVER).build();
+        HttpClient.Builder builder = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(connectTimeout)
+                .followRedirects(HttpClient.Redirect.NEVER);
+        if (insecureTls) {
+            LoggerFactory.getLogger(HttpWebhookSenderAdapter.class).warn("pix.webhook.insecure-tls=true: o certificado do receptor NÃO é validado. SÓ dev/teste");
+            builder.sslContext(trustAllContext());
+        }
+        this.client = builder.build();
         this.requestTimeout = requestTimeout;
         this.clock = clock;
     }
@@ -62,6 +76,27 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
             return new SendResult(null, "interrompido");
         } catch (IOException | RuntimeException e) {
             return new SendResult(null, e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+    }
+
+    /** SÓ dev/teste (receptores com certificado autoassinado). Em hml/prd o padrão é validar a cadeia normalmente. */
+    private static SSLContext trustAllContext() {
+        try {
+            // X509ExtendedTrustManager (e não X509TrustManager): o JDK embrulha o simples e AINDA verifica o nome do host
+            TrustManager trustAll = new X509ExtendedTrustManager() {
+                public void checkClientTrusted(X509Certificate[] c, String t) { }
+                public void checkServerTrusted(X509Certificate[] c, String t) { }
+                public void checkClientTrusted(X509Certificate[] c, String t, Socket s) { }
+                public void checkServerTrusted(X509Certificate[] c, String t, Socket s) { }
+                public void checkClientTrusted(X509Certificate[] c, String t, SSLEngine e) { }
+                public void checkServerTrusted(X509Certificate[] c, String t, SSLEngine e) { }
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            };
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[]{trustAll}, new java.security.SecureRandom());
+            return context;
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
         }
     }
 

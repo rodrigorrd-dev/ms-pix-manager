@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Proteção anti-SSRF da URL do webhook")
 class WebhookUrlPolicyAdapterTest {
 
-    final WebhookUrlPolicyAdapter strict = new WebhookUrlPolicyAdapter(false, false);
+    final WebhookUrlPolicyAdapter strict = new WebhookUrlPolicyAdapter(false);
 
     @ParameterizedTest(name = "{0} ⇒ bloqueado")
     @DisplayName("endereços internos, de metadados de nuvem e reservados são bloqueados (IP literal: não depende de DNS)")
@@ -54,14 +54,12 @@ class WebhookUrlPolicyAdapterTest {
     }
 
     @Test
-    @DisplayName("flags de dev: allow-http aceita http; allow-private-hosts aceita loopback; um não implica o outro")
-    void devFlags() {
-        WebhookUrlPolicyAdapter httpOnly = new WebhookUrlPolicyAdapter(true, false);
-        assertThat(httpOnly.check("http://8.8.8.8/hook").allowed()).isTrue();
-        assertThat(httpOnly.check("http://127.0.0.1/hook").allowed()).isFalse();
-        WebhookUrlPolicyAdapter privateOnly = new WebhookUrlPolicyAdapter(false, true);
-        assertThat(privateOnly.check("https://127.0.0.1/hook").allowed()).isTrue();
-        assertThat(privateOnly.check("http://127.0.0.1/hook").allowed()).isFalse();
-        assertThat(new WebhookUrlPolicyAdapter(true, true).check("http://localhost:8080/hook").allowed()).isTrue();
+    @DisplayName("flag de dev allow-private-hosts aceita loopback, mas http NUNCA é aceito (o banco também exige https)")
+    void devFlag() {
+        WebhookUrlPolicyAdapter dev = new WebhookUrlPolicyAdapter(true);
+        assertThat(dev.check("https://127.0.0.1/hook").allowed()).isTrue();
+        assertThat(dev.check("https://localhost:8443/hook").allowed()).isTrue();
+        assertThat(dev.check("http://127.0.0.1/hook").allowed()).isFalse();
+        assertThat(dev.check("ftp://127.0.0.1/hook").allowed()).isFalse();
     }
 }

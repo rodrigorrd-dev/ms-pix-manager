@@ -14,6 +14,8 @@ public final class ScopeAuthorization {
     public static final String PIX_WRITE = "hasAuthority('SCOPE_pix.write')";
     public static final String WEBHOOK_READ = "hasAuthority('SCOPE_webhook.read')";
     public static final String WEBHOOK_WRITE = "hasAuthority('SCOPE_webhook.write')";
+    /** Back-office: reenviar entregas de webhook de qualquer cliente. Escopo próprio, separado do {@code webhook.write} do parceiro. */
+    public static final String WEBHOOK_ADMIN = "hasAuthority('SCOPE_webhook.admin')";
     public static final String PAYLOADLOCATION_READ = "hasAuthority('SCOPE_payloadlocation.read')";
     public static final String PAYLOADLOCATION_WRITE = "hasAuthority('SCOPE_payloadlocation.write')";
     // gestão

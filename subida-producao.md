@@ -219,7 +219,7 @@ O app é **Resource Server**: valida assinatura (JWKS, `RS256`/`ES256`), `iss`, 
 1. **Issuer** e **audience** do IdP real em `OAUTH2_ISSUER_URI` / `OAUTH2_AUDIENCE`. O token tem que trazer exatamente esse `aud`.
 2. **Escopos** (claim `scope`, prefixo `SCOPE_`). Crie e atribua conforme o cliente:
    - API BCB (`/api/pix/v2`): `cob.read`, `cob.write`, `cobv.read`, `cobv.write`, `pix.read`, `pix.write`, `webhook.read`, `webhook.write`, `payloadlocation.read`, `payloadlocation.write`
-   - Gestão (`/v1`): `pixkey.read/write`, `payment.read/write`, `limit.read/write`, `med.read/write`, `report.read`
+   - Gestão (`/v1`): `pixkey.read/write`, `payment.read/write`, `limit.read/write`, `med.read/write`, `report.read`, `webhook.admin` (reenviar entregas de webhook; só back-office com `pix_accounts=*`)
    - `pii.document.read`: quem pode ver o **documento completo** (sem ele, o documento sai mascarado)
 3. **Claim `pix_accounts`** (obrigatório para ver/operar contas): lista de UUIDs das contas que o cliente acessa, ou `"*"` para todas (back-office). **Sem o claim o cliente não enxerga nenhuma conta.** O IdP precisa carregar esse vínculo cliente → contas (premissa G1 em `docs/10`); em dev isso é um mapper fixo no realm, em produção tem que vir da sua fonte de verdade.
 4. Não use o realm de dev (`docker/keycloak/realm-pix.json`, secret `dev-secret-local-only`).

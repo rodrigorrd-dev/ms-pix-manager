@@ -15,6 +15,6 @@ import java.util.UUID;
 public interface WebhookDeliveryController {
 
     @PostMapping("/{id}/resend")
-    @PreAuthorize(ScopeAuthorization.WEBHOOK_WRITE)
+    @PreAuthorize(ScopeAuthorization.WEBHOOK_ADMIN)
     ResponseEntity<WebhookDeliveryResponse> resend(@PathVariable UUID id);
 }

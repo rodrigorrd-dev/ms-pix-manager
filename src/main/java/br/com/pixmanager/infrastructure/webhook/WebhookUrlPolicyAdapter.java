@@ -11,7 +11,7 @@ import java.net.URI;
 import java.net.UnknownHostException;
 
 /**
- * Anti-SSRF para a URL do webhook. Regras: {@code https} (exceto {@code pix.webhook.allow-http=true}, só dev/teste), sem credencial na URL, sem
+ * Anti-SSRF para a URL do webhook. Regras: somente {@code https} (o banco também exige: CHECK em {@code webhook_subscription.url}), sem credencial na URL, sem
  * fragmento, host presente e resolvível, e NENHUM endereço resolvido pode ser interno (loopback, link-local/metadados de nuvem 169.254.x, privado
  * RFC 1918, CGNAT 100.64/10, ULA fc00::/7, multicast, não especificado), exceto {@code pix.webhook.allow-private-hosts=true} (só dev/teste).
  *
@@ -23,12 +23,9 @@ public class WebhookUrlPolicyAdapter implements WebhookUrlPolicyPortOut {
 
     static final int MAX_URL_LENGTH = 2048;
 
-    private final boolean allowHttp;
     private final boolean allowPrivateHosts;
 
-    public WebhookUrlPolicyAdapter(@Value("${pix.webhook.allow-http:false}") boolean allowHttp,
-                                   @Value("${pix.webhook.allow-private-hosts:false}") boolean allowPrivateHosts) {
-        this.allowHttp = allowHttp;
+    public WebhookUrlPolicyAdapter(@Value("${pix.webhook.allow-private-hosts:false}") boolean allowPrivateHosts) {
         this.allowPrivateHosts = allowPrivateHosts;
     }
 
@@ -44,7 +41,7 @@ public class WebhookUrlPolicyAdapter implements WebhookUrlPolicyPortOut {
             return new Verdict.Forbidden("URL malformada");
         }
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        if (!scheme.equals("https") && !(allowHttp && scheme.equals("http"))) {
+        if (!scheme.equals("https")) {
             return new Verdict.Forbidden("só https é aceito");
         }
         if (uri.getUserInfo() != null) {

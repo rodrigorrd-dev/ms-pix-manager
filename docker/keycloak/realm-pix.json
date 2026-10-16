@@ -59,7 +59,8 @@
         "automatic.read",
         "automatic.write",
         "report.read",
-        "pii.document.read"
+        "pii.document.read",
+        "webhook.admin"
       ],
       "protocolMappers": [
         {
@@ -174,6 +175,10 @@
     },
     {
       "name": "pii.document.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "webhook.admin",
       "protocol": "openid-connect"
     }
   ]

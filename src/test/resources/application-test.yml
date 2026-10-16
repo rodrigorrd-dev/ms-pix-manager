@@ -28,7 +28,7 @@ pix:
       max-delay-ms: 400
   webhook:
     signing-key-base64: ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==
-    allow-http: true
+    insecure-tls: true
     allow-private-hosts: true
     dispatch-delay: PT1H            # os ITs chamam o caso de uso direto
   policy:
