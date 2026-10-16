@@ -1,28 +1,23 @@
 # Pendências funcionais — o que existe, o que falta e como entregar
 
-Escrito depois das rodadas de carga, caos, segurança e funcionalidades de 2026-10-16. Honesto sobre o estado: **o que está marcado “implementado” tem teste e foi exercitado no ambiente local; o que está marcado “não implementado” não existe na API.**
+Estado em 2026-10-16. **O que está “implementado” tem teste de integração e foi exercitado no ambiente local (docker compose) contra mocks.** Isso **não** é o mesmo que testado contra os sistemas reais (DICT, core, SPI, notificação): os contratos externos são rascunhos definidos neste projeto.
 
-| Capacidade | Estado | Evidência / o que falta |
-|---|---|---|
-| Prova de posse (OTP) de chave e-mail/telefone | ✅ **Implementado** | `OwnershipProofServiceTest` (10), `PixKeyOwnershipProofIT` (4), contrato do gateway (13), `scripts/demo-flow.py`. Falta: serviço de notificação **real** (o contrato foi definido aqui) e revisar os parâmetros com segurança |
-| Webhook de Pix recebido (`/webhook`, entrega assinada, retry, DEAD, reenvio) | ✅ **Implementado** | `WebhookServicesTest` (12), `WebhookUrlPolicyAdapterTest` (SSRF), sender contra WireMock/HTTPS, `WebhookApiIT` (7), roteiro com receptor HTTPS. Falta: `GET /v1/webhook-deliveries` (listar), envio paralelo, mTLS com receptor, webhook de **cobrança/recorrência** (`webhookrec`/`webhookcobr`) |
-| Pagar **QR dinâmico** | ⬜ **Não implementado** (responde 422 `PIX-422-000`) | Gerar/consultar a cobrança funciona. Falta: buscar o payload JWS na URL do recebedor (SSRF, TLS, timeout), validar assinatura/cadeia (JWKS do PSP recebedor) e CRC, tratar vencimento/valor, e ligar ao fluxo de pagamento por `QR_DYNAMIC` |
-| **Agendamento** (Pix agendado/recorrente) | ⬜ **Não implementado** | Existem só o domínio (`ScheduledOccurrence`, `ScheduleRetryPolicy`) e o DDL. Falta: API de criar/cancelar, job que dispara na data (0h–8h) e reprocessa 18h–21h, avisos ao cliente, datas 29–31 ⇒ próximo dia útil |
-| **Pix Automático** (autorização, cobrança, tentativas) | ⬜ **Não implementado** | Só DDL. Falta: API `rec`/`solicrec`/`cobr`, estados `AGND/NTAG/RIFL`, regras de rejeição, integração com o SPI/DICT correspondente. **Depende de confirmar a obrigatoriedade e o calendário no regulamento** |
-| **MED** (devolução especial) | ⬜ **Não implementado** | Só DDL (`med_case`, `med_hop`, …). Falta: abertura/análise/contestação, rastreamento em camadas, bloqueio e devolução por saldo, prazos (80 d / 7 d por etapa / 72 h; ver `docs/regulatory-verification.md`) e os tópicos Kafka de MED |
-
-## Por que isto não foi entregue junto
-Cada item acima é uma funcionalidade de produto com **regra regulatória própria, contrato com sistema externo e testes de integração**. Pix Automático e MED, em particular, **não devem ser implementados a partir de suposições**: os prazos e estados precisam ser conferidos no texto vigente do Regulamento/Manuais (os valores atuais estão em `docs/regulatory-verification.md`, com 🟡/❌ em parte deles). Entregar versões parciais dessas regras seria pior do que não entregar.
-
-## Ordem sugerida (valor × risco)
-1. **QR dinâmico (pagar)** — completa o fluxo de pagamento que hoje só aceita chave/manual/QR estático. Risco: segurança (SSRF e validação de assinatura).
-2. **Agendamento** — domínio pronto; falta orquestração e API. Risco baixo/médio.
-3. **MED** — alto impacto regulatório; começar por levantar o texto vigente e os contratos com o spi-gateway.
-4. **Pix Automático** — maior; só depois de confirmar escopo e obrigatoriedade para a instituição.
-
-Para cada um: escrever antes um RFC curto (skill `rfc-writing`: objetivo, baseline, gap, ordem, definição de pronto), fechar o contrato com o gateway correspondente e seguir o padrão usado em OTP/webhook (porta de saída + adaptador + teste de contrato + IT + roteiro de demonstração + runbook + alerta).
+| Capacidade | Estado | Evidência | O que ainda falta |
+|---|---|---|---|
+| Prova de posse (OTP) de chave e-mail/telefone | ✅ | `OwnershipProofServiceTest`, `PixKeyOwnershipProofIT`, contrato do gateway | Serviço de notificação **real** |
+| Webhook de Pix recebido | ✅ | `WebhookServicesTest`, `WebhookApiIT`, roteiro com receptor HTTPS | Listar entregas (`GET /v1/webhook-deliveries`), envio paralelo, mTLS, webhooks de cobrança/recorrência |
+| **Pagar QR dinâmico** | ✅ | `HttpDynamicQrPayloadAdapterTest` (9), `PaymentOrderApiIT`, roteiro (payload assinado pelo mock) | Trust store ICP-Brasil **de produção**; verificação de revogação (CRL/OCSP); teste contra PSP real |
+| **Pix Agendado** | ✅ | `ScheduledPaymentTest`, `ScheduledPaymentApiIT` (6: criação, cancelamento, execução, retentativa 18–21h com aviso, falha de negócio/técnica, atraso) | Execução na data real não foi observada ao vivo (os ITs controlam o relógio); notificação ao cliente depende de consumidor de `pix.schedule.v1`; janela 0h–8h não imposta |
+| **MED** (REPORTER e REPORTED) | ✅ parcial | `MedCaseApiIT` (4), roteiro (abre → aceita → bloqueia → devolve → fecha) | Entrada por Kafka da notificação (`pix.spi.med-notification.v1`, sem schema Avro ainda); **rastreamento automático em camadas** (`med_hop`); bloqueio parcial conforme entra saldo; gateway DICT real; prazos de 72 h/7 d por etapa |
+| **Pix Automático** (pagador) | ✅ parcial | `AutomaticPixApiIT` (5: autorização, cobrança, execução, retry com/sem `allow_retry`, expiração), roteiro | Entrada por Kafka da solicitação/cobrança do SPI; **prazos não confirmados no regulamento** (`docs/regulatory-verification.md`); gateway de resposta real; eventos de cobrança/tentativa (só a autorização publica em `pix.automatic.v1`); recebedor (PJ) fora do escopo |
+| Reconciliação | ⬜ | só DDL/contratos | tudo |
 
 ## Decisões que só você pode tomar
-- Quais dessas capacidades são **obrigatórias** para a sua instituição e em qual data.
-- Se o serviço de notificação do OTP e o dict-gateway/core/spi-gateway reais já existem (e os contratos).
-- Parâmetros de risco: limites padrão por dia, política de OTP, tempo de retenção da outbox.
+- **Compliance:** confirmar no texto vigente os prazos do Pix Automático (antecedência da cobrança, nova tentativa, validade da solicitação) e as etapas/prazos do MED; decidir sobre revogação de certificado no QR dinâmico.
+- **Integração:** formalizar os contratos do dict-gateway (MED), do spi-gateway (Pix Automático, entrada de solicitações) e do serviço de notificação; hoje são rascunhos.
+- **Produto:** quais capacidades são obrigatórias para a instituição e a partir de quando; parâmetros de risco (limites padrão, OTP, retenção da outbox, horizonte de agendamento).
+
+## Próximos passos sugeridos
+1. Schemas Avro + consumers (`pix.spi.med-notification.v1`, `pix.spi.automatic-request.v1`, `pix.spi.automatic-charge.v1`) reaproveitando os casos de uso de entrada que já existem na API.
+2. Rastreamento em camadas do MED (`med_hop`), depois de fechado o contrato com o gateway.
+3. Rodar contra os sistemas reais em homologação e repetir carga/caos com os novos workers (os testes de carga atuais não os cobrem).

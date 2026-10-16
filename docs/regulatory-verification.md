@@ -21,11 +21,18 @@ Legenda: ✅ confirmado em fonte oficial/institucional · 🟡 confirmado só em
 | `charge` (expiração padrão 86400 s) | 24 h | ✅ | Valor `default` do campo `calendario.expiracao` na especificação oficial da API Pix (`docs/api/bcb/api-pix-openapi-2.10.0.yaml`) |
 | `webhook.*` (8 tentativas, 5 s a 6 h) | backoff de entrega | 🏢 | Parâmetros do projeto (a spec do BCB exige reentrega, não fixa estes números) |
 | `otp.*` (5 min, 5 tentativas, 60 s, 10/dia) | prova de posse | 🏢 | Parâmetros **de projeto** (BR-KEY-04); ajustar com o time de segurança |
+| `schedule.max-horizon-days` (730), `max-late-days` (3), `max-technical-attempts` (5) | Pix Agendado | 🏢 | Parâmetros **de projeto**. O ms executa a partir de 00h do dia (a janela 0h–8h do agendado **não** é imposta) |
+| `automatic.min/max-notice-days` (2/10) | antecedência da cobrança recorrente | ❌ | Não encontrei o prazo em fonte aberta (a Resolução BCB 402/2024 delega ao documento específico do BCB). **Confirmar antes de produção** |
+| `automatic.retry-days` (3), `max-late-days` (1) | novas tentativas após o vencimento (só `allow_retry`) | ❌ | A norma obriga refazer a iniciação em certos casos, mas o nº de dias está em documento específico (IN 613/614). Um material do Fórum Pix (2023) cita retentativa **intradia**; o ms usa dias seguintes. **Confirmar** |
+| `automatic.request-validity` (7 d) | prazo do pagador para decidir a solicitação | ❌ | Não confirmado |
+| `automatic`: cancelamento da cobrança até 23h59 da véspera | regra implementada | 🟡 | Slide do Fórum Pix de 07/12/2023 (versão anterior das especificações) |
+| `qr.*` (cadeia ICP-Brasil, sem CRL/OCSP) | validação do payload JWS | 🟡 | A especificação do BR Code dinâmico exige JWS com certificado ICP-Brasil; **revogação não é verificada** — decisão de segurança a tomar |
 
 ## Conclusão
 - **Confirmados (✅):** limite noturno, tempo de aumento/redução de limite, janela de devolução de 90 dias, 80 dias do MED, 30º dia da reivindicação, expiração padrão da cobrança.
 - **A confirmar no texto da norma (🟡):** limites de dispositivo não cadastrado, 7 dias/72 h do MED, janela 18h–21h do agendado.
 - **Sem confirmação (❌):** `med.tracking-window` (90 d), `keys.donor-response` (7 d), chaves por conta (5/20).
-- **Decisão sua, não do BCB (🏢):** limites padrão e tetos por dia, parâmetros de webhook e de OTP.
+- **Decisão sua, não do BCB (🏢):** limites padrão e tetos por dia, parâmetros de webhook, de OTP e do agendamento.
+- **Pix Automático (❌):** antecedência da cobrança, dias de nova tentativa e validade da solicitação são **suposições de projeto** (parametrizadas em `pix.automatic.*`). Não ligue em produção sem o compliance confirmar no texto da norma.
 
 Todos são sobrescrevíveis por configuração (`pix.policy.*`), então corrigir um valor não exige mudar código. **Ação:** compliance valida as linhas ❌ e 🟡 contra o Regulamento vigente e registra o resultado aqui (data, norma, versão).

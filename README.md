@@ -15,8 +15,9 @@ A primeira vez baixa ~15 imagens e as dependências Maven (vários minutos, depe
 ```bash
 docker compose ps                       # tudo healthy/running; kafka-init, seed e connector-init terminam (Exited 0)
 curl localhost:8088/actuator/health     # {"status":"UP"}
-python3 scripts/validate-api.py         # opcional: valida todos os endpoints (109 verificações)
-python3 scripts/demo-flow.py            # opcional: chaves → QR Code → pagar → receber → devolver (18 passos)
+python3 scripts/validate-api.py         # opcional: valida todos os endpoints (143 verificações)
+python3 scripts/demo-flow.py            # opcional: chaves (com OTP) → QR Code → webhook → pagar → receber → devolver, agendar, MED, Pix Automático (49 passos)
+python3 scripts/chaos-test.py           # opcional: derruba core/Kafka/Debezium/Postgres e confere a recuperação sozinha (SÓ dev)
 docker compose down                     # para (dados do Postgres ficam no volume); `down -v` apaga tudo
 ```
 
@@ -38,6 +39,7 @@ Ordem de subida (o compose cuida): postgres → kafka → kafka-init (tópicos) 
 | **Kafka Connect / Debezium** | http://localhost:18083 | `curl localhost:18083/connectors/pix-outbox-connector/status` (esperado `RUNNING`). Reinício: `curl -X POST "localhost:18083/connectors/pix-outbox-connector/restart?includeTasks=true"`. Re-registrar: `docker compose run --rm connector-init`. |
 | **PostgreSQL** | `docker exec -it pix-postgres psql -U pix -d pixmanager` · ou `localhost:55432` (`pix` / `pix_local_only`) | Inspecionar dados; `outbox_event` mostra eventos ainda não publicados. A PII (documento, chave) fica **cifrada** no banco. |
 | **Mocks (dict-gateway + core-ledger)** | http://localhost:18090 (`/health`, `/__state`) | Os dois sistemas externos que o app chama, **falsos e em memória** (`docker/mocks/mock_servers.py`): o DICT registra/consulta chaves e o ledger reserva/confirma/cancela saldo. Sem eles, chaves não ativam e pagamento não sai do `VALIDATED`. O mesmo serviço faz o papel do **serviço de notificação do OTP** (`POST /otp/v1/messages`; `GET /otp/v1/last?destination=<e-mail>` devolve o último código, só para testes). Cenários por valor: reserva de **99,99** → saldo insuficiente, **66,66** → conta bloqueada, **50,50** → falha técnica (503); chave com `naoexiste` → 404 no DICT. Para usar os sistemas reais: `DICT_GATEWAY_URL_COMPOSE` / `CORE_LEDGER_URL_COMPOSE` no `.env`. |
+| **Receptor de webhook (fictício)** | https://localhost:18443/webhook-receiver/last | Em HTTPS com certificado de dev autoassinado (`docker/mocks/dev-cert.pem`, pública: **só dev**), dentro da rede do compose é `https://mocks:8443/webhook-receiver/{ok\|fail}`. Valida a assinatura e guarda o que chegou (`signatureValid`, `timestampFresh`). `…/fail` responde 503 para ver retry/DEAD. |
 | **Simulador do SPI** | `python3 scripts/simulate-spi.py …` | Faz o papel do spi-gateway: publica no Kafka (Avro) o status do pagamento enviado, um **Pix recebido** e o resultado de uma **devolução**. Detalhes em "Testar o fluxo completo". |
 | **Gerador de BR Code** | `python3 scripts/brcode.py static\|dynamic …` | Gera o "Pix copia e cola" (texto do QR Code), estático (de uma chave) ou dinâmico (do `location` de uma cobrança). A API só **lê** BR Code; quem gera é o recebedor. |
 | **Seed de dev** | `docker/seed/dev-seed.sql` | Titular (CPF fictício), conta `00000000-0000-0000-0000-000000000001` (ISPB 12345678) e chave EVP ativa `123e4567-e89b-42d3-a456-426655440000`. Idempotente: `docker compose run --rm --no-deps seed`. Cifrado com as chaves de dev do `.env.example`; se trocá-las, regenere com `node docker/seed/generate-dev-seed.js > docker/seed/dev-seed.sql`. |
@@ -102,7 +104,11 @@ python3 scripts/brcode.py static --key <chave> --qr                             
 # a API decodifica e valida o CRC:
 curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' localhost:8088/v1/payment-orders/decodings -d '{"payload":"<copia e cola>"}'
 ```
-Cobrança dinâmica: `PUT /api/pix/v2/cob/{txid}` devolve `location`; o BR Code dinâmico é construído com ele (o comando acima). **Pagar** QR dinâmico ainda não é suportado (backlog; responde 422 `PIX-422-000`); o estático (`method: QR_STATIC`) e por chave (`KEY`) pagam.
+Cobrança dinâmica: `PUT /api/pix/v2/cob/{txid}` devolve `location`; o BR Code dinâmico é construído com ele (o comando acima). **Pagar** QR dinâmico (`method: QR_DYNAMIC`): o ms busca o payload JWS na URL do QR, valida assinatura e cadeia de certificados e paga o valor/chave **do payload**. No dev, o serviço `mocks` serve `https://mocks:8443/qr/v2/{ok|v-<valor>|paga|expirada|adulterado}` (assinado com o certificado de dev):
+```bash
+python3 scripts/brcode.py dynamic --url mocks:8443/qr/v2/v-12.34   # copia e cola; use em POST /v1/payment-orders {method:QR_DYNAMIC,qrPayload}
+```
+Em produção é obrigatório configurar `PIX_QR_TRUST_STORE_PATH` (ICP-Brasil); sem ele o QR dinâmico é recusado. O estático (`QR_STATIC`) e por chave (`KEY`) pagam como antes.
 
 **3. Fazer um Pix** (pagador = conta de seed)
 ```bash
@@ -128,11 +134,22 @@ curl -s -X PUT -H "Authorization: Bearer $PARTNER" -H 'Content-Type: application
 python3 scripts/simulate-spi.py refund-status <rtrId> SETTLED --e2e <endToEndId>       # rtrId vem em .devolucoes[0].rtrId → DEVOLVIDO
 ```
 
-**O que NÃO é real aqui:** o DICT, o core bancário, o serviço de notificação (OTP) e o SPI são simulados (mocks e script); QR dinâmico pagável, webhooks, agendamento, Pix Automático e MED não existem na API. Para testar contra os sistemas reais, aponte as URLs no `.env`.
+**5. Ser avisado de cada Pix recebido (webhook)**
+```bash
+# a chave do recebedor aponta para o seu endpoint (HTTPS). No dev use o receptor fictício do serviço `mocks` (certificado de dev):
+curl -s -X PUT -H "Authorization: Bearer $PARTNER" -H 'Content-Type: application/json' \
+  localhost:8088/api/pix/v2/webhook/123e4567-e89b-42d3-a456-426655440000 -d '{"webhookUrl":"https://mocks:8443/webhook-receiver/ok"}' | jq    # 201 novo / 200 atualiza
+# receba um Pix numa cobrança dessa chave (etapa 4) e, em ~2 s, veja o que o receptor recebeu:
+curl -s localhost:18090/webhook-receiver/last | jq '{signatureValid, timestampFresh, body}'
+curl -s -X DELETE -H "Authorization: Bearer $PARTNER" localhost:8088/api/pix/v2/webhook/123e4567-e89b-42d3-a456-426655440000    # 204
+```
+O app faz `POST <webhookUrl>/pix` com o corpo da API Pix e os cabeçalhos `x-pix-timestamp` e `x-pix-signature: v1=HMAC-SHA256(chave, timestamp + "." + corpo)`; só **2xx** é sucesso (senão retry com backoff até 8 tentativas ⇒ `DEAD`, reenvio em `POST /v1/webhook-deliveries/{id}/resend` com escopo `webhook.admin`). A URL precisa ser **HTTPS** e de host público (anti-SSRF; no dev o perfil `local` relaxa só o host e o certificado). Contrato completo em `docs/05` (“Entrega do webhook”) e runbook em `docs/runbooks/webhook-entregas.md`.
+
+**O que NÃO é real aqui:** o DICT, o core bancário, o serviço de notificação (OTP) e o SPI são simulados (mocks e script); o gateway do MED/Pix Automático (contratos rascunho) e a entrada de solicitações/notificações do SPI por Kafka também são simulados; **o que ainda falta** está em `docs/pendencias-funcionais.md`. Para testar contra os sistemas reais, aponte as URLs no `.env`.
 
 ### Postman
 
-Importe **`docs/postman/ms-pix-manager.postman_collection.json`** e **`docs/postman/ms-pix-manager.local.postman_environment.json`** e selecione o ambiente `ms-pix-manager — local`. São 65 requisições, em pastas: **Keycloak** (tokens dos dois clients, OIDC, JWKS, admin), **API BCB** (`cob`, `cobv`, Pix recebidos, devolução), **Gestão `/v1`** (chaves, pagamentos, limites), **Docs e operação** (actuator, OpenAPI, AsyncAPI) e **Infra** (Connect, Schema Registry, mocks, Prometheus, Grafana, Loki, Kafka UI).
+Importe **`docs/postman/ms-pix-manager.postman_collection.json`** e **`docs/postman/ms-pix-manager.local.postman_environment.json`** e selecione o ambiente `ms-pix-manager — local`. São 79 requisições, em pastas: **Keycloak** (tokens dos dois clients, OIDC, JWKS, admin), **API BCB** (`cob`, `cobv`, Pix recebidos, devolução), **Gestão `/v1`** (chaves, pagamentos, limites), **Docs e operação** (actuator, OpenAPI, AsyncAPI) e **Infra** (Connect, Schema Registry, mocks, Prometheus, Grafana, Loki, Kafka UI).
 - Não precisa pegar token: um pre-request obtém e renova `token_partner` (`/api/pix/v2`) e `token_backoffice` (`/v1`).
 - Scripts guardam `txid`, `ETag`, ids e `Idempotency-Key`: rode em ordem ou use **Run collection**. Pode repetir à vontade: a pasta "Chaves Pix" apaga as pendentes antigas e exclui as que cria (limite de 5 chaves vivas por conta PF).
 - Mudou `APP_PORT` no `.env`? Ajuste `base_url` no ambiente.
@@ -168,18 +185,29 @@ No `.env` o app usa as portas do host (Postgres `55432`, Kafka `19094`, Keycloak
 
 **Rebuild após mudar código:** `docker compose up -d --build app`.
 
-**Testes** (o host não precisa de `mvn`): `./mvn.sh verify` (Maven 3.9 + JDK 21 em container; Testcontainers via socket do Docker). Estado atual: **301 unitários + 42 ITs, 0 falhas; cobertura do `core` 93%** (gate: 70%). O `verify` completo sobe Postgres, Kafka e Debezium em contêineres e pede ~4 GB livres de RAM; com o stack do compose rodando junto, pare a observabilidade antes (`docker compose stop grafana prometheus tempo loki otel-collector kafka-ui kafka-exporter`) · um IT isolado: `./run-it.sh ChargeApiIT [linhas]` (saída vazia = passou). Gate JaCoCo ≥ 70% em `core`.
+**Testes** (o host não precisa de `mvn`): `./mvn.sh verify` (Maven 3.9 + JDK 21 em container; Testcontainers via socket do Docker). Estado atual: **452 unitários + 71 ITs, 0 falhas; cobertura unitária do `core` 95%** (gate: 70%). O `verify` completo sobe Postgres, Kafka e Debezium em contêineres e pede ~4 GB livres de RAM; com o stack do compose rodando junto, pare a observabilidade antes (`docker compose stop grafana prometheus tempo loki otel-collector kafka-ui kafka-exporter`) · um IT isolado: `./run-it.sh ChargeApiIT [linhas]` (saída vazia = passou). Gate JaCoCo ≥ 70% em `core`.
 
 **Estrutura:** `api/` (REST e consumers, entrada) · `core/` (domínio e casos de uso, sem framework) · `infrastructure/` (adaptadores: banco, Kafka/outbox, HTTP) · `shared/` (config, erros, utilitários). Schema do banco em `src/main/resources/db/changelog` (Liquibase); contratos de evento em `src/main/resources/avro`.
+
+## Documentação operacional e de qualidade
+
+| Documento | Para quê |
+|---|---|
+| [`subida-producao.md`](subida-producao.md) | Tudo para subir em produção: variáveis, banco, Kafka, Debezium, IdP, rede, pendências |
+| [`docs/runbooks/`](docs/runbooks/README.md) | Um runbook por alerta (app fora, circuit breaker, pagamento preso, DLT, slot do Debezium, webhook), rotação de chave, backup/DR |
+| [`docs/load-test-results.md`](docs/load-test-results.md) | Testes de carga (Gatling): resultados, gargalo achado (pool do banco), o que NÃO provam |
+| [`docs/security-scan.md`](docs/security-scan.md) | Trivy + Semgrep: 28 de 30 CVE HIGH/CRITICAL corrigidos, risco residual aceito, como repetir |
+| [`docs/regulatory-verification.md`](docs/regulatory-verification.md) | Cada valor de `pix.policy.*` cruzado com fontes do BCB (✅/🟡/❌/🏢) |
+| [`docs/pendencias-funcionais.md`](docs/pendencias-funcionais.md) | O que está e o que NÃO está implementado (QR dinâmico, agendamento, Pix Automático, MED) e a ordem sugerida |
 
 ## O que o projeto tem
 
 | Módulo | Estado |
 |---|---|
 | account (leitura), ledger (reserva 2 fases + sweeper), pixkey, charge (cob/cobv), receivedpix, refund, limit, payment (chave/manual/QR estático, DICT, limites, SPI) | ✅ implementado, com testes unit + IT (Testcontainers) |
-| scheduling (recorrência, janela 18–21h) e webhook (backoff/jitter, DEAD, reenvio) | 🟡 só domínio + testes unit; sem persistência, REST nem worker |
-| automaticpix, med, reconciliation | ⬜ não iniciado (só DDL/contratos) |
-| QR dinâmico (payload JWS) | ⬜ backlog (a API responde erro explícito) |
+| **webhook** de Pix recebido (`/api/pix/v2/webhook`, entrega assinada, retry/DEAD, reenvio, anti-SSRF) e **prova de posse por OTP** de chave e-mail/telefone | ✅ implementado, com testes unit + IT + roteiro |
+| **QR dinâmico** (pagar: busca + valida JWS/cadeia) · **Pix Agendado** (único/recorrente, worker, retentativa 18–21h com aviso) · **MED** (REPORTER/REPORTED, bloqueio, devolução MED, contestação) · **Pix Automático** (pagador: autorização, cobrança, execução, nova tentativa) | ✅ implementado, com unit + IT + roteiro no ambiente real. Limites: sem entrada por Kafka do SPI/DICT, sem rastreamento MED em camadas, sem revogação de certificado; prazos do Pix Automático não confirmados no regulamento (`docs/pendencias-funcionais.md`) |
+| reconciliation | ⬜ não iniciado (só DDL/contratos) |
 
 APIs: **BCB compatível** em `/api/pix/v2` (`cob`, `cobv`, `pix`, `pix/{e2eid}/devolucao`) e **gestão própria** em `/v1` (`pix-keys`, `payment-orders`, `limits/accounts/{id}`). Erros em RFC 9457 (`application/problem+json`), `If-Match`/`ETag` (428/412), `Idempotency-Key`.
 Eventos: outbox transacional → Debezium → `pix.<aggregate>.v1` (Avro); consumers com retry não bloqueante + DLT e inbox idempotente.
@@ -213,10 +241,11 @@ Observabilidade: Actuator + Prometheus, traces OTLP → Tempo, Grafana, alertas 
 | `src/main/resources/avro/*.avsc` | Envelope + 7 eventos (Avro, decimal/timestamp-micros) | ✅ parse (fastavro) e round-trip do `PixReceivedEvent` |
 | `docker-compose.yml` (raiz) + `Dockerfile` | Postgres(logical), Kafka KRaft, Schema Registry, Connect/Debezium, Kafka UI, exporter, Keycloak (dev), OTel, Tempo, Loki, Prometheus, Grafana + **app**, **seed** e **connector-init** | ✅ `docker compose up -d --build` sobe tudo e o app fica `healthy`; conector `RUNNING` |
 | `docker/seed/dev-seed.sql` | Titular + conta + chave EVP de dev (PII cifrada) | ✅ aplicado pelo serviço `seed`; gerador em `generate-dev-seed.js` |
-| `docs/postman/*` | Collection (65 requisições) + ambiente local + gerador | ✅ `newman`: 0 falhas, repetível |
+| `docs/postman/*` | Collection (79 requisições) + ambiente local + gerador | ✅ `newman`: 0 falhas, repetível |
 | `docker/mocks/mock_servers.py` | dict-gateway + core-ledger falsos (dev) | ✅ usado por `demo-flow.py` (ativação de chave, reserva/confirmação de saldo) |
-| `scripts/demo-flow.py` · `simulate-spi.py` · `brcode.py` | Roteiro ponta a ponta (18 passos), simulador do SPI via Kafka/Avro, gerador de BR Code | ✅ 18/18 repetível |
-| `scripts/validate-api.py` | Validação funcional de todos os endpoints (109 verificações) | ✅ 109/109 |
+| `scripts/demo-flow.py` · `simulate-spi.py` · `brcode.py` | Roteiro ponta a ponta (49 passos), simulador do SPI via Kafka/Avro, gerador de BR Code | ✅ 49/49 repetível |
+| `scripts/chaos-test.py` | Teste de caos: core, Kafka, Debezium e Postgres fora ⇒ recuperação sozinha (banco fora ⇒ 503) | ✅ 17/17 |
+| `scripts/validate-api.py` | Validação funcional de todos os endpoints (143 verificações) | ✅ 143/143 |
 | `docker/debezium/outbox-connector.json` + `register-connector.sh` | Conector EventRouter | ✅ `DebeziumOutboxPipelineIT` (Postgres logical + Connect 3.0.8 + Kafka): roteamento, chave, bytes Avro e headers; o IT achou 2 defeitos (heartbeat STRUCT, `created_at`) já corrigidos. O `register-connector.sh` e o compose completo seguem sem `up` |
 | `docker/keycloak/realm-pix.json` | Realm de dev: clients e escopos | ✅ importado no `up`; tokens emitidos, escopos e claim `pix_accounts` validados por `scripts/validate-api.py` |
 | `.github/workflows/ci.yml` | `mvn verify` + dependency-check + Trivy | ⚠️ esboço, nunca executado (o `pom.xml` já existe; ajustar ao ativar) |

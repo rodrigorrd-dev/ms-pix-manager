@@ -9,6 +9,8 @@ Um runbook por alerta (`ops/prometheus/alert-rules.yml` aponta para eles na anot
 | `PixPaymentsStuck` | crítico | [pagamento-preso.md](pagamento-preso.md) |
 | `PixDltMessages` | crítico | [mensagem-na-dlt.md](mensagem-na-dlt.md) |
 | `PixWebhookDeliveriesDead`, `PixWebhookDeliveriesOverdue` | aviso | [webhook-entregas.md](webhook-entregas.md) |
+| `PixScheduledOccurrencesOverdue` | crítico | [pix-agendado.md](pix-agendado.md) |
+| `PixMedCasesOverdue`, `PixAutomaticAttemptsOverdue` | crítico | [med-e-pix-automatico.md](med-e-pix-automatico.md) |
 | `PixOutboxSlotLag`, `PixOutboxBacklog` | crítico / aviso | [debezium-slot-lag.md](debezium-slot-lag.md) |
 | `PixConsumerLagHigh`, `PixConsumerStuck` | aviso / crítico | [mensagem-na-dlt.md](mensagem-na-dlt.md) §Lag |
 | `PixHighLatencyP95`, `PixErrorRate`, `PixDbPoolSaturated` | aviso / crítico | [app-fora-do-ar.md](app-fora-do-ar.md) §Degradação |

@@ -19,6 +19,7 @@ Objetivo: tudo que precisa estar configurado **antes** de subir em `prd` (vale i
 - [ ] TLS/mTLS terminado no gateway/ingress; o ingress publica só a porta da API — o actuator fica na **porta de gerenciamento** (§9)
 - [ ] Pool de conexões do banco dimensionado e **medido** (§3.2, `docs/load-test-results.md`)
 - [ ] Canal de OTP (SMS/e-mail) configurado, se chaves de e-mail/telefone forem permitidas (§8)
+- [ ] **Webhook:** `PIX_WEBHOOK_SIGNING_KEY` no cofre e combinada com cada cliente; saída (egress) controlada por firewall/proxy; `INSECURE_TLS` e `ALLOW_PRIVATE_HOSTS` **desligados** (§3.2, §8)
 - [ ] Prometheus, regras de alerta, dashboard e OTLP apontados; **runbooks** lidos pelo plantão (§10, `docs/runbooks`)
 - [ ] Rotação de chave ensaiada em hml (`docs/runbooks/rotacao-de-chave.md`) e plano de backup/DR aprovado (`docs/runbooks/backup-e-dr.md`)
 - [ ] Valores regulatórios de `pix.policy.*` validados pelo compliance (§12, `docs/regulatory-verification.md`)
@@ -59,6 +60,7 @@ Profile: `SPRING_PROFILES_ACTIVE=prd` (liga log JSON, fecha Swagger/Springwolf, 
 | `OAUTH2_JWKS_URI` | URL do JWKS do IdP | sem ela não há validação de JWT |
 | `OAUTH2_ISSUER_URI` | `iss` esperado | **obrigatório em hml/prd** (o app recusa subir sem) |
 | `OAUTH2_AUDIENCE` | `aud` esperado | **obrigatório em hml/prd** |
+| `PIX_WEBHOOK_SIGNING_KEY` | ≥32 bytes em Base64 (`openssl rand -base64 32`) | assina cada webhook enviado (`x-pix-signature`); **o app não sobe sem ela** em hml/prd (em dev o perfil `local` tem uma chave de exemplo) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `broker1:9093,broker2:9093` | default é `localhost` |
 | `SCHEMA_REGISTRY_URL` | URL do registry | default é `localhost` |
 | `DICT_GATEWAY_URL` | URL do dict-gateway | default `localhost:18091` |
@@ -92,6 +94,12 @@ openssl rand -base64 32     # PIX_CRYPTO_HMAC_KEY   (tem que ser outro valor)
 | `PIX_METRICS_STUCK_AFTER` | `PT5M` | quanto tempo sem avançar uma ordem/chave/reserva conta como **presa** nas métricas/alertas |
 | `KAFKA_RETRY_PARTITIONS` | `12` | partições dos tópicos `-retry-N` (≥ as do principal); só vale com `KAFKA_AUTO_CREATE_RETRY_TOPICS=true` — em prd crie os tópicos à mão (§5) |
 | `PIX_OTP_SENDER` / `PIX_OTP_GATEWAY_URL` | `none` / vazio | `http` + URL do serviço de notificação para a prova de posse de e-mail/telefone (§8). `none` = padrão **seguro** (a prova de posse responde 503). **Nunca** `log` em hml/prd (escreve o código no log) |
+| `PIX_QR_TRUST_STORE_PATH` / `_PASSWORD` / `_TYPE` | arquivo PKCS12 (ou JKS) com a cadeia **ICP-Brasil** | **Obrigatória para pagar QR dinâmico.** Sem ela o ms recusa todo QR dinâmico (falha fechada, PIX-422-018). Revogação (CRL/OCSP) não é verificada |
+| `PIX_QR_ALLOW_UNVERIFIED_CHAIN` / `PIX_QR_INSECURE_TLS` | `false` | **Mantenha `false`.** `true` aceita JWS sem validar a cadeia / TLS autoassinado (só dev; o perfil `local` liga) |
+| `PIX_SCHEDULE_*` (`MAX_HORIZON_DAYS` 730, `MAX_LATE_DAYS` 3, `MAX_TECHNICAL_ATTEMPTS` 5, `DISPATCH_DELAY` PT30S, `BATCH` 20) | — | Pix Agendado. Valores de projeto; `MAX_LATE_DAYS`: sistema parado além disso ⇒ a ocorrência vira `FAILED(MISSED)` (não paga fora de hora) |
+| `PIX_AUTOMATIC_*` (`MIN/MAX_NOTICE_DAYS` 2/10, `RETRY_DAYS` 3, `MAX_LATE_DAYS` 1, `REQUEST_VALIDITY` P7D, `GATEWAY_URL`) | — | Pix Automático (pagador). **Prazos NÃO confirmados no regulamento: valide com o compliance antes de ligar.** `GATEWAY_URL` padrão = dict-gateway |
+| `PIX_WEBHOOK_INSECURE_TLS` / `PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS` | `false` | **mantenha `false`.** `true` aceita certificado autoassinado do receptor / hosts internos (desliga o anti-SSRF); existem só para dev e testes (o perfil `local` liga os dois) |
+| `PIX_WEBHOOK_DISPATCH_BATCH` / `_DISPATCH_DELAY` / `_CONNECT_TIMEOUT` / `_REQUEST_TIMEOUT` | `20` / `PT2S` / `3s` / `5s` | vazão do envio: sequencial, então `lote × timeout` limita o tempo de um ciclo; aumente o lote com receptores rápidos |
 | `pix.policy.otp.*` | 5 min / 5 tentativas / 60 s / 10 por dia | parâmetros **de projeto** do OTP (não são do regulamento) |
 | `DB_CONNECTION_TIMEOUT_MS` | `3000` | ok |
 | `KAFKA_CONSUMER_GROUP` | `ms-pix-manager` | ok (os 3 consumers usam `ms-pix-manager.<fluxo>`) |
@@ -233,6 +241,10 @@ O app é **Resource Server**: valida assinatura (JWKS, `RS256`/`ES256`), `iss`, 
 | **dict-gateway** | `POST /dict/v1/entries` (registrar), `POST /dict/v1/entries/deletion`, `POST /dict/v1/entries/lookup` (404 = chave inexistente) | retry; circuit breaker `dict-gateway` | recusa definitiva, sem retry |
 | **core-ledger** | `POST /ledger/v1/reservations`, `…/{idempotencyKey}/confirmation`, `…/cancellation` (header `Idempotency-Key`; resposta `{ "ledgerRef": "…" }`; recusa `{ "code": "INSUFFICIENT_FUNDS"\|"ACCOUNT_BLOCKED", "message": … }`) | retry; circuit breaker `core-ledger` | recusa definitiva |
 | **Serviço de notificação (OTP)** | `POST /otp/v1/messages` com `{channel: SMS\|EMAIL, destination, code, validForSeconds}` (header `X-Request-Id`); 2xx = aceito | retry pelo cliente (502/503); circuit breaker `otp-gateway` | só **400/422** = destino inválido (negócio); 404/405/etc. = configuração errada ⇒ técnico. ⚠️ Contrato **inventado por este projeto**, a alinhar com o serviço real; em TLS obrigatório (o código trafega no corpo) |
+| **Receptores de webhook (clientes)** | `POST <webhookUrl>/pix` (HTTPS), assinado (`x-pix-timestamp`, `x-pix-signature`); 2xx = entregue | retry com backoff até 8 tentativas ⇒ `DEAD` | — (qualquer não-2xx é falha). O destino é **entrada do cliente**: o app bloqueia hosts internos e metadados de nuvem (anti-SSRF) e não segue redirecionamentos, mas **isto não substitui um controle de saída na rede**: restrinja o egress do pod (firewall/proxy) e monitore os destinos. ⚠️ A checagem de DNS tem janela de *rebinding* (`docs/05`) |
+| **dict-gateway — MED** | `POST /dict/v1/funds-recoveries`, `POST …/{id}/cancellation` (REPORTER) | circuit breaker `dict-gateway`; técnica ⇒ 503 | **Contrato RASCUNHO**: formalize com o gateway real |
+| **spi-gateway — Pix Automático** | `POST /spi/v1/automatic/authorizations/{idRec}/approval\|rejection\|cancellation` | idem; a decisão fica gravada e o recebedor pode ser reavisado repetindo | **Contrato RASCUNHO**. A solicitação e a cobrança chegam hoje por API (`/v1/automatic-authorizations`), não por Kafka |
+| **PSP do recebedor — QR dinâmico** | `GET https://<url do QR>` (payload JWS) | timeouts 3 s/5 s, sem redirecionamento, ≤ 64 KB | A URL vem do usuário: o **egress do pod** deve ser restringido (anti-SSRF é defesa em profundidade, não substitui) |
 | **spi-gateway** | via Kafka (§5): consome `pix.spi.payment-settled/payment-status/refund-status.v1`; recebe `pix.payment.v1` e `pix.refund.v1` | — | — |
 
 - A especificação completa de cada contrato é o código em `infrastructure/rest/dict` e `infrastructure/rest/ledger`; o comportamento de referência em dev é o `docker/mocks/mock_servers.py`. ⚠️ O ms **nunca foi testado contra os gateways reais**; o contrato é "a confirmar" (`docs/10` E2).
@@ -255,7 +267,7 @@ O app é **Resource Server**: valida assinatura (JWKS, `RS256`/`ES256`), `iss`, 
 ## 10. Observabilidade
 
 - **Métricas:** Prometheus raspa `/actuator/prometheus` **na porta de gerenciamento** (ajuste o alvo em `ops/prometheus/prometheus.yml`; o do compose é `app:8080` do dev). Além das métricas padrão (HTTP, JVM, Hikari, Resilience4j), o app expõe métricas de operação: `pix_payment_orders_stuck{status}`, `pix_pixkeys_pending_dict_stuck`, `pix_ledger_reservations_pending_stuck`, `pix_outbox_rows`, `pix_outbox_slot_lag_bytes` (-1 = sem permissão para ler o WAL: use o `postgres_exporter`) e `pix_dlt_messages_total{topic}`. Lag de consumer vem do `kafka-exporter`.
-- **Alertas:** `ops/prometheus/alert-rules.yml` (13 regras, validadas com `promtool check rules` e **testadas** com `promtool test rules` em `ops/prometheus/tests`): app fora do ar, circuit breaker aberto, pagamento preso, chave presa em `PENDING_DICT`, reserva presa, mensagem na DLT, lag de consumer, slot do Debezium, backlog da outbox, p95, taxa de 5xx e pool saturado. Cada alerta aponta para um **runbook** em `docs/runbooks`. Antes desta revisão `PixDltMessages` e `PixOutboxSlotLag` referenciavam métricas que **não existiam** (nunca disparariam): foi corrigido. `PixPaymentsStuck` dispara em dev por desenho (sem spi-gateway toda ordem fica `RESERVED`).
+- **Alertas:** `ops/prometheus/alert-rules.yml` (18 regras, validadas com `promtool check rules` e **testadas** com `promtool test rules` em `ops/prometheus/tests`): app fora do ar, circuit breaker aberto, pagamento preso, chave presa em `PENDING_DICT`, reserva presa, mensagem na DLT, lag de consumer, slot do Debezium, backlog da outbox, p95, taxa de 5xx pool saturado e entregas de webhook DEAD/vencidas. Cada alerta aponta para um **runbook** em `docs/runbooks`. Antes desta revisão `PixDltMessages` e `PixOutboxSlotLag` referenciavam métricas que **não existiam** (nunca disparariam): foi corrigido. `PixPaymentsStuck` dispara em dev por desenho (sem spi-gateway toda ordem fica `RESERVED`).
 - **Dashboard:** `ops/grafana/dashboards/pix-manager.json` (provisionado com os datasources Prometheus/Tempo/Loki em `ops/grafana/provisioning`).
 - **Traces:** OTLP HTTP para `OTLP_TRACES_ENDPOINT`. Todo erro da API devolve `traceId`.
 - **Logs:** JSON no stdout (perfil `prd`), com **PII mascarada**. O app não envia logs a nenhum backend: colete com o agente da plataforma. O Promtail do compose (lê o socket do Docker) é **só dev**.
@@ -291,7 +303,7 @@ Estado depois das rodadas de carga, caos, segurança e funcionalidades. **Feito 
 | Valores regulatórios (`pix.policy.*`) | Cruzados com fontes públicas do BCB em `docs/regulatory-verification.md`: ✅ limite noturno, 90 dias de devolução, 80 dias do MED, 30º dia da reivindicação, expiração padrão; 🟡 limites de dispositivo não cadastrado, 7 dias/72 h do MED, janela 18h–21h; ❌ `med.tracking-window` 90 d, doador 7 d, chaves por conta 5/20; 🏢 limites/tetos por dia são decisão da instituição. **Falta o parecer do compliance** sobre o texto vigente |
 | Contratos com spi-gateway, dict-gateway, core-ledger e serviço de notificação | "A confirmar" (`docs/10` E2); só testados contra mocks e contra WireMock (contrato de erro/status). O contrato do **OTP** foi definido por este projeto |
 | Carga de contas/titulares | Sem API; precisa de integração com o core ou carga por SQL |
-| **Funcionalidades não implementadas** | **QR dinâmico (pagar)** (responde 422; gerar/consultar cobrança funciona), **webhooks** (só domínio+DDL, sem API nem worker), **agendamento**, **Pix Automático**, **MED**. Se forem obrigatórios para a sua instituição, são bloqueio de go-live. Planejamento em `docs/pendencias-funcionais.md` |
+| **Funcionalidades parciais** | QR dinâmico, Pix Agendado, MED e Pix Automático **existem**, mas: (a) os gateways do MED e do Pix Automático são contratos **rascunho**; (b) solicitações/notificações do SPI chegam por API, **não** por Kafka; (c) MED sem rastreamento em camadas; (d) **prazos do Pix Automático não confirmados** no regulamento; (e) QR dinâmico exige trust store ICP-Brasil e não verifica revogação. Detalhes em `docs/pendencias-funcionais.md` |
 | Segurança do transporte do Kafka | SASL `PLAIN` provado; o handshake **TLS**, SCRAM, mTLS, ACLs e o registry com Basic Auth têm configuração pronta, mas **nunca rodaram** contra um sistema real (§3.3) |
 | HMAC (índice cego) sem rotação | Ver `docs/runbooks/rotacao-de-chave.md` |
 | Spring Boot 4 | 2 CVE CRITICAL do `spring-webmvc` só têm correção no Spring Framework 7; **não alcançáveis** por este código (sem views/SSE), aceitas conscientemente — migrar para o Boot 4 (`docs/security-scan.md`, pendência E1) |
@@ -308,6 +320,8 @@ Estado depois das rodadas de carga, caos, segurança e funcionalidades. **Feito 
 - Caos em dev (`scripts/chaos-test.py`): core, Kafka, Debezium e Postgres fora ⇒ recuperação **sozinha**, sem reiniciar o app; banco fora devolve **503**, não 500.
 - Segurança: Trivy (fs + imagem) e Semgrep executados; 28 de 30 HIGH/CRITICAL corrigidos (`docs/security-scan.md`).
 - Rotação da chave AES com re-criptografia em lote (`PiiReencryptionIT`).
+- QR dinâmico, Pix Agendado, MED e Pix Automático ponta a ponta no ambiente local (mocks), com ITs (`HttpDynamicQrPayloadAdapterTest`, `ScheduledPaymentApiIT`, `MedCaseApiIT`, `AutomaticPixApiIT`) e `scripts/demo-flow.py`.
+- Webhook de Pix recebido ponta a ponta: cadastro BCB, entrega assinada ao receptor HTTPS, retry/DEAD/reenvio, anti-SSRF (`WebhookApiIT`, testes de política/sender/serviço, roteiro `demo-flow.py`).
 - Prova de posse por OTP de ponta a ponta (`OwnershipProofServiceTest`, `PixKeyOwnershipProofIT`, contrato do gateway).
 - Actuator fora da porta pública (verificado com o perfil `prd`), alertas testados com `promtool`, `outbox_event` com limpeza.
 
