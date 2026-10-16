@@ -98,6 +98,7 @@ replay_pid*
 *.pem
 *.key
 *.p12
+!src/test/resources/qr/*.p12
 *.jks
 *.keystore
 secrets.*
