@@ -1,12 +1,25 @@
 changelog:
+  exclude:
+    labels: [skip-changelog]
+    authors: [dependabot]
   categories:
-    - title: Funcionalidades
-      labels: [enhancement, feat]
-    - title: Correções
-      labels: [bug, fix]
-    - title: Performance
-      labels: [perf]
-    - title: Dependências e infraestrutura
-      labels: [dependencies, chore, ci]
-    - title: Outras mudanças
+    - title: "⚠️ Quebras de contrato"
+      labels: [type/breaking-change]
+    - title: "🔒 Segurança"
+      labels: [type/security]
+    - title: "🚀 Funcionalidades"
+      labels: [type/feature]
+    - title: "🐛 Correções"
+      labels: [type/bug, type/hotfix]
+    - title: "⚡ Performance"
+      labels: [type/perf]
+    - title: "♻️ Refatoração e testes"
+      labels: [type/refactor, type/test]
+    - title: "📚 Documentação"
+      labels: [type/docs]
+    - title: "📦 Dependências"
+      labels: [type/dependencies]
+    - title: "🔧 Infraestrutura e CI"
+      labels: [type/chore, type/ci]
+    - title: "Outras mudanças"
       labels: ["*"]

@@ -1,0 +1,65 @@
+# Rotulagem automática de PR (actions/labeler@v5): tipo pelo nome da branch, área pelos arquivos.
+type/feature:
+  - head-branch: ['^feature/']
+type/hotfix:
+  - head-branch: ['^hotfix/']
+type/release:
+  - head-branch: ['^release/']
+type/bug:
+  - head-branch: ['^bugfix/', '^fix/']
+type/dependencies:
+  - head-branch: ['^dependabot/']
+type/docs:
+  - changed-files:
+      - any-glob-to-all-files: ['docs/**', '*.md']
+type/ci:
+  - changed-files:
+      - any-glob-to-all-files: ['.github/**']
+type/test:
+  - changed-files:
+      - any-glob-to-all-files: ['src/test/**', 'src/gatling/**']
+area/charge:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/charge/**', 'src/main/java/br/com/pixmanager/core/port/**/charge/**']
+area/pix-key:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/pixkey/**', 'src/main/java/br/com/pixmanager/core/port/**/pixkey/**']
+area/payment:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/payment/**', 'src/main/java/br/com/pixmanager/core/port/**/payment/**']
+area/refund:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/refund/**', 'src/main/java/br/com/pixmanager/core/port/**/refund/**']
+area/schedule:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/schedule/**', 'src/main/java/br/com/pixmanager/core/port/**/schedule/**']
+area/automatic:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/automatic/**', 'src/main/java/br/com/pixmanager/core/port/**/automatic/**']
+area/med:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/med/**', 'src/main/java/br/com/pixmanager/core/port/**/med/**']
+area/webhook:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/webhook/**', 'src/main/java/br/com/pixmanager/core/port/**/webhook/**']
+area/ledger:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/ledger/**', 'src/main/java/br/com/pixmanager/core/port/**/ledger/**']
+area/limit:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/java/br/com/pixmanager/core/application/service/limit/**', 'src/main/java/br/com/pixmanager/core/port/**/limit/**']
+area/db:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/resources/db/**']
+area/api:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/api/**']
+area/events:
+  - changed-files:
+      - any-glob-to-any-file: ['src/main/resources/avro/**', 'docs/06-events-messaging.md']
+area/ops:
+  - changed-files:
+      - any-glob-to-any-file: ['ops/**', 'docker/**', 'docker-compose.yml', 'Dockerfile']
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**']

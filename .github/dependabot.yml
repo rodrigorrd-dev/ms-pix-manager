@@ -5,13 +5,19 @@ updates:
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     commit-message: { prefix: "chore(deps)" }
+    labels: [type/dependencies]
+    target-branch: develop
     groups:
       spring-boot: { patterns: ["org.springframework*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: "ci(deps)" }
+    labels: [type/dependencies, type/ci]
+    target-branch: develop
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: "chore(deps)" }
+    labels: [type/dependencies]
+    target-branch: develop
