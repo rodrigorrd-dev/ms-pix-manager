@@ -87,6 +87,26 @@ git merge --no-ff main && git push origin develop
 git push origin --delete hotfix/1.2.1-timeout-ledger && git branch -d hotfix/1.2.1-timeout-ledger
 ```
 
+## Labels: tipo, prioridade, área e status
+Definidos em `.github/labels.yml` (sincronizados pelo workflow `labels`). Toda issue e todo PR tem **um** `type/*`; issues têm também `priority/*` e `status/*`; `area/*` é opcional e múltiplo.
+
+| Prefixo | Valores | Quem aplica |
+|---|---|---|
+| `type/*` | `feature` `bug` `hotfix` `release` `refactor` `perf` `test` `docs` `chore` `ci` `security` `dependencies` `breaking-change` | template da issue; no PR, automático pela branch (`feature/*` → `type/feature`, `hotfix/*`, `release/*`, `dependabot/*`) e pelos arquivos (docs, ci, test) |
+| `priority/*` | `p0-critical` `p1-high` `p2-medium` `p3-low` | triagem |
+| `status/*` | `triage` `needs-info` `ready` `in-progress` `blocked` `wontfix` | triagem e autor |
+| `area/*` | `charge` `pix-key` `payment` `refund` `schedule` `automatic` `med` `webhook` `ledger` `limit` `db` `api` `events` `security` `ops` `docs` | automático pelos arquivos do PR |
+| `skip-changelog` | | exclui o PR das notas de release |
+
+Tipo da issue → templates: **Bug**, **Funcionalidade**, **Tarefa técnica**, **Segurança (não sensível)** e **Release**. Bug em produção com impacto: `priority/p0-critical` e branch `hotfix/*`.
+As notas da GitHub Release são agrupadas por `type/*` (`.github/release.yml`).
+
+## Tags e versões
+- SemVer anotada em `main`: `vMAJOR.MINOR.PATCH` (ex.: `v1.2.0`). Pré-release: `v1.3.0-rc.1`.
+- MAJOR: quebra de contrato (API, evento, schema) · MINOR: funcionalidade compatível · PATCH: correção.
+- Na `develop` o `pom.xml` fica em `X.Y.0-SNAPSHOT`; a `release/*` remove o `-SNAPSHOT`; depois do merge a `develop` sobe para o próximo `-SNAPSHOT`.
+- `CHANGELOG.md` (Keep a Changelog) é atualizado na `release/*`.
+
 ## Versionamento e release
 SemVer por tag anotada em `main` (`vX.Y.Z`). A tag dispara a imagem versionada no GHCR e a GitHub Release com as notas dos PRs (categorias em `.github/release.yml`).
 O CI roda em PRs e em push nas branches `main`, `develop`, `release/**` e `hotfix/**`.
