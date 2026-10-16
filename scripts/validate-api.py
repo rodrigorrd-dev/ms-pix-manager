@@ -142,6 +142,24 @@ chk("repetir o mesmo código ⇒ 422 (chave não aguarda mais prova)",_s==422,_s
 _s,_,_v=call("POST","/v1/pix-keys/%s/ownership-proof/challenges"%_k["id"],P)
 chk("token sem escopo pixkey.write ⇒ 403",_s==403,_s)
 
+print("== Webhook")
+_hk="https://mocks:8443/webhook-receiver/ok"
+s,h,j=call("PUT","/api/pix/v2/webhook/"+KEY,P,{"webhookUrl":_hk}); chk("PUT webhook cria/atualiza (201|200) com webhookUrl, chave e criacao",s in(200,201) and j.get("webhookUrl")==_hk and j.get("chave")==KEY and j.get("criacao"),(s,j))
+s,h,j=call("PUT","/api/pix/v2/webhook/"+KEY,P,{"webhookUrl":_hk+"2"}); chk("  segundo PUT atualiza a URL ⇒ 200",s==200 and j.get("webhookUrl")==_hk+"2",s)
+s,h,j=call("GET","/api/pix/v2/webhook/"+KEY,P); chk("GET webhook ⇒ 200 com a URL nova",s==200 and j.get("webhookUrl")==_hk+"2",s)
+s,h,j=call("GET","/api/pix/v2/webhook?inicio=%s&fim=%s"%(ini,fim),P); chk("GET lista ⇒ 200 com parametros e webhooks",s==200 and "parametros" in j and any(w["chave"]==KEY for w in j["webhooks"]),(s,list(j) if j else j))
+s,h,j=call("GET","/api/pix/v2/webhook?inicio=%s&fim=%s"%(fim,ini),P); chk("  inicio > fim ⇒ 400",s==400,s)
+for bad in ("http://mocks:8080/x","ftp://x.example/h","https://user:pw@x.example/h","https://x.example/h#f"):
+    s,h,j=call("PUT","/api/pix/v2/webhook/"+KEY,P,{"webhookUrl":bad}); chk("  URL fora da política ⇒ 422 PIX-422-017 (%s)"%bad[:28],s==422 and j.get("code")=="PIX-422-017",(s,j.get("code") if j else j))
+s,h,j=call("PUT","/api/pix/v2/webhook/"+KEY,P,{}); chk("  corpo sem webhookUrl ⇒ 400",s==400,s)
+s,h,j=call("PUT","/api/pix/v2/webhook/"+KEY,O,{"webhookUrl":_hk}); chk("  token sem escopo webhook.write (backoffice) ⇒ 403",s==403,s)
+s,h,j=call("PUT","/api/pix/v2/webhook/chave-que-nao-existe@example.com",P,{"webhookUrl":_hk}); chk("  chave inexistente ⇒ 404",s==404,s)
+s,h,j=call("DELETE","/api/pix/v2/webhook/"+KEY,P); chk("DELETE webhook ⇒ 204",s==204,s)
+s,h,j=call("DELETE","/api/pix/v2/webhook/"+KEY,P); chk("  DELETE de novo ⇒ 404",s==404,s)
+s,h,j=call("GET","/api/pix/v2/webhook/"+KEY,P); chk("  GET após remover ⇒ 404",s==404,s)
+s,h,j=call("POST","/v1/webhook-deliveries/%s/resend"%uuid.uuid4(),O); chk("resend de entrega inexistente ⇒ 404 (token back-office)",s==404,s)
+s,h,j=call("POST","/v1/webhook-deliveries/%s/resend"%uuid.uuid4(),P); chk("  resend com token de parceiro ⇒ 403 (escopo)",s==403,s)
+
 print("== Ordens de pagamento")
 BR="00020126580014br.gov.bcb.pix0136123e4567-e89b-42d3-a456-426655440000520400005303986540510.005802BR5913Fulano de Tal6009SAO PAULO62070503***63048654"
 s,h,j=call("POST","/v1/payment-orders/decodings",O,{"payload":BR}); chk("decodings BR Code válido → 200",s==200,(s,{k:j.get(k) for k in list(j)[:6]} if s==200 else j))

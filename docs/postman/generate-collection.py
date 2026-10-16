@@ -94,6 +94,16 @@ bcb=folder("API BCB — /api/pix/v2 (token_partner)",[
         pre=["const c='abcdefghijklmnopqrstuvwxyz0123456789'; let t=''; for(let i=0;i<32;i++) t+=c[Math.floor(Math.random()*c.length)]; pm.collectionVariables.set('txid_cobv', t);"],test=status_test(200,201)),
     req("Consultar cobv","GET","{{base_url}}/api/pix/v2/cobv/{{txid_cobv}}",test=status_test(200)),
   ]),
+  folder("Webhook de Pix recebido",[
+    req("Cadastrar webhook da chave (PUT, 201 novo / 200 atualiza)","PUT","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",{"webhookUrl":"{{webhook_url}}"},
+        test=status_test(200,201),desc="Só HTTPS (o banco também exige) e host público (anti-SSRF). No dev a URL do receptor fictício é https://mocks:8443/webhook-receiver/ok (certificado de dev; `PIX_WEBHOOK_INSECURE_TLS` e `ALLOW_PRIVATE_HOSTS` ligados só no perfil local). O app envia POST para <webhookUrl>/pix com x-pix-signature."),
+    req("Consultar webhook da chave","GET","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",test=status_test(200)),
+    req("Listar webhooks (por período)","GET","{{base_url}}/api/pix/v2/webhook?inicio={{inicio}}&fim={{fim}}&paginacao.paginaAtual=0&paginacao.itensPorPagina=100",test=status_test(200)),
+    req("URL fora da política (http) ⇒ 422 PIX-422-017","PUT","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",{"webhookUrl":"http://mocks:8080/x"},test=status_test(422)),
+    req("Ver o último webhook recebido pelo receptor fictício (só dev)","GET","{{mocks_url}}/webhook-receiver/last",auth="none",test=status_test(200,404),
+        desc="Mostra o corpo, `signatureValid` e `timestampFresh`. Para gerar um: rode `python3 scripts/simulate-spi.py pix-received --amount 10.00 --txid <txid de uma cobrança da chave>`."),
+    req("Remover webhook da chave","DELETE","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",test=status_test(204)),
+  ],auth="token_partner"),
   folder("Pix recebidos",[
     req("Consultar Pix por e2eid","GET","{{base_url}}/api/pix/v2/pix/{{e2eid}}",test=status_test(200,404),desc="Requer um Pix recebido (consumer de pix.spi.payment-settled.v1)."),
     req("Listar Pix recebidos por período","GET","{{base_url}}/api/pix/v2/pix?inicio={{inicio}}&fim={{fim}}&~txid=&~cpf=&~cnpj=&paginacao.paginaAtual=0&paginacao.itensPorPagina=100",test=status_test(200)),
@@ -239,7 +249,7 @@ variables={
  "connect_url":"http://localhost:18083","schema_registry_url":"http://localhost:18081","prometheus_url":"http://localhost:19090",
  "grafana_url":"http://localhost:13000","loki_url":"http://localhost:13100","mocks_url":"http://localhost:18090","kafka_ui_url":"http://localhost:18080",
  "ispb":"12345678","account_id":"00000000-0000-0000-0000-000000000001","pix_key":"123e4567-e89b-42d3-a456-426655440000","br_code":"00020126580014br.gov.bcb.pix0136123e4567-e89b-42d3-a456-426655440000520400005303986540510.005802BR5913Fulano de Tal6009SAO PAULO62070503***63048654",
- "limit_scope":"DAILY","token_partner":"","token_partner_exp":"","token_backoffice":"","token_backoffice_exp":"","keycloak_admin_token":"",
+ "limit_scope":"DAILY","webhook_url":"https://mocks:8443/webhook-receiver/ok","token_partner":"","token_partner_exp":"","token_backoffice":"","token_backoffice_exp":"","keycloak_admin_token":"",
  "txid":"","txid_cobv":"","e2eid":"","refund_id":"","pix_key_id":"","payment_order_id":"","email_key":"","email_key_id":"","otp_code":"","etag":"","idempotency_key":"","inicio":"","fim":""}
 STATIC=["base_url","keycloak_url","realm","client_id_partner","client_id_backoffice","client_secret","keycloak_admin_user","keycloak_admin_password","connect_url","schema_registry_url","prometheus_url","grafana_url","loki_url","kafka_ui_url","ispb","account_id","pix_key","br_code","limit_scope"]
 coll={"info":{"name":"ms-pix-manager","_postman_id":str(uuid.uuid5(uuid.NAMESPACE_DNS,"ms-pix-manager")),

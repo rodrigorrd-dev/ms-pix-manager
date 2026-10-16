@@ -25,7 +25,7 @@ Versão no path em ambas; `/v2` de gestão entra como novo controller sem mexer 
 | GET | `/pix`, `/pix/{e2eid}` | `pix.read` | 200 | `inicio`,`fim`,`txid`,`txIdPresente`,`devolucaoPresente`,`cpf|cnpj`, paginação |
 | PUT | `/pix/{e2eid}/devolucao/{id}` | `pix.write` | 201 | idempotente (BR-REF-01) |
 | GET | `/pix/{e2eid}/devolucao/{id}` | `pix.read` | 200 | |
-| PUT/GET/DELETE | `/webhook/{chave}`, GET `/webhook` | `webhook.write/read` | 200/204 | URL `https`; header `x-pix-signature` (HMAC) opcional |
+| PUT/GET/DELETE | `/webhook/{chave}`, GET `/webhook` | `webhook.write/read` | PUT **201** novo / **200** atualiza · GET 200 · DELETE 204 · 404 chave de outra conta/sem webhook · **422 `PIX-422-017`** URL fora da política | **Implementado.** Só `https` (o banco também exige: `CHECK url ~ '^https://'`), sem credencial/fragmento na URL, host público (anti-SSRF: bloqueia loopback, privado, link-local/metadados 169.254.x, CGNAT, ULA, multicast), checado no cadastro **e a cada envio**. A chave precisa estar `ACTIVE` e ser do chamador. Veja “Entrega do webhook” abaixo |
 | GET | `/{pixUrlAccessToken}`, `/cobv/{pixUrlAccessToken}` | público (JWS) | 200 | `application/jose`; resposta assinada |
 Fora da v1 (backlog): `/lotecobv`, `/locrec`, `/rec`, `/solicrec`, `/cobr`, `/webhookrec`, `/webhookcobr`.
 
@@ -43,7 +43,7 @@ Fora da v1 (backlog): `/lotecobv`, `/locrec`, `/rec`, `/solicrec`, `/cobr`, `/we
 | `/v1/med-cases` | `POST` (notificar; informa `layer`) · `GET` · `GET /{id}` · `GET /{id}/hops` (camadas; paginado) · `POST /{id}/acceptance` · `/refusal` · `/cancellation` · `/closure` · `POST /{id}/refunds` · `POST /{id}/contestations` (recebedor; 80 dias da devolução) · `POST /{id}/contestations/{cid}/decision` |
 | `/v1/scheduled-payments` | `POST` (**`Idempotency-Key` obrigatório**; `recurrence`, `firstDate`, `endDate`/`occurrencesTotal`) · `GET` (paginado) · `GET /{id}` · `GET /{id}/occurrences` · `POST /{id}/cancellation` · `POST /{id}/occurrences/{oid}/cancellation` |
 | `/v1/automatic-authorizations` | `GET` (paginado) · `GET /{id}` · `POST /{id}/acceptance` (opcional `payerMaxAmount`) · `POST /{id}/rejection` (`AP13`/`AP14`/`AP15`) · `POST /{id}/cancellation` · `PUT /{id}/limits` (ajusta valor máximo) · `GET /{id}/charges` · `GET /{id}/charges/{chargeId}/attempts` |
-| `/v1/webhook-deliveries` | `GET` (filtros `status`, `subscriptionId`; paginado) · `POST /{id}/resend` (entrega `DEAD`; escopo `webhook.write`; auditado) |
+| `/v1/webhook-deliveries` | `POST /{id}/resend` — **implementado** (entrega `DEAD` ⇒ `PENDING`; escopo `webhook.admin` **e** acesso a todas as contas; 403/404/422). `GET` (listar/filtrar entregas) ainda **não** implementado |
 | `/v1/reports/reconciliation` | `GET` (lê a MV; `day` em `America/Sao_Paulo`) |
 Cancelamentos e transições são **sub-recurso substantivo** (`/cancellation`, `/closure`), nunca `DELETE` com corpo nem `GET` com efeito (lições da skill).
 
@@ -205,3 +205,11 @@ Quebra: remover/renomear campo, mudar tipo, tornar opcional→obrigatório, reno
 - [x] Idempotency-Key com replay, hash e sem queimar chave
 - [x] Dinheiro `BigDecimal`/string; datas com offset
 - [x] Códigos só via `ErrorCodes`
+
+## Entrega do webhook (implementada)
+- **Quando:** a cada Pix recebido numa chave com webhook. A entrega nasce `PENDING` **na mesma transação** que grava o Pix (a chave é achada pelo índice cego informado pelo SPI ou pela chave da cobrança quitada). Única por (assinatura, Pix): reprocessar a mensagem não duplica. Um erro ao enfileirar **nunca** impede o crédito.
+- **Requisição:** `POST <webhookUrl>/pix`, `Content-Type: application/json`, corpo da API Pix: `{"pix":[{"endToEndId","txid"?,"chave","valor","horario","infoPagador"?}]}` — **sem dados do pagador**. Sem redirecionamento (um 30x é falha), timeout de conexão 3 s e de resposta 5 s; só o status importa.
+- **Autenticidade (receptor):** `x-pix-timestamp` (epoch s) e `x-pix-signature: v1=<hex>` onde `hex = HMAC-SHA256(PIX_WEBHOOK_SIGNING_KEY, timestamp + "." + corpo)`. O receptor recalcula, compara em tempo constante e **rejeita timestamp com mais de 5 min** (anti-replay). A chave é compartilhada por contrato com o cliente (rotacioná-la exige combinar com todos).
+- **Resultado:** **2xx = `DELIVERED`**; qualquer outra coisa (3xx/4xx/5xx, timeout, DNS, URL que passou a ser bloqueada) = `RETRYING` com backoff exponencial ×6 e jitter de 20% (5 s, 30 s, 3 min, 18 min, 1h48, 6 h…) e, após **8 tentativas**, `DEAD` (reenvio manual por back-office). O receptor precisa ser **idempotente** (mesmo `endToEndId` pode chegar mais de uma vez).
+- **Métricas/alertas:** `pix_webhook_deliveries_dead`, `pix_webhook_deliveries_overdue`; runbook `docs/runbooks/webhook-entregas.md`.
+- **Limites conhecidos:** envio sequencial por lote (20 a cada 2 s: um receptor lento atrasa os demais); a checagem anti-SSRF resolve o DNS e a conexão resolve de novo (janela de DNS rebinding reduzida por re-checar a cada envio e não seguir redirecionamentos; fechamento total exige IP fixado ou egress proxy); mTLS com o receptor não implementado.

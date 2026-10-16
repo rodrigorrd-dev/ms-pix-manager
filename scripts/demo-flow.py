@@ -96,6 +96,13 @@ dyn = script("brcode.py", "dynamic", "--url", cob["location"], "--amount", "50.0
 s, _, d2 = call("POST", "/v1/payment-orders/decodings", O, {"payload": dyn})
 step("BR Code dinâmico (copia e cola da cobrança) decodificado", s == 200 and d2["dynamic"], dyn[:60] + "...")
 
+print("2b) WEBHOOK — o recebedor é avisado de cada Pix recebido")
+hook = "https://mocks:8443/webhook-receiver/ok"            # receptor fictício (HTTPS, certificado de dev) dentro da rede do compose
+s, _, wh = call("PUT", "/api/pix/v2/webhook/" + SEED_KEY, P, {"webhookUrl": hook})
+step("webhook cadastrado na chave (201 novo / 200 atualizado)", s in (200, 201) and wh["webhookUrl"] == hook, s)
+s, _, bad = call("PUT", "/api/pix/v2/webhook/" + SEED_KEY, P, {"webhookUrl": "http://mocks:8080/x"})
+step("URL http:// é SEMPRE recusada (422 PIX-422-017); em produção também são recusados hosts internos (anti-SSRF)", s == 422 and bad["code"] == "PIX-422-017", s)
+
 print("3) FAZER UM PIX — por chave, depois por QR estático")
 p = pay({"payerAccountId": ACC, "method": "KEY", "amount": "25.90", "destination": {"pixKeyType": "EMAIL", "pixKey": "outra@example.com"}}, 201)
 step("pagamento por chave criado; DICT (mock) resolveu o favorecido", p["destinationName"] == "Maria Beneficiária", p["status"])
@@ -137,6 +144,26 @@ rtr = wait(lambda: (call("GET", "/api/pix/v2/pix/" + e2e, P)[2].get("devolucoes"
 script("simulate-spi.py", "refund-status", rtr, "SETTLED", "--e2e", e2e)
 st = wait(lambda: call("GET", "/api/pix/v2/pix/%s/devolucao/%s" % (e2e, dv["id"]), P)[2]["status"], "DEVOLVIDO")
 step("SPI liquidou a devolução → DEVOLVIDO", st == "DEVOLVIDO", st)
+
+print("6) WEBHOOK — o Pix recebido da etapa 5 chegou ao receptor, assinado")
+def last_webhook():
+    try:
+        w = json.load(urllib.request.urlopen(MOCKS + "/webhook-receiver/last"))
+        return w if w["body"]["pix"][0]["endToEndId"] == e2e else None
+    except Exception:
+        return None
+
+
+w = None
+t0 = time.time()
+while time.time() - t0 < 30 and not (w := last_webhook()):      # o job de entrega roda a cada ~2 s
+    time.sleep(2)
+step("o receptor recebeu o POST /pix do Pix recebido (e2eId, txid, valor, chave)", bool(w) and w["body"]["pix"][0]["txid"] == tx and w["body"]["pix"][0]["valor"] == "50.00"
+     and w["body"]["pix"][0]["chave"] == SEED_KEY, w["body"]["pix"][0] if w else "nada recebido")
+step("a assinatura x-pix-signature (HMAC-SHA256 de timestamp.corpo) confere e o timestamp é recente", bool(w) and w["signatureValid"] and w["timestampFresh"])
+step("o corpo NÃO leva dados do pagador (nome/documento)", bool(w) and "Cliente Pagador" not in json.dumps(w["body"]) and "11144477735" not in json.dumps(w["body"]))
+s, _, _ = call("DELETE", "/api/pix/v2/webhook/" + SEED_KEY, P)
+step("webhook removido (204)", s == 204, s)
 
 free_keys()
 print("\nRESULTADO: %d/%d passos OK" % (sum(ok_all), len(ok_all)))
