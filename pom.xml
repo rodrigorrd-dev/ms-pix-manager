@@ -28,7 +28,7 @@
         <postgresql.version>42.7.12</postgresql.version>      <!-- CVE-2026-42198, CVE-2026-54291 (HIGH) -->
         <lz4-java.version>1.11.4</lz4-java.version>           <!-- CVE-2026-106451 (HIGH), vem do kafka-clients -->
         <!-- fora do BOM do Spring Boot: toda versão pinada tem motivo (docs/03 §9) -->
-        <avro.version>1.11.4</avro.version>
+        <avro.version>1.12.2</avro.version>
         <confluent.version>7.9.9</confluent.version>
         <springdoc.version>2.8.17</springdoc.version>
         <springwolf.version>1.21.0</springwolf.version>
