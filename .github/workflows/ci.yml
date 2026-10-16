@@ -35,7 +35,7 @@ jobs:
         run: docker compose config -q
       - name: Relatórios
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -152,7 +152,7 @@ jobs:
           python3 scripts/demo-flow.py
       - name: Relatório de carga
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with: { name: gatling-report, path: target/gatling, retention-days: 14 }
       - name: Logs do stack em caso de falha
         if: failure()
