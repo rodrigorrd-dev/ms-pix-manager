@@ -1,0 +1,38 @@
+# Perfil local: SOMENTE desenvolvimento. Segredos de exemplo, jamais usar fora daqui.
+spring:
+  datasource:
+    password: ${DB_PASSWORD:pix_local_only}
+  jpa:
+    show-sql: ${JPA_SHOW_SQL:false}
+
+pix:
+  institution:
+    ispb: ${PIX_ISPB:12345678}                          # ISPB fictício de desenvolvimento
+  docs:
+    public: true
+  webhook:
+    signing-key-base64: ${PIX_WEBHOOK_SIGNING_KEY:ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==}   # SÓ dev (32 bytes)
+    allow-http: ${PIX_WEBHOOK_ALLOW_HTTP:true}
+    allow-private-hosts: ${PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS:true}
+  crypto:
+    # 32 bytes cada, DISTINTAS entre si (geradas só para dev)
+    aes-key-base64: ${PIX_CRYPTO_AES_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+    hmac-key-base64: ${PIX_CRYPTO_HMAC_KEY:ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=}
+  kafka:
+    auto-register-schemas: true
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://localhost:18081}
+  security:
+    jwt:
+      jwk-set-uri: ${OAUTH2_JWKS_URI:http://localhost:18180/realms/pix/protocol/openid-connect/certs}
+      issuer: ${OAUTH2_ISSUER_URI:http://localhost:18180/realms/pix}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0

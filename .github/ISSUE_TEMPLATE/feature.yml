@@ -1,0 +1,16 @@
+name: Funcionalidade / mudança de comportamento
+description: Nova capacidade ou alteração de regra (começa pela spec, veja o README)
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problema
+    attributes: { label: Problema / necessidade }
+    validations: { required: true }
+  - type: textarea
+    id: spec
+    attributes: { label: Impacto na spec, description: "FR/BR de docs/02 afetados ou novos, cenário Gherkin, contrato (OpenAPI/Avro/DDL) que muda." }
+    validations: { required: true }
+  - type: textarea
+    id: aceite
+    attributes: { label: Critérios de aceite }
+    validations: { required: true }

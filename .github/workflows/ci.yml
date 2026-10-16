@@ -1,0 +1,159 @@
+# CI do ms-pix-manager. NUNCA foi executado no GitHub (só validado com actionlint e com os mesmos comandos rodados localmente/em contêiner).
+# Segredos opcionais: NVD_API_KEY (dependency-check noturno). GHCR usa o GITHUB_TOKEN. Deploy NÃO está aqui: depende da plataforma (veja subida-producao.md).
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    - cron: '0 6 * * *'        # noturno (06:00 UTC): concorrência, carga de fumaça e dependency-check completo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 70% no core)
+        run: mvn -B verify
+      - name: Regras de alerta do Prometheus (sintaxe e testes)
+        run: |
+          docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool prom/prometheus:v2.55.0 check rules /p/alert-rules.yml
+          docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool prom/prometheus:v2.55.0 test rules /p/tests/alert-rules.test.yml
+      - name: Compose válido
+        run: docker compose config -q
+      - name: Relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+            target/site/jacoco
+          retention-days: 14
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy — dependências, segredos e misconfig (falha em HIGH/CRITICAL com correção disponível)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-dirs: target,docs,docker/keycloak
+      - name: SAST — Semgrep (Java + OWASP Top 10), falha em achados
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.97.0 \
+            semgrep scan --config p/java --config p/owasp-top-ten --error --metrics=off src/main
+
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - uses: github/codeql-action/init@v3
+        with: { languages: java-kotlin, build-mode: manual }
+      - run: mvn -B -DskipTests -Dmaven.test.skip=true package
+      - uses: github/codeql-action/analyze@v3
+
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: "OpenAPI alvo (docs/api) - só avisa, não bloqueia (é o contrato planejado, não o que está no ar)"
+        run: npx --yes @redocly/cli@1.25.11 lint docs/api/ms-pix-manager.openapi.yaml || true
+
+  image:
+    needs: [build-test, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (sem push em PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ms-pix-manager:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy — imagem (HIGH/CRITICAL com correção)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ms-pix-manager:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Login no GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - name: Publica (main => sha; tag vX.Y.Z => versão)
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ${{ startsWith(github.ref, 'refs/tags/v') && format('ghcr.io/{0}:{1}', github.repository, github.ref_name) || format('ghcr.io/{0}:main', github.repository) }}
+          cache-from: type=gha
+
+  nightly:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - name: Testes de concorrência
+        run: mvn -B -Pconcurrency test
+      - name: OWASP dependency-check completo (NVD)
+        run: mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+      - name: Stack + carga de fumaça (Gatling, asserts p95/falhas)
+        run: |
+          docker compose up -d --build
+          timeout 450 bash -c 'until curl -sf localhost:8088/actuator/health >/dev/null; do sleep 5; done'
+          mvn -B -Pperf test-compile gatling:test -Dpix.rps=20 -Dpix.ramp.seconds=20 -Dpix.hold.seconds=60
+          python3 scripts/validate-api.py
+          python3 scripts/demo-flow.py
+      - name: Relatório de carga
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: gatling-report, path: target/gatling, retention-days: 14 }
+      - name: Logs do stack em caso de falha
+        if: failure()
+        run: docker compose logs --tail=200 app

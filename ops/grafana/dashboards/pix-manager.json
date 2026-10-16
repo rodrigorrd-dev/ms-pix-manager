@@ -1,0 +1,641 @@
+{
+ "uid": "pix-manager",
+ "title": "ms-pix-manager — operação",
+ "tags": [
+  "pix"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-3h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Ordens de pagamento presas",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(pix_payment_orders_stuck)",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Chaves presas em PENDING_DICT",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "pix_pixkeys_pending_dict_stuck",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Reservas de saldo presas",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "pix_ledger_reservations_pending_stuck",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Mensagens na DLT (1h)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(pix_dlt_messages_total[1h]))",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Circuit breakers abertos",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "count(resilience4j_circuitbreaker_state{state=\"open\"} == 1) or vector(0)",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "Atraso do slot Debezium",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 536870912
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "pix_outbox_slot_lag_bytes",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Requisições/s por status",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (status) (rate(http_server_requests_seconds_count[1m]))",
+     "legendFormat": "{{status}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Latência p95 por rota (s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket[5m])))",
+     "legendFormat": "{{uri}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Taxa de erro 5xx",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))",
+     "legendFormat": "5xx",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Lag dos consumers Kafka",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag)",
+     "legendFormat": "{{consumergroup}} / {{topic}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Pool de conexões (Hikari)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "hikaricp_connections_active",
+     "legendFormat": "ativas",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "hikaricp_connections_pending",
+     "legendFormat": "esperando",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    },
+    {
+     "refId": "C",
+     "expr": "hikaricp_connections_max",
+     "legendFormat": "máx",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "Heap da JVM",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 20,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(jvm_memory_used_bytes{area=\"heap\"})",
+     "legendFormat": "usado",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "sum(jvm_memory_max_bytes{area=\"heap\"})",
+     "legendFormat": "máx",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "Linhas na outbox",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "pix_outbox_rows",
+     "legendFormat": "outbox_event",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "type": "timeseries",
+   "title": "Circuit breakers (1 = aberto)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 28,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "resilience4j_circuitbreaker_state{state=\"open\"}",
+     "legendFormat": "{{name}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     }
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "type": "logs",
+   "title": "Erros do app (Loki)",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 36,
+    "w": 24,
+    "h": 10
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{container=\"pix-app\", level=~\"ERROR|WARN\"}",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     }
+    }
+   ]
+  }
+ ]
+}

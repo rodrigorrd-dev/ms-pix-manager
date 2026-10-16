@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "PixReceivedEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Pix recebido e conciliado. Topic: pix.received.v1. Key: endToEndId. Sem PII em claro.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "endToEndId", "type": "string", "doc": "32 caracteres [a-zA-Z0-9]" },
+    { "name": "txid", "type": ["null", "string"], "default": null },
+    { "name": "chargeId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "receiverAccountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "settledAt", "type": { "type": "long", "logicalType": "timestamp-micros" } },
+    { "name": "payerDocumentMasked", "type": ["null", "string"], "default": null, "doc": "Ex.: ***.456.789-**" },
+    { "name": "payerDocumentHash", "type": ["null", "string"], "default": null, "doc": "HMAC-SHA256 hex; permite correlação sem expor CPF" },
+    { "name": "reconciliationStatus", "type": "string", "doc": "NO_CHARGE | MATCHED | MATCHED_AFTER_EXPIRATION | MISMATCH" }
+  ]
+}

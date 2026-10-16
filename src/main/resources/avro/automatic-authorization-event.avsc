@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "AutomaticAuthorizationEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Pix Automático (lado pagador): mudança de estado da autorização. Topic: pix.automatic.v1. Key: idRec. Estados conforme API Pix 2.10.0.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "authorizationId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "idRec", "type": "string", "doc": "29 caracteres: R + (R|N) + agente(8) + yyyyMMdd + 11" },
+    { "name": "status", "type": "string", "doc": "CRIADA|APROVADA|REJEITADA|EXPIRADA|CANCELADA" },
+    { "name": "requestStatus", "type": "string", "doc": "CRIADA|ENVIADA|RECEBIDA|REJEITADA|ACEITA|EXPIRADA|CANCELADA" },
+    { "name": "rejectionCode", "type": ["null", "string"], "default": null, "doc": "AP13|AP14|AP15" },
+    { "name": "cancelledBy", "type": ["null", "string"], "default": null, "doc": "PAYER|RECEIVER|PSP" },
+    { "name": "payerAccountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "payerMaxAmount", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 }], "default": null },
+    { "name": "receiverDocumentMasked", "type": ["null", "string"], "default": null }
+  ]
+}

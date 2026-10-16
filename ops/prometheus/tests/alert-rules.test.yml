@@ -1,0 +1,66 @@
+# Testa as regras de alerta com `promtool test rules` (docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool prom/prometheus:v2.55.0 test rules /p/tests/alert-rules.test.yml)
+rule_files: [../alert-rules.yml]
+evaluation_interval: 1m
+tests:
+  - name: DLT dispara quando entra mensagem e não quando está parado
+    interval: 1m
+    input_series:
+      - series: 'pix_dlt_messages_total{topic="pix.spi.payment-status.v1"}'
+        values: '0 0 0 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - { eval_time: 2m, alertname: PixDltMessages, exp_alerts: [] }
+      - eval_time: 4m
+        alertname: PixDltMessages
+        exp_alerts:
+          - exp_labels: { severity: critical, topic: pix.spi.payment-status.v1 }
+            exp_annotations: { summary: "Mensagem(ns) na DLT de pix.spi.payment-status.v1", runbook: "docs/runbooks/mensagem-na-dlt.md" }
+  - name: circuit breaker aberto por 1 min dispara; fechado não
+    interval: 1m
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{name="core-ledger",state="open"}'
+        values: '0 0 1 1 1 1'
+      - series: 'resilience4j_circuitbreaker_state{name="dict-gateway",state="open"}'
+        values: '0 0 0 0 0 0'
+    alert_rule_test:
+      - { eval_time: 2m, alertname: PixCircuitBreakerOpen, exp_alerts: [] }
+      - eval_time: 5m
+        alertname: PixCircuitBreakerOpen
+        exp_alerts:
+          - exp_labels: { severity: critical, name: core-ledger }
+            exp_annotations: { summary: "Circuit breaker core-ledger ABERTO: dependência (DICT/core) indisponível", runbook: "docs/runbooks/circuit-breaker-aberto.md" }
+  - name: pagamento preso por 10 min dispara
+    interval: 1m
+    input_series:
+      - series: 'pix_payment_orders_stuck{status="RESERVED"}'
+        values: '0 1x15'
+    alert_rule_test:
+      - { eval_time: 5m, alertname: PixPaymentsStuck, exp_alerts: [] }
+      - eval_time: 14m
+        alertname: PixPaymentsStuck
+        exp_alerts:
+          - exp_labels: { severity: critical, status: RESERVED }
+            exp_annotations: { summary: "Ordens de pagamento sem avançar há mais de 5 min (status RESERVED)", runbook: "docs/runbooks/pagamento-preso.md" }
+  - name: lag do slot só dispara acima de 512MB e ignora -1 (indisponível)
+    interval: 1m
+    input_series:
+      - series: 'pix_outbox_slot_lag_bytes'
+        values: '-1x10 600000000x10'
+    alert_rule_test:
+      - { eval_time: 8m, alertname: PixOutboxSlotLag, exp_alerts: [] }
+      - eval_time: 18m
+        alertname: PixOutboxSlotLag
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "Slot do Debezium atrasado >512MB (risco de encher o WAL e parar o Postgres)", runbook: "docs/runbooks/debezium-slot-lag.md" }
+  - name: app fora do ar por 2 min
+    interval: 1m
+    input_series:
+      - series: 'up{job="ms-pix-manager"}'
+        values: '1 1 0 0 0 0'
+    alert_rule_test:
+      - { eval_time: 3m, alertname: PixAppDown, exp_alerts: [] }
+      - eval_time: 5m
+        alertname: PixAppDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: ms-pix-manager }
+            exp_annotations: { summary: "ms-pix-manager fora do ar (Prometheus não consegue raspar)", runbook: "docs/runbooks/app-fora-do-ar.md" }

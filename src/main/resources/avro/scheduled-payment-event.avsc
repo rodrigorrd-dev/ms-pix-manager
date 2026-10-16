@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "ScheduledPaymentEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Pix Agendado: criação, execução, retry 18h–21h com aviso ao cliente, falha. Topic: pix.schedule.v1. Key: scheduledPaymentId.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "scheduledPaymentId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurrenceId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "payerAccountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "status", "type": "string", "doc": "ACTIVE|COMPLETED|CANCELLED ou ocorrência: SCHEDULED|PROCESSING|EXECUTED|RETRY_PENDING|FAILED_INSUFFICIENT_FUNDS|FAILED|CANCELLED" },
+    { "name": "dueDate", "type": ["null", { "type": "int", "logicalType": "date" }], "default": null },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "nextAttemptAt", "type": ["null", { "type": "long", "logicalType": "timestamp-micros" }], "default": null },
+    { "name": "customerNotificationRequired", "type": "boolean", "default": false },
+    { "name": "paymentOrderId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null }
+  ]
+}

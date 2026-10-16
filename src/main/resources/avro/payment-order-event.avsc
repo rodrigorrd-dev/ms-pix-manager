@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "PaymentOrderEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Mudança de estado da ordem de pagamento. Topic: pix.payment.v1. Key: paymentOrderId.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "paymentOrderId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "payerAccountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "status", "type": "string", "doc": "CREATED|VALIDATED|RESERVED|SENT_TO_SPI|SETTLED|REJECTED|FAILED_TECHNICAL|CANCELLED" },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "endToEndId", "type": ["null", "string"], "default": null },
+    { "name": "rejectReasonCode", "type": ["null", "string"], "default": null, "doc": "ISO 20022 (AC03, AM04, AB03...)" },
+    { "name": "destinationDocumentMasked", "type": ["null", "string"], "default": null }
+  ]
+}

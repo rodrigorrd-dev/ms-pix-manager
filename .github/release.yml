@@ -1,0 +1,12 @@
+changelog:
+  categories:
+    - title: Funcionalidades
+      labels: [enhancement, feat]
+    - title: Correções
+      labels: [bug, fix]
+    - title: Performance
+      labels: [perf]
+    - title: Dependências e infraestrutura
+      labels: [dependencies, chore, ci]
+    - title: Outras mudanças
+      labels: ["*"]

@@ -1,0 +1,7 @@
+# Revisão obrigatória (exige "Require review from Code Owners" na branch protegida). Ajuste os handles/times.
+*                     @rodrigorrd-dev
+/src/main/resources/db/   @rodrigorrd-dev
+/docs/api/            @rodrigorrd-dev
+/src/main/resources/avro/ @rodrigorrd-dev
+/.github/             @rodrigorrd-dev
+/Dockerfile           @rodrigorrd-dev

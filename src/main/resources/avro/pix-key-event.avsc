@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "PixKeyEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Mudança de estado de chave Pix. Topic: pix.key.v1. Key: pixKeyId. Sem valor da chave em claro (hash + máscara).",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "pixKeyId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "accountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "pixKeyType", "type": "string", "doc": "CPF|CNPJ|PHONE|EMAIL|EVP" },
+    { "name": "pixKeyMasked", "type": "string" },
+    { "name": "pixKeyHash", "type": "string", "doc": "HMAC-SHA256 hex do valor normalizado" },
+    { "name": "status", "type": "string", "doc": "PENDING_OWNERSHIP_PROOF|PENDING_DICT|ACTIVE|PORTABILITY_REQUESTED|OWNERSHIP_CLAIMED|REJECTED|DELETED" },
+    { "name": "deletedReason", "type": ["null", "string"], "default": null }
+  ]
+}

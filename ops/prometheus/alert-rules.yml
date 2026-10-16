@@ -1,0 +1,71 @@
+groups:
+  - name: pix-messaging
+    rules:
+      - alert: PixConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 1000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Lag > 1000 em {{ $labels.consumergroup }}/{{ $labels.topic }} por 5 min" }
+      - alert: PixConsumerStuck
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 0
+              and sum by (consumergroup, topic) (rate(kafka_consumergroup_current_offset[5m])) == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Consumer parado com lag em {{ $labels.consumergroup }}/{{ $labels.topic }}" }
+      - alert: PixDltMessages
+        expr: increase(pix_dlt_messages_total[5m]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "Mensagem(ns) na DLT de {{ $labels.topic }}", runbook: "docs/runbooks/mensagem-na-dlt.md" }
+      - alert: PixOutboxSlotLag
+        # pix_outbox_slot_lag_bytes vem do app (-1 = sem permissão para ler o WAL: use o postgres_exporter e troque a métrica)
+        expr: pix_outbox_slot_lag_bytes > 536870912
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Slot do Debezium atrasado >512MB (risco de encher o WAL e parar o Postgres)", runbook: "docs/runbooks/debezium-slot-lag.md" }
+      - alert: PixOutboxBacklog
+        expr: pix_outbox_rows > 200000
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "outbox_event com mais de 200 mil linhas: a limpeza (OutboxCleanupJob) ou o Debezium pararam?", runbook: "docs/runbooks/debezium-slot-lag.md" }
+  - name: pix-api
+    rules:
+      - alert: PixHighLatencyP95
+        expr: histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{uri=~"/api/pix/v2/cob.*"}[5m]))) > 0.15
+        for: 10m
+        labels: { severity: warning }
+      - alert: PixErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) > 0.01
+        for: 5m
+        labels: { severity: critical }
+  - name: pix-ops
+    rules:
+      - alert: PixAppDown
+        expr: up{job="ms-pix-manager"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "ms-pix-manager fora do ar (Prometheus não consegue raspar)", runbook: "docs/runbooks/app-fora-do-ar.md" }
+      - alert: PixCircuitBreakerOpen
+        expr: max by (name) (resilience4j_circuitbreaker_state{state="open"}) == 1
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Circuit breaker {{ $labels.name }} ABERTO: dependência (DICT/core) indisponível", runbook: "docs/runbooks/circuit-breaker-aberto.md" }
+      - alert: PixPaymentsStuck
+        expr: sum by (status) (pix_payment_orders_stuck) > 0
+        for: 10m
+        labels: { severity: critical }
+        annotations: { summary: "Ordens de pagamento sem avançar há mais de 5 min (status {{ $labels.status }})", runbook: "docs/runbooks/pagamento-preso.md" }
+      - alert: PixKeysStuckPendingDict
+        expr: pix_pixkeys_pending_dict_stuck > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Chaves Pix presas em PENDING_DICT (DICT indisponível ou recusando)", runbook: "docs/runbooks/circuit-breaker-aberto.md" }
+      - alert: PixLedgerReservationsStuck
+        expr: pix_ledger_reservations_pending_stuck > 0
+        for: 10m
+        labels: { severity: critical }
+        annotations: { summary: "Reservas de saldo PENDING há mais de 5 min (core indisponível?)", runbook: "docs/runbooks/circuit-breaker-aberto.md" }
+      - alert: PixDbPoolSaturated
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "Threads esperando conexão do pool do banco (pool saturado)" }

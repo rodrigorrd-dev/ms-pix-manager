@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "MedCaseEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "MED 2.0. Topic: pix.med.v1. Key: medCaseId. Cobre abertura, bloqueio parcial, avanço de camada, devolução e contestação.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "medCaseId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "parentCaseId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "endToEndId", "type": "string" },
+    { "name": "layer", "type": "int", "default": 1 },
+    { "name": "status", "type": "string", "doc": "OPEN|ACCEPTED|REFUNDING|CLOSED|REFUSED|CANCELLED|CONTESTED" },
+    { "name": "action", "type": "string", "doc": "OPENED|BLOCK_APPLIED|NEXT_LAYER_OPENED|REFUND_REQUESTED|REFUND_SETTLED|CONTESTATION_OPENED|CONTESTATION_DECIDED|CLOSED" },
+    { "name": "trackedAmount", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 }], "default": null },
+    { "name": "blockedAmount", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 }], "default": null },
+    { "name": "refundedAmount", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 }], "default": null },
+    { "name": "windowEndsAt", "type": ["null", { "type": "long", "logicalType": "timestamp-micros" }], "default": null },
+    { "name": "contestationDeadlineAt", "type": ["null", { "type": "long", "logicalType": "timestamp-micros" }], "default": null }
+  ]
+}

@@ -1,0 +1,297 @@
+# ms-pix-manager — ambiente completo com UM comando (infra + aplicação + conector Debezium):
+#
+#     docker compose up -d --build        (ou: ./up.sh)
+#
+# Configuração: portas, credenciais e caminhos vêm do .env da raiz (modelo: .env.example); sem .env valem os defaults abaixo.
+# O .env é lido do ponto de vista do HOST (app rodando na IDE); o serviço `app` sobrescreve só o que muda dentro da rede do compose.
+# Portas do host deslocadas (+1000 onde há conflito comum): outro Kafka local já usa 9092/29092.
+# Caminhos relativos (PG_INIT_DIR, KEYCLOAK_REALM_FILE, ...) são resolvidos a partir da raiz do projeto.
+name: pix-manager
+
+x-kafka-env: &kafka-env
+  KAFKA_NODE_ID: 1
+  KAFKA_PROCESS_ROLES: broker,controller
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+  KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:${KAFKA_EXTERNAL_PORT:-19094},CONTROLLER://0.0.0.0:9093
+  KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT:-19094}
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"        # tópicos criados explicitamente (kafka-init)
+  KAFKA_LOG_RETENTION_HOURS: 168
+  CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pix-postgres
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=10", "-c", "max_wal_senders=10"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pixmanager}
+      POSTGRES_USER: ${POSTGRES_USER:-pix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pix_local_only}          # SOMENTE local; em hml/prd vem do cofre
+    ports: ["${POSTGRES_BIND:-127.0.0.1}:${POSTGRES_HOST_PORT:-55432}:5432"]
+    volumes: ["pg-data:/var/lib/postgresql/data", "${PG_INIT_DIR:-./docker/init}:/docker-entrypoint-initdb.d:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1            # KRaft; fixar tag
+    container_name: pix-kafka
+    environment:
+      <<: *kafka-env
+    ports: ["${KAFKA_EXTERNAL_PORT:-19094}:${KAFKA_EXTERNAL_PORT:-19094}"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: pix-kafka-init
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        B=kafka:19092
+        mk() { kafka-topics --bootstrap-server $$B --create --if-not-exists --topic "$$1" --partitions "$$2" --replication-factor 1 --config retention.ms="$$3"; }
+        D7=604800000; D30=2592000000
+        for t in pix.charge.v1 pix.received.v1 pix.refund.v1 pix.payment.v1 \
+                 pix.spi.payment-settled.v1 pix.spi.payment-status.v1; do mk $$t 12 $$D7; mk $$t.dlt 3 $$D30; done
+        for t in pix.key.v1 pix.med.v1 pix.schedule.v1 pix.automatic.v1 pix.spi.refund-status.v1 pix.dict.key-event.v1 \
+                 pix.spi.automatic-request.v1 pix.spi.automatic-charge.v1 pix.spi.med-notification.v1; do mk $$t 6 $$D7; mk $$t.dlt 3 $$D30; done
+        mk pix.limit.v1 3 $$D30; mk pix.limit.v1.dlt 3 $$D30
+        echo "topics ok"
+    restart: "no"
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.1
+    container_name: pix-schema-registry
+    depends_on:
+      kafka: { condition: service_healthy }
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:19092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: BACKWARD_TRANSITIVE
+    ports: ["${SCHEMA_REGISTRY_PORT:-18081}:8081"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  kafka-connect:
+    image: quay.io/debezium/connect:3.0               # Debezium 3.0.x; fixar tag exata (ex.: 3.0.8.Final) ao escolher a versão
+    container_name: pix-connect
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    environment:
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: pix-connect
+      CONFIG_STORAGE_TOPIC: _connect_configs
+      OFFSET_STORAGE_TOPIC: _connect_offsets
+      STATUS_STORAGE_TOPIC: _connect_status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.converters.ByteArrayConverter
+    ports: ["${CONNECT_PORT:-18083}:8083"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  keycloak:                                            # IdP SOMENTE em dev/teste (decisão C2); em hml/prd o IdP é externo
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: pix-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_local_only}
+    volumes: ["${KEYCLOAK_REALM_FILE:-./docker/keycloak/realm-pix.json}:/opt/keycloak/data/import/realm-pix.json:ro"]
+    ports: ["${KEYCLOAK_PORT:-18180}:8080"]
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: pix-kafka-ui
+    depends_on:
+      kafka: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports: ["${KAFKA_UI_PORT:-18080}:8080"]
+
+  kafka-exporter:                                      # lag de consumer visto pelo broker
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: pix-kafka-exporter
+    depends_on:
+      kafka: { condition: service_healthy }
+    command: ["--kafka.server=kafka:19092"]
+    ports: ["${KAFKA_EXPORTER_PORT:-19308}:9308"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: pix-otel
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes: ["${OTEL_CONFIG_FILE:-./ops/otel/config.yaml}:/etc/otel/config.yaml:ro"]
+    ports: ["${OTEL_GRPC_PORT:-14317}:4317", "${OTEL_HTTP_PORT:-14318}:4318"]
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: pix-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["${TEMPO_CONFIG_FILE:-./ops/tempo/tempo.yaml}:/etc/tempo.yaml:ro"]
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: pix-loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports: ["${LOKI_PORT:-13100}:3100"]
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: pix-prometheus
+    volumes: ["${PROMETHEUS_CONFIG_FILE:-./ops/prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro", "${PROMETHEUS_ALERTS_FILE:-./ops/prometheus/alert-rules.yml}:/etc/prometheus/alert-rules.yml:ro"]
+    ports: ["${PROMETHEUS_PORT:-19090}:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: pix-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"            # SOMENTE local
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["${GRAFANA_PORT:-13000}:3000"]
+    depends_on: [prometheus, tempo, loki]
+
+  promtail:                                            # logs dos contêineres pix-* -> Loki (SÓ dev: lê o socket do Docker)
+    image: grafana/promtail:3.2.1
+    container_name: pix-promtail
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./ops/promtail/config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  # ---------------------------------------------------------------------------
+  # Aplicação + registro do conector (Debezium só funciona depois que o Liquibase criou outbox_event + publication)
+  # ---------------------------------------------------------------------------
+  app:
+    build: .
+    image: ms-pix-manager:local
+    container_name: pix-app
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+      schema-registry: { condition: service_healthy }
+      mocks: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pixmanager}
+      DB_USERNAME: ${POSTGRES_USER:-pix}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pix_local_only}
+      DB_POOL_MAX: ${DB_POOL_MAX:-30}                  # medido: com 10 o pool saturou a ~900 req/s (187 em espera, p95 284 ms)
+      DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-5}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SCHEMA_REGISTRY_USER_INFO: ${SCHEMA_REGISTRY_USER_INFO:-}
+      PIX_OTP_SENDER: ${PIX_OTP_SENDER:-http}                                  # dev: o mock recebe o código; em prd aponte p/ o serviço de notificação real
+      PIX_OTP_GATEWAY_URL: ${PIX_OTP_GATEWAY_URL_COMPOSE:-http://mocks:8080}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL_COMPOSE:-PLAINTEXT}      # o Kafka do compose é PLAINTEXT; p/ cluster seguro use KAFKA_SECURITY_PROTOCOL_COMPOSE
+      KAFKA_SASL_MECHANISM: ${KAFKA_SASL_MECHANISM:-}
+      KAFKA_SASL_JAAS_CONFIG: ${KAFKA_SASL_JAAS_CONFIG:-}
+      KAFKA_SSL_TRUSTSTORE_LOCATION: ${KAFKA_SSL_TRUSTSTORE_LOCATION:-}
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_TRUSTSTORE_PASSWORD:-}
+      KAFKA_SSL_TRUSTSTORE_TYPE: ${KAFKA_SSL_TRUSTSTORE_TYPE:-}
+      KAFKA_SSL_KEYSTORE_LOCATION: ${KAFKA_SSL_KEYSTORE_LOCATION:-}
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_KEYSTORE_PASSWORD:-}
+      KAFKA_SSL_KEYSTORE_TYPE: ${KAFKA_SSL_KEYSTORE_TYPE:-}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:-}
+      KAFKA_AUTO_CREATE_RETRY_TOPICS: ${KAFKA_AUTO_CREATE_RETRY_TOPICS:-true}   # tópicos -retry-N / -dlt dos consumers (o kafka-init só cria os principais)
+      # tokens emitidos para o host (iss = localhost:<KEYCLOAK_PORT>); as chaves públicas são buscadas pela rede interna
+      OAUTH2_JWKS_URI: http://keycloak:8080/realms/pix/protocol/openid-connect/certs
+      OAUTH2_ISSUER_URI: ${OAUTH2_ISSUER_URI:-http://localhost:18180/realms/pix}
+      OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      PIX_ISPB: ${PIX_ISPB:-12345678}
+      PIX_INSTITUTION_NAME: ${PIX_INSTITUTION_NAME:-Instituição}
+      PIX_CRYPTO_AES_KEY: ${PIX_CRYPTO_AES_KEY:-AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+      PIX_CRYPTO_HMAC_KEY: ${PIX_CRYPTO_HMAC_KEY:-ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=}
+      PIX_CRYPTO_KEY_VERSION: ${PIX_CRYPTO_KEY_VERSION:-v1}
+      DICT_GATEWAY_URL: ${DICT_GATEWAY_URL_COMPOSE:-http://mocks:8080}          # mock; aponte p/ o dict-gateway real se existir
+      CORE_LEDGER_URL: ${CORE_LEDGER_URL_COMPOSE:-http://mocks:8080}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      SPRINGWOLF_ENABLED: ${SPRINGWOLF_ENABLED:-true}
+      PIX_DOCS_PUBLIC: ${PIX_DOCS_PUBLIC:-true}
+      TRACING_SAMPLING: ${TRACING_SAMPLING:-1.0}
+    extra_hosts: ["host.docker.internal:host-gateway"]   # dict-gateway / core-ledger rodando no host
+    ports: ["${APP_PORT:-8088}:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
+  mocks:                                               # dict-gateway + core-ledger FALSOS (dev); em hml/prd são sistemas reais
+    image: python:3.12-alpine
+    container_name: pix-mocks
+    command: ["python", "-u", "/mocks/mock_servers.py"]
+    volumes: ["./docker/mocks:/mocks:ro"]
+    ports: ["${MOCKS_PORT:-18090}:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  seed:                                                # dados de DEV (titular + conta + chave EVP) p/ a collection do Postman; idempotente
+    image: postgres:16-alpine
+    container_name: pix-seed
+    depends_on:
+      app: { condition: service_healthy }
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-pix_local_only}
+    volumes: ["./docker/seed:/seed:ro"]
+    entrypoint: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER:-pix}", "-d", "${POSTGRES_DB:-pixmanager}", "-v", "ON_ERROR_STOP=1", "-f", "/seed/dev-seed.sql"]
+    restart: "no"
+
+  connector-init:                                      # registra o conector de outbox (idempotente) e sai
+    image: curlimages/curl:8.10.1
+    container_name: pix-connector-init
+    depends_on:
+      app: { condition: service_healthy }
+      kafka-connect: { condition: service_healthy }
+    environment:
+      CONNECT_URL: http://kafka-connect:8083
+      POSTGRES_DB: ${POSTGRES_DB:-pixmanager}
+      POSTGRES_USER: ${POSTGRES_USER:-pix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pix_local_only}
+    volumes: ["./docker/debezium:/debezium:ro"]
+    entrypoint: ["sh", "/debezium/register-connector-compose.sh"]
+    restart: "no"
+
+volumes:
+  pg-data:

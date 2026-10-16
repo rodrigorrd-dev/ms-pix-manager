@@ -1,0 +1,45 @@
+# Perfil de teste: chaves/ISPB só de teste; Kafka com listeners parados (ITs de mensageria os ligam); sweepers lentos.
+spring:
+  kafka:
+    listener:
+      auto-startup: false
+  main:
+    banner-mode: off
+
+management:
+  tracing:
+    enabled: false
+
+pix:
+  institution:
+    ispb: "12345678"
+    name: Banco de Teste
+  crypto:
+    aes-key-base64: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+    hmac-key-base64: ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=
+  kafka:
+    auto-register-schemas: true
+    schema-registry-url: mock://pix-test
+    auto-create-retry-topics: true
+    retry:
+      attempts: 3
+      delay-ms: 100
+      multiplier: 2
+      max-delay-ms: 400
+  webhook:
+    signing-key-base64: ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==
+    allow-http: true
+    allow-private-hosts: true
+    dispatch-delay: PT1H            # os ITs chamam o caso de uso direto
+  policy:
+    keys:
+      activation-min-age: PT0S
+  ledger:
+    sweeper-delay: PT1H
+  dict-gateway:
+    sweeper-delay: PT1H
+  docs:
+    public: false
+
+springwolf:
+  enabled: false

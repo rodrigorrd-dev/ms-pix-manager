@@ -1,0 +1,44 @@
+package br.com.pixmanager.infrastructure.event.outbox.converter;
+
+import br.com.pixmanager.core.domain.entity.ReceivedPix;
+import br.com.pixmanager.core.domain.entity.event.DomainEvent;
+import br.com.pixmanager.core.domain.entity.event.PixReceivedEvent;
+import br.com.pixmanager.events.v1.EventEnvelope;
+import br.com.pixmanager.infrastructure.event.outbox.EventAvroConverter;
+import br.com.pixmanager.infrastructure.security.crypto.CryptoService;
+import org.apache.avro.specific.SpecificRecord;
+import org.springframework.stereotype.Component;
+
+/** {@code pix.received.v1}: sem CPF em claro — só máscara e índice cego do pagador. */
+@Component
+public class PixReceivedEventAvroConverter implements EventAvroConverter {
+
+    private final CryptoService crypto;
+
+    public PixReceivedEventAvroConverter(CryptoService crypto) {
+        this.crypto = crypto;
+    }
+
+    @Override
+    public boolean supports(DomainEvent event) {
+        return event instanceof PixReceivedEvent;
+    }
+
+    @Override
+    public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
+        ReceivedPix p = ((PixReceivedEvent) event).pix();
+        var payerDoc = p.payer().document();
+        return br.com.pixmanager.events.v1.PixReceivedEvent.newBuilder()
+                .setEnvelope(envelope)
+                .setEndToEndId(p.endToEndId().value())
+                .setTxid(p.txid())
+                .setChargeId(p.chargeId())
+                .setReceiverAccountId(p.receiverAccountId())
+                .setAmount(p.amount().value())
+                .setSettledAt(p.settledAt())
+                .setPayerDocumentMasked(payerDoc == null ? null : payerDoc.masked())
+                .setPayerDocumentHash(payerDoc == null ? null : crypto.blindIndex(payerDoc.value()))
+                .setReconciliationStatus(p.reconciliationStatus().name())
+                .build();
+    }
+}

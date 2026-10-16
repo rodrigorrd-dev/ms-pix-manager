@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "SpiPaymentStatus",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "ENTRADA. Status do pagamento no SPI (pacs.002) para uma ordem enviada (pacs.008). Topic: pix.spi.payment-status.v1. Key: endToEndId. Produzido pelo spi-gateway (contrato a confirmar — docs/10 E2).",
+  "fields": [
+    { "name": "messageId", "type": "string", "doc": "id estável do spi-gateway (idempotência do inbox)" },
+    { "name": "endToEndId", "type": "string" },
+    { "name": "status", "type": "string", "doc": "SENT | SETTLED | REJECTED" },
+    { "name": "reasonCode", "type": ["null", "string"], "default": null, "doc": "ISO 20022 (AC03, AM04, AB03...) quando REJECTED" },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-micros" } }
+  ]
+}

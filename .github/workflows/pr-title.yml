@@ -1,0 +1,20 @@
+# Squash merge: o título do PR vira o commit na main e o item do changelog. Exige Conventional Commits.
+name: pr-title
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  pull-requests: read
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Valida o título
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! printf '%s' "$TITLE" | grep -Eq '^(feat|fix|perf|refactor|test|docs|chore|ci|build|revert)(\([a-z0-9-]+\))?!?: .{3,}'; then
+            echo "Título fora do padrão Conventional Commits: $TITLE"
+            echo "Exemplo: feat(charge): lista cobranças em lote"
+            exit 1
+          fi

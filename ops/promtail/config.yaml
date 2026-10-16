@@ -1,0 +1,22 @@
+# Envia os logs dos contêineres pix-* (stdout) ao Loki. SÓ DEV: lê o socket do Docker. Em produção use o agente de logs da plataforma (Promtail/Alloy/Fluent Bit).
+server: { http_listen_port: 9080, grpc_listen_port: 0 }
+positions: { filename: /tmp/positions.yaml }
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+scrape_configs:
+  - job_name: docker-pix
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+        filters:
+          - { name: name, values: ["pix-*"] }
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+    pipeline_stages:
+      - regex:                                  # nível do log (padrão do app: "2026-10-16 01:03:30.162 INFO  [thread] ...")
+          expression: '^\S+ \S+ (?P<level>TRACE|DEBUG|INFO|WARN|ERROR)\b'
+      - labels: { level: }

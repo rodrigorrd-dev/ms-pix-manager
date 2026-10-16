@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "ChargeEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Mudança de estado de cobrança (cob/cobv). Topic: pix.charge.v1. Key: chargeId.",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "chargeId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "txid", "type": "string" },
+    { "name": "chargeType", "type": "string", "doc": "IMMEDIATE | DUE" },
+    { "name": "status", "type": "string", "doc": "ATIVA | CONCLUIDA | REMOVIDA_PELO_USUARIO_RECEBEDOR | REMOVIDA_PELO_PSP" },
+    { "name": "revision", "type": "int", "default": 0 },
+    { "name": "receiverAccountId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "originalAmount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "expiresAt", "type": ["null", { "type": "long", "logicalType": "timestamp-micros" }], "default": null },
+    { "name": "dueDate", "type": ["null", { "type": "int", "logicalType": "date" }], "default": null },
+    { "name": "debtorDocumentHash", "type": ["null", "string"], "default": null }
+  ]
+}

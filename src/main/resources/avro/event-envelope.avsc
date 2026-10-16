@@ -1,0 +1,57 @@
+{
+  "type": "record",
+  "name": "EventEnvelope",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Cabeçalho comum a todo evento de domínio. eventId == outbox_event.id == chave de idempotência do consumidor.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "ispb",
+      "type": "string",
+      "doc": "ISPB da instituição (de configuração; nunca fixo no código)"
+    },
+    {
+      "name": "eventType",
+      "type": "string",
+      "doc": "Ex.: ChargeCreated, PixReceived"
+    },
+    {
+      "name": "eventVersion",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "occurredAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "aggregateId",
+      "type": "string"
+    },
+    {
+      "name": "correlationId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "traceId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    }
+  ]
+}

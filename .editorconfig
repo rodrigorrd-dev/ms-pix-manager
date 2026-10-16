@@ -1,0 +1,58 @@
+# EditorConfig — padrões de formatação por tipo de arquivo
+# https://editorconfig.org
+# ms-pix-manager · Java 21 / Spring Boot / Maven
+
+root = true
+
+# Padrão para todo o repositório
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# Código Java
+[*.java]
+indent_size = 4
+ij_java_class_count_to_use_import_on_demand = 999
+ij_java_names_count_to_use_import_on_demand = 999
+
+# Build e configuração XML (pom.xml, logback, etc.)
+[*.xml]
+indent_size = 2
+
+# Configuração de aplicação e pipelines
+[*.{yml,yaml}]
+indent_size = 2
+
+# JSON (Postman, coberturas, etc.)
+[*.json]
+indent_size = 2
+
+# Properties do Spring
+[*.properties]
+indent_size = 2
+
+# Migrações Liquibase / SQL
+[*.sql]
+indent_size = 2
+
+# Scripts de shell
+[*.sh]
+indent_size = 2
+
+# Documentação
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Arquivos de definição de processo (BPMN/DMN são XML)
+[*.{bpmn,dmn}]
+indent_size = 2
+
+# Makefile exige tabs
+[Makefile]
+indent_style = tab

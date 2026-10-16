@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "name": "RefundEvent",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "Mudança de estado de devolução. Topic: pix.refund.v1. Key: refundId (uuid interno).",
+  "fields": [
+    { "name": "envelope", "type": "br.com.pixmanager.events.v1.EventEnvelope" },
+    { "name": "refundId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "clientRefundId", "type": "string", "doc": "id do cliente [a-zA-Z0-9]{1,35}" },
+    { "name": "endToEndId", "type": "string" },
+    { "name": "rtrId", "type": ["null", "string"], "default": null },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "nature", "type": "string", "doc": "ORIGINAL|RETIRADA|MED_OPERACIONAL|MED_FRAUDE|MED_PIX_AUTOMATICO" },
+    { "name": "status", "type": "string", "doc": "EM_PROCESSAMENTO|DEVOLVIDO|NAO_REALIZADO" },
+    { "name": "reason", "type": ["null", "string"], "default": null }
+  ]
+}

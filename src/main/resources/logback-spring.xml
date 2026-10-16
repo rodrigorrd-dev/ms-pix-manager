@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProperty scope="context" name="appName" source="spring.application.name"/>
+
+    <!-- Mascara CPF/CNPJ válidos embutidos na mensagem (defesa em profundidade contra vazamento de PII) -->
+    <conversionRule conversionWord="maskedMsg" class="br.com.pixmanager.shared.logging.PiiMaskingConverter"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{traceId:-}] [%X{correlationId:-}] %logger{36} - %maskedMsg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON estruturado (Loki/ELK). Mascaramento de PII via PiiValueMasker (o %maskedMsg só vale no pattern do CONSOLE). -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>clientId</includeMdcKeyName>
+            <includeMdcKeyName>e2eId</includeMdcKeyName>
+            <!-- %maskedMsg não vale no encoder JSON: este decorator aplica o PiiMasker a todo valor string (message, stack_trace, campos) -->
+            <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <valueMasker class="br.com.pixmanager.shared.logging.PiiValueMasker"/>
+            </jsonGeneratorDecorator>
+            <customFields>{"application":"${appName}"}</customFields>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerThrowable>30</maxDepthPerThrowable>
+                <rootCauseFirst>true</rootCauseFirst>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <springProfile name="local,dev,test">
+        <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+    </springProfile>
+    <springProfile name="hml,prd">
+        <root level="INFO"><appender-ref ref="JSON"/></root>
+    </springProfile>
+    <springProfile name="!local &amp; !dev &amp; !test &amp; !hml &amp; !prd">
+        <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+    </springProfile>
+
+</configuration>

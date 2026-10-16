@@ -1,0 +1,180 @@
+{
+  "realm": "pix",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "pix-partner-dev",
+      "enabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "secret": "dev-secret-local-only",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "defaultClientScopes": [
+        "cob.read",
+        "cob.write",
+        "cobv.read",
+        "cobv.write",
+        "pix.read",
+        "pix.write",
+        "webhook.read",
+        "webhook.write",
+        "payloadlocation.read",
+        "payloadlocation.write"
+      ],
+      "protocolMappers": [
+        {
+          "name": "pix_accounts",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "pix_accounts",
+            "claim.value": "00000000-0000-0000-0000-000000000001",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "pix-backoffice-dev",
+      "enabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "secret": "dev-secret-local-only",
+      "defaultClientScopes": [
+        "pixkey.read",
+        "pixkey.write",
+        "payment.read",
+        "payment.write",
+        "limit.read",
+        "limit.write",
+        "med.read",
+        "med.write",
+        "schedule.read",
+        "schedule.write",
+        "automatic.read",
+        "automatic.write",
+        "report.read",
+        "pii.document.read"
+      ],
+      "protocolMappers": [
+        {
+          "name": "pix_accounts",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "pix_accounts",
+            "claim.value": "*",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "cob.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "cob.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "cobv.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "cobv.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "pix.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "pix.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "webhook.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "webhook.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "payloadlocation.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "payloadlocation.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "pixkey.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "pixkey.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "payment.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "payment.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "limit.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "limit.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "med.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "med.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "schedule.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "schedule.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "automatic.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "automatic.write",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "report.read",
+      "protocol": "openid-connect"
+    },
+    {
+      "name": "pii.document.read",
+      "protocol": "openid-connect"
+    }
+  ]
+}

@@ -1,0 +1,246 @@
+spring:
+  config:
+    # .env opcional na raiz do projeto (veja .env.example): KEY=VALUE vira propriedade e alimenta os ${...} abaixo.
+    # Variável do SO/IDE tem prioridade sobre o .env; a ausência do arquivo não é erro (hml/prd usam o ambiente).
+    import: optional:file:./.env[.properties]
+  application:
+    name: ${APP_NAME:ms-pix-manager}
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/pixmanager}
+    username: ${DB_USERNAME:pix}
+    password: ${DB_PASSWORD:}                       # sem default: hml/prd exigem o segredo; local usa .env.local
+    hikari:
+      pool-name: pix-pool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}     # falha rápido (reference: 30 s)
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: ${JPA_BATCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
+    show-sql: ${JPA_SHOW_SQL:false}
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: ${LIQUIBASE_ENABLED:true}
+
+  jackson:
+    default-property-inclusion: non_null
+
+  messages:
+    basename: messages
+    encoding: UTF-8
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19094}
+    # Segurança do cluster (vale para consumer, producer, retry/DLT e admin). Dev = PLAINTEXT; hml/prd = SASL_SSL (ou SSL).
+    # Credenciais SEMPRE por variável (cofre): KAFKA_SASL_JAAS_CONFIG e KAFKA_SSL_*_PASSWORD nunca no repositório.
+    # Truststore/keystore próprios: ative o profile `kafka-tls` (e `kafka-mtls` p/ certificado de cliente), no fim deste arquivo.
+    security:
+      protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    properties:                                            # comum a consumer, producer e admin
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:}             # ex.: SCRAM-SHA-512 | PLAIN | OAUTHBEARER
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}         # ex.: org.apache.kafka.common.security.scram.ScramLoginModule required username="x" password="y";
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:ms-pix-manager}
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      isolation-level: read_committed
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # BYTES: retry/DLT preservam o payload original; o Avro é decodificado em AvroPayloadDecoder (infrastructure/event/avro)
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:                                              # retry/DLT (bytes originais); eventos de domínio vão pela outbox/Debezium
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 120000
+        linger.ms: 5
+        compression.type: lz4
+    listener:
+      ack-mode: record
+      observation-enabled: true
+    template:
+      observation-enabled: true
+
+  security:
+    oauth2:
+      resourceserver: {}
+
+server:
+  port: ${SERVER_PORT:8088}
+  error:
+    include-message: never
+    include-stacktrace: never
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS:health,info,prometheus}
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: ${APP_NAME:ms-pix-manager}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:14318/v1/traces}
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
+springwolf:
+  enabled: ${SPRINGWOLF_ENABLED:true}
+  docket:
+    base-package: br.com.pixmanager
+    info:
+      title: ms-pix-manager
+      version: 1.0.0
+    servers:
+      kafka-server:
+        protocol: kafka
+        host: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19094}
+
+pix:
+  institution:
+    ispb: ${PIX_ISPB:}                                   # obrigatório: 8 dígitos; NUNCA literal no código (decisão A3)
+    name: ${PIX_INSTITUTION_NAME:Instituição}
+  errors:
+    base-type-uri: ${PIX_ERROR_BASE_TYPE_URI:https://errors.pixmanager.example/}
+  docs:
+    public: ${PIX_DOCS_PUBLIC:false}                     # Swagger/Springwolf FECHADOS por padrão
+  crypto:
+    aes-key-base64: ${PIX_CRYPTO_AES_KEY:}               # obrigatório (fail-fast); cofre em hml/prd
+    hmac-key-base64: ${PIX_CRYPTO_HMAC_KEY:}
+    key-version: ${PIX_CRYPTO_KEY_VERSION:v1}
+    # Rotação de chave (docs/runbooks/rotacao-de-chave.md): chaves ANTIGAS só para decifrar. Uma entrada por versão antiga.
+    # Ex.: PIX_CRYPTO_PREVIOUS_AES_KEYS_V1=<base64 da chave v1>  (a versão é o sufixo, em minúsculas: previous-aes-keys.v1)
+    previous-aes-keys:
+      v1: ${PIX_CRYPTO_PREVIOUS_AES_KEYS_V1:}
+      v2: ${PIX_CRYPTO_PREVIOUS_AES_KEYS_V2:}
+      v3: ${PIX_CRYPTO_PREVIOUS_AES_KEYS_V3:}
+    reencrypt:
+      enabled: ${PIX_CRYPTO_REENCRYPT:false}      # liga a re-criptografia em lote no start; só em UMA instância
+      batch-size: ${PIX_CRYPTO_REENCRYPT_BATCH:500}
+  security:
+    jwt:
+      jwk-set-uri: ${OAUTH2_JWKS_URI:}
+      issuer: ${OAUTH2_ISSUER_URI:}
+      audience: ${OAUTH2_AUDIENCE:}
+  kafka:
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://localhost:18081}
+    schema-registry-user-info: ${SCHEMA_REGISTRY_USER_INFO:}     # "usuario:senha" (Basic Auth); vazio = registry sem autenticação
+    auto-register-schemas: ${KAFKA_AUTO_REGISTER_SCHEMAS:false}
+    auto-create-retry-topics: ${KAFKA_AUTO_CREATE_RETRY_TOPICS:false}
+    retry:
+      attempts: ${KAFKA_RETRY_ATTEMPTS:4}
+      delay-ms: ${KAFKA_RETRY_DELAY_MS:5000}
+      multiplier: ${KAFKA_RETRY_MULTIPLIER:6}
+      max-delay-ms: ${KAFKA_RETRY_MAX_DELAY_MS:180000}
+      partitions: ${KAFKA_RETRY_PARTITIONS:12}   # tópicos -retry-N: precisam ter >= partições do tópico principal (o retry publica na MESMA partição)
+  dict-gateway:
+    base-url: ${DICT_GATEWAY_URL:http://localhost:18091}
+    connect-timeout: ${DICT_CONNECT_TIMEOUT:500ms}
+    read-timeout: ${DICT_READ_TIMEOUT:3s}
+    sweeper-delay: ${DICT_SWEEPER_DELAY:PT3S}
+  ledger:
+    base-url: ${CORE_LEDGER_URL:http://localhost:18090}
+    connect-timeout: ${CORE_LEDGER_CONNECT_TIMEOUT:500ms}
+    read-timeout: ${CORE_LEDGER_READ_TIMEOUT:2s}
+    sweeper-delay: ${CORE_LEDGER_SWEEPER_DELAY:PT2S}
+  otp:                                                  # prova de posse de chave PHONE/EMAIL (BR-KEY-04)
+    sender: ${PIX_OTP_SENDER:none}                      # none (padrão SEGURO: recusa com 503) | log (SÓ dev: escreve o código no log) | http
+    gateway-url: ${PIX_OTP_GATEWAY_URL:}                # só com sender=http: serviço de notificação externo (POST /otp/v1/messages)
+    connect-timeout: ${PIX_OTP_CONNECT_TIMEOUT:500ms}
+    read-timeout: ${PIX_OTP_READ_TIMEOUT:3s}
+  webhook:                                              # notificação de Pix recebido (entrega ao recebedor)
+    signing-key-base64: ${PIX_WEBHOOK_SIGNING_KEY:}     # OBRIGATÓRIO (>= 32 bytes, Base64): assina cada envio (x-pix-signature). Cofre em hml/prd
+    allow-http: ${PIX_WEBHOOK_ALLOW_HTTP:false}         # SÓ dev/teste: aceita http://
+    allow-private-hosts: ${PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS:false}   # SÓ dev/teste: aceita host interno/loopback (desliga a proteção anti-SSRF)
+    dispatch-delay: ${PIX_WEBHOOK_DISPATCH_DELAY:PT2S}
+    dispatch-batch: ${PIX_WEBHOOK_DISPATCH_BATCH:20}
+    connect-timeout: ${PIX_WEBHOOK_CONNECT_TIMEOUT:3s}
+    request-timeout: ${PIX_WEBHOOK_REQUEST_TIMEOUT:5s}
+  outbox:
+    retention: ${PIX_OUTBOX_RETENTION:P7D}          # linhas da outbox_event mais antigas que isto são apagadas (o Debezium lê o WAL, não a tabela)
+    cleanup-delay: ${PIX_OUTBOX_CLEANUP_DELAY:PT10M}
+  metrics:
+    stuck-after: ${PIX_METRICS_STUCK_AFTER:PT5M}      # após quanto tempo sem avançar a ordem/chave/reserva conta como PRESA (alertas)
+  qr:
+    base-url: ${PIX_QR_BASE_URL:pix.example.com/qr/v2/}
+  policy: {}                                            # defaults em PixPolicyProperties; sobrescreva por pix.policy.*
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 50
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 5
+        record-exceptions:
+          - br.com.pixmanager.shared.exception.IntegrationException
+          - org.springframework.web.client.ResourceAccessException
+        # recusa de negócio NÃO abre o circuito: BusinessException é irmã, e 4xx nem chega como exceção ao breaker
+        ignore-exceptions:
+          - br.com.pixmanager.shared.exception.BusinessException
+    instances:
+      core-ledger:
+        base-config: default
+      dict-gateway:
+        base-config: default
+      otp-gateway:
+        base-config: default
+
+---
+# Profile `kafka-tls`: truststore próprio (CA privada). Sem ele a JVM usa o truststore padrão (CA pública). As variáveis passam a ser OBRIGATÓRIAS
+# (de propósito: valor em branco chegaria ao Kafka como string vazia e ele recusa). Uso: SPRING_PROFILES_ACTIVE=prd,kafka-tls
+spring:
+  config:
+    activate:
+      on-profile: kafka-tls
+  kafka:
+    ssl:
+      trust-store-location: ${KAFKA_SSL_TRUSTSTORE_LOCATION}      # ex.: file:/certs/truststore.jks
+      trust-store-password: ${KAFKA_SSL_TRUSTSTORE_PASSWORD}
+      trust-store-type: ${KAFKA_SSL_TRUSTSTORE_TYPE:JKS}
+
+---
+# Profile `kafka-mtls`: certificado de CLIENTE (o broker exige mTLS). Use junto de kafka-tls: SPRING_PROFILES_ACTIVE=prd,kafka-tls,kafka-mtls
+spring:
+  config:
+    activate:
+      on-profile: kafka-mtls
+  kafka:
+    ssl:
+      key-store-location: ${KAFKA_SSL_KEYSTORE_LOCATION}
+      key-store-password: ${KAFKA_SSL_KEYSTORE_PASSWORD}
+      key-store-type: ${KAFKA_SSL_KEYSTORE_TYPE:JKS}
+      key-password: ${KAFKA_SSL_KEY_PASSWORD}

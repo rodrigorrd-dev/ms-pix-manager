@@ -1,0 +1,120 @@
+###############################################################################
+# Build / compilação (Maven)
+###############################################################################
+target/
+build/
+/out/
+/bin/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+!.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Relatórios de teste / cobertura
+/site/
+.surefire-*
+**/target/surefire-reports/
+**/target/failsafe-reports/
+**/target/site/jacoco/
+*.exec
+
+###############################################################################
+# Maven wrapper (mantém configs + wrapper jar, ignora dists baixadas)
+###############################################################################
+.mvn/wrapper/dists/
+!.mvn/wrapper/maven-wrapper.properties
+
+###############################################################################
+# IDEs / editores
+###############################################################################
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+# Eclipse
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+# VS Code
+.vscode/
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/nbdist/
+.nb-gradle/
+# Vim / Emacs / temporários
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+###############################################################################
+# Sistema operacional
+###############################################################################
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+###############################################################################
+# Logs / temporários / dumps
+###############################################################################
+*.log
+logs/
+*.pid
+*.seed
+*.gz
+*.tmp
+/tmp/
+hs_err_pid*
+replay_pid*
+*.hprof
+
+###############################################################################
+# Segredos / variáveis de ambiente
+# Versione apenas .env.example e os ambientes sem segredo (local/dev).
+###############################################################################
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets.*
+application-secret*.yml
+application-local-secret*.yml
+
+###############################################################################
+# Docker
+###############################################################################
+docker/**/data/
+*.env.docker
+docker-compose.override.yml
+docker/**/*.env
+
+###############################################################################
+# Ferramentas locais / merge
+###############################################################################
+.claude/
+*.orig
+*.rej

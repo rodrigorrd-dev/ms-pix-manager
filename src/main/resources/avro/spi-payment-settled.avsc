@@ -1,0 +1,33 @@
+{
+  "type": "record",
+  "name": "SpiPaymentSettled",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "ENTRADA. Pix liquidado no SPI (derivado de pacs.008 recebido). Topic: pix.spi.payment-settled.v1. Key: endToEndId. Produzido pelo spi-gateway (contrato a confirmar — pergunta A1).",
+  "fields": [
+    { "name": "messageId", "type": "string", "doc": "id estável do spi-gateway (idempotência do inbox)" },
+    { "name": "endToEndId", "type": "string" },
+    { "name": "txid", "type": ["null", "string"], "default": null },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+    { "name": "settledAt", "type": { "type": "long", "logicalType": "timestamp-micros" } },
+    { "name": "receiverIspb", "type": "string" },
+    { "name": "receiverBranch", "type": "string" },
+    { "name": "receiverAccount", "type": "string" },
+    { "name": "receiverAccountType", "type": "string" },
+    { "name": "receiverKeyHash", "type": ["null", "string"], "default": null },
+    { "name": "payerDocumentType", "type": ["null", "string"], "default": null },
+    { "name": "payerDocument", "type": ["null", "string"], "default": null, "doc": "CPF/CNPJ em claro SOMENTE neste tópico de entrada (rede interna, ACL restrita, retenção 7d); o ms o criptografa ao persistir" },
+    { "name": "payerName", "type": ["null", "string"], "default": null },
+    { "name": "payerIspb", "type": ["null", "string"], "default": null },
+    { "name": "payerBranch", "type": ["null", "string"], "default": null },
+    { "name": "payerAccount", "type": ["null", "string"], "default": null },
+    { "name": "payerAccountType", "type": ["null", "string"], "default": null },
+    { "name": "payerInfo", "type": ["null", "string"], "default": null },
+    { "name": "components", "type": { "type": "array", "items": {
+        "type": "record", "name": "SpiValueComponent", "fields": [
+          { "name": "type", "type": "string", "doc": "ORIGINAL|WITHDRAWAL|CHANGE|FINE|INTEREST|REBATE|DISCOUNT" },
+          { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 15, "scale": 2 } },
+          { "name": "agentModality", "type": ["null", "string"], "default": null },
+          { "name": "withdrawalProviderIspb", "type": ["null", "string"], "default": null }
+        ] } }, "default": [] }
+  ]
+}

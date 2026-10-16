@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "SpiRefundStatus",
+  "namespace": "br.com.pixmanager.events.v1",
+  "doc": "ENTRADA. Resultado do pacs.004 (devolução) no SPI. Topic: pix.spi.refund-status.v1. Key: rtrId. Produzido pelo spi-gateway (contrato a confirmar — docs/10 E2).",
+  "fields": [
+    { "name": "messageId", "type": "string", "doc": "id estável do spi-gateway (idempotência do inbox)" },
+    { "name": "rtrId", "type": "string" },
+    { "name": "endToEndId", "type": "string" },
+    { "name": "status", "type": "string", "doc": "SETTLED | REJECTED" },
+    { "name": "reasonCode", "type": ["null", "string"], "default": null, "doc": "código ISO 20022 da rejeição" },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-micros" } }
+  ]
+}

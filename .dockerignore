@@ -1,0 +1,61 @@
+# Contexto de build enxuto: só o que o Dockerfile precisa (pom.xml + src).
+
+# Build / saídas
+target/
+build/
+out/
+bin/
+*.class
+*.log
+logs/
+*.hprof
+hs_err_pid*
+
+# Controle de versão / CI
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# IDEs / editores
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.editorconfig
+*.swp
+*~
+.claude/
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Segredos / ambiente (nunca na imagem)
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets.*
+application-secret*.yml
+application-local-secret*.yml
+
+# Infra local, docs e scripts de desenvolvimento
+docker/
+ops/
+docs/
+README.md
+mvn.sh
+run-it.sh
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Testes (a imagem de runtime não os usa; remova esta linha se o build rodar testes)
+src/test/

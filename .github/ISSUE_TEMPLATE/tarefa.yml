@@ -1,0 +1,11 @@
+name: Tarefa técnica
+description: Refatoração, dívida técnica, performance, testes ou infraestrutura (sem mudança de comportamento)
+labels: [chore, triage]
+body:
+  - type: textarea
+    id: o-que
+    attributes: { label: O que e por quê }
+    validations: { required: true }
+  - type: textarea
+    id: medida
+    attributes: { label: Como medir que deu certo, description: "Para performance: métrica atual e alvo (meça antes de otimizar; veja src/gatling)." }

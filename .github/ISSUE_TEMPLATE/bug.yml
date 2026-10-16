@@ -1,0 +1,23 @@
+name: Bug
+description: Comportamento diferente do especificado ou falha em produção/homologação
+labels: [bug, triage]
+body:
+  - type: textarea
+    id: observado
+    attributes: { label: O que aconteceu, description: "Inclua status HTTP, código de erro (PIX-...) e correlationId. NUNCA cole CPF/CNPJ, chaves Pix ou tokens." }
+    validations: { required: true }
+  - type: textarea
+    id: esperado
+    attributes: { label: O que era esperado, description: "Cite o FR/BR de docs/02 quando houver." }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Como reproduzir }
+    validations: { required: true }
+  - type: dropdown
+    id: ambiente
+    attributes: { label: Ambiente, options: [local, hml, prd] }
+    validations: { required: true }
+  - type: input
+    id: versao
+    attributes: { label: Versão/commit da imagem }

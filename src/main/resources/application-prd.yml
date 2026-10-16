@@ -1,0 +1,13 @@
+# Perfil prd: NENHUM segredo aqui. DB_PASSWORD, PIX_ISPB, PIX_CRYPTO_*, OAUTH2_* e SCHEMA_REGISTRY_URL vêm do ambiente/cofre;
+# ausência de qualquer um faz a aplicação NÃO subir (fail-fast).
+pix:
+  docs:
+    public: false
+  kafka:
+    auto-register-schemas: false
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8081}      # actuator (health/info/prometheus) em porta SEPARADA: o ingress publica só a 8080, a 8081 fica na rede interna
+  tracing:
+    sampling:
+      probability: 0.1
