@@ -1,0 +1,36 @@
+# Sincroniza os labels de .github/labels.yml com o repositório e rotula PRs (tipo pela branch, área pelos arquivos).
+name: labels
+on:
+  push:
+    branches: [develop]
+    paths: ['.github/labels.yml']
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crazy-max/ghaction-github-labeler@v5
+        with:
+          yaml-file: .github/labels.yml
+          skip-delete: true
+
+  label-pr:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # pull_request_target não faz checkout do código do PR: só lê .github/labeler.yml da branch base
+      - uses: actions/labeler@v5
+        with:
+          configuration-path: .github/labeler.yml
+          sync-labels: false
