@@ -4,7 +4,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop, 'release/**', 'hotfix/**']
     tags: ['v*']
   schedule:
     - cron: '0 6 * * *'        # noturno (06:00 UTC): concorrência, carga de fumaça e dependency-check completo
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21', cache: maven }
-      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 70% no core)
+      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 85% linhas no core + 65% branches global)
         run: mvn -B verify
       - name: Regras de alerta do Prometheus (sintaxe e testes)
         run: |
@@ -65,6 +65,32 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.97.0 \
             semgrep scan --config p/java --config p/owasp-top-ten --error --metrics=off src/main
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Gitleaks — segredos em todo o histórico
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 \
+            detect --source /repo --redact --no-banner --verbose
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Revisão de dependências do PR (falha em vulnerabilidade HIGH+)
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
 
   codeql:
     runs-on: ubuntu-latest
