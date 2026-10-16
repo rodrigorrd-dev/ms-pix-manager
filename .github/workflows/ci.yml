@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21', cache: maven }
-      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 70% no core)
+      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 85% linhas no core + 65% branches global)
         run: mvn -B verify
       - name: Regras de alerta do Prometheus (sintaxe e testes)
         run: |
