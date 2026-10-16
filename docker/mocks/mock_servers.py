@@ -11,6 +11,10 @@ Implementa só o contrato que o ms-pix-manager chama (CoreLedgerHttpAdapter / Di
           POST /ledger/v1/reservations/{key}/cancellation          -> {ledgerRef}
   OTP     POST /otp/v1/messages            "envia" o código (guarda em memória) -> 202
           GET  /otp/v1/last?destination=   último código enviado a esse e-mail/telefone (SÓ dev/teste: permite completar a prova de posse)
+  WEBHOOK RECEPTOR (cliente fictício) em HTTPS :8443, certificado de DEV autoassinado (dev-cert.pem, SAN mocks/localhost/127.0.0.1):
+          POST /webhook-receiver/ok/pix      200  (valida a assinatura x-pix-signature e guarda o que chegou)
+          POST /webhook-receiver/fail/pix    503  (para ver retry e DEAD)
+          GET  /webhook-receiver/last        último webhook recebido (inclui signatureValid)
   GET /health · GET /__state (estado em memória, para depuração)
 
 Regras para simular cenários (valores fixos, só dev):
@@ -22,11 +26,12 @@ Regras para simular cenários (valores fixos, só dev):
   • reserva com amount == 50.50 -> 503 (falha técnica do core, para ver retry/circuit breaker)
   (valores baixos de propósito: o limite p/ NOVO favorecido é 100.00 e o noturno 1000.00, aplicados ANTES do ledger)
 """
-import json, os, uuid, datetime
+import base64, hashlib, hmac, json, os, ssl, threading, time, uuid, datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-STATE = {"dict": {}, "reservations": {}, "otp": []}
+STATE = {"dict": {}, "reservations": {}, "otp": [], "webhooks": []}
+WEBHOOK_KEY = base64.b64decode(os.environ.get("WEBHOOK_SIGNING_KEY_B64", "ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ=="))   # = PIX_WEBHOOK_SIGNING_KEY de dev
 now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -42,6 +47,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    raw_body = b""
+
     def body(self):
         # o cliente JDK do app envia corpo "chunked" (sem Content-Length)
         if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
@@ -53,13 +60,17 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 raw += self.rfile.read(size)
                 self.rfile.readline()
+            self.raw_body = raw
             return json.loads(raw or b"{}")
         n = int(self.headers.get("Content-Length") or 0)
-        return json.loads(self.rfile.read(n) or b"{}") if n else {}
+        self.raw_body = self.rfile.read(n) if n else b""
+        return json.loads(self.raw_body or b"{}")
 
     def do_GET(self):
         if self.path == "/health":
             return self.reply(200, {"status": "UP"})
+        if self.path == "/webhook-receiver/last":
+            return self.reply(200, STATE["webhooks"][-1]) if STATE["webhooks"] else self.reply(404, {"message": "nenhum webhook recebido"})
         if self.path.startswith("/otp/v1/last"):
             dest = self.path.split("destination=", 1)[1] if "destination=" in self.path else ""
             from urllib.parse import unquote
@@ -92,6 +103,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"owner": {"document": "11144477735", "name": "Maria Beneficiária"},
                                     "account": {"ispb": "60746948", "branch": "0001", "number": "987654", "type": "CACC"},
                                     "ownershipDate": "2020-01-01T00:00:00Z"})
+        if p.startswith("/webhook-receiver/") and p.endswith("/pix"):
+            mode = p.split("/")[2]
+            raw = self.raw_body
+            ts = self.headers.get("x-pix-timestamp", "")
+            sig = self.headers.get("x-pix-signature", "")
+            expected = "v1=" + hmac.new(WEBHOOK_KEY, (ts + "." + raw.decode()).encode(), hashlib.sha256).hexdigest()
+            fresh = ts.isdigit() and abs(time.time() - int(ts)) <= 300
+            STATE["webhooks"].append({"mode": mode, "at": now(), "signatureValid": hmac.compare_digest(sig, expected), "timestampFresh": fresh,
+                                      "body": json.loads(raw or b"{}")})
+            del STATE["webhooks"][:-50]
+            return self.reply(503 if mode == "fail" else 200, {})
         if p == "/otp/v1/messages":
             STATE["otp"].append({"channel": b.get("channel"), "destination": b.get("destination"), "code": b.get("code"), "validForSeconds": b.get("validForSeconds"), "at": now()})
             del STATE["otp"][:-50]                                   # guarda só os 50 últimos
@@ -117,5 +139,12 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
-    print("mock dict-gateway + core-ledger em :%d" % port, flush=True)
+    tls_port = int(os.environ.get("TLS_PORT", "8443"))
+    here = os.path.dirname(os.path.abspath(__file__))
+    secure = ThreadingHTTPServer(("0.0.0.0", tls_port), Handler)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(os.path.join(here, "dev-cert.pem"), os.path.join(here, "dev-key.pem"))
+    secure.socket = context.wrap_socket(secure.socket, server_side=True)
+    threading.Thread(target=secure.serve_forever, daemon=True).start()
+    print("mock dict-gateway + core-ledger em :%d (HTTP) e receptor de webhook em :%d (HTTPS)" % (port, tls_port), flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
