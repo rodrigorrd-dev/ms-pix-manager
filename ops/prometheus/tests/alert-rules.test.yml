@@ -64,3 +64,15 @@ tests:
         exp_alerts:
           - exp_labels: { severity: critical, job: ms-pix-manager }
             exp_annotations: { summary: "ms-pix-manager fora do ar (Prometheus não consegue raspar)", runbook: "docs/runbooks/app-fora-do-ar.md" }
+  - name: webhook DEAD dispara; zero não
+    interval: 1m
+    input_series:
+      - series: 'pix_webhook_deliveries_dead'
+        values: '0 0 0 2x15'
+    alert_rule_test:
+      - { eval_time: 5m, alertname: PixWebhookDeliveriesDead, exp_alerts: [] }
+      - eval_time: 16m
+        alertname: PixWebhookDeliveriesDead
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations: { summary: "Entregas de webhook DEAD (receptor do cliente fora do ar ou recusando): o cliente não está sendo avisado dos Pix recebidos", runbook: "docs/runbooks/webhook-entregas.md" }

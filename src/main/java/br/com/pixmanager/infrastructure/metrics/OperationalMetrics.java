@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>{@code pix_payment_orders_stuck{status}} — ordens em VALIDATED/RESERVED/SENT_TO_SPI sem avançar há mais de {@code stuck-after};</li>
  *   <li>{@code pix_pixkeys_pending_dict_stuck} — chaves em PENDING_DICT há mais de {@code stuck-after} (DICT indisponível?);</li>
  *   <li>{@code pix_ledger_reservations_pending_stuck} — reservas PENDING no core há mais de {@code stuck-after};</li>
+ *   <li>{@code pix_webhook_deliveries_dead} — entregas de webhook que esgotaram as tentativas (o cliente não foi avisado do Pix);</li>
+ *   <li>{@code pix_webhook_deliveries_overdue} — entregas PENDING/RETRYING vencidas há mais de {@code stuck-after} (job parado ou receptores lentos);</li>
  *   <li>{@code pix_outbox_rows} — linhas na outbox (cresce se a limpeza ou o Debezium pararem);</li>
  *   <li>{@code pix_outbox_slot_lag_bytes} — atraso do slot do Debezium no WAL (precisa de permissão para ler o WAL; sem ela fica fora, e em
  *       produção use o postgres_exporter).</li>
@@ -44,6 +46,8 @@ public class OperationalMetrics implements MeterBinder {
     private final Map<String, AtomicLong> paymentsStuck = new ConcurrentHashMap<>();
     private final AtomicLong keysStuck = new AtomicLong();
     private final AtomicLong reservationsStuck = new AtomicLong();
+    private final AtomicLong webhookDead = new AtomicLong();
+    private final AtomicLong webhookOverdue = new AtomicLong();
     private final AtomicLong outboxRows = new AtomicLong();
     private final AtomicLong slotLag = new AtomicLong(-1);
 
@@ -63,6 +67,8 @@ public class OperationalMetrics implements MeterBinder {
                 Gauge.builder("pix.payment.orders.stuck", value, AtomicLong::get).tag("status", status).register(registry));
         Gauge.builder("pix.pixkeys.pending.dict.stuck", keysStuck, AtomicLong::get).register(registry);
         Gauge.builder("pix.ledger.reservations.pending.stuck", reservationsStuck, AtomicLong::get).register(registry);
+        Gauge.builder("pix.webhook.deliveries.dead", webhookDead, AtomicLong::get).register(registry);
+        Gauge.builder("pix.webhook.deliveries.overdue", webhookOverdue, AtomicLong::get).register(registry);
         Gauge.builder("pix.outbox.rows", outboxRows, AtomicLong::get).register(registry);
         Gauge.builder("pix.outbox.slot.lag.bytes", slotLag, AtomicLong::get).register(registry);   // -1 = indisponível
     }
@@ -76,6 +82,9 @@ public class OperationalMetrics implements MeterBinder {
             }
             keysStuck.set(count("SELECT count(*) FROM pix_key WHERE status = :s AND updated_at < :c", "PENDING_DICT", cutoff));
             reservationsStuck.set(count("SELECT count(*) FROM ledger_reservation WHERE status = :s AND updated_at < :c", "PENDING", cutoff));
+            webhookDead.set(jdbc.sql("SELECT count(*) FROM webhook_delivery WHERE status = 'DEAD'").query(Long.class).single());
+            webhookOverdue.set(jdbc.sql("SELECT count(*) FROM webhook_delivery WHERE status IN ('PENDING','RETRYING') AND next_attempt_at < :c")
+                    .param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
             outboxRows.set(jdbc.sql("SELECT count(*) FROM outbox_event").query(Long.class).single());
         } catch (RuntimeException e) {
             log.warn("Falha ao atualizar métricas operacionais: {}", e.getMessage());

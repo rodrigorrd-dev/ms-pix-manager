@@ -8,6 +8,7 @@ Um runbook por alerta (`ops/prometheus/alert-rules.yml` aponta para eles na anot
 | `PixCircuitBreakerOpen`, `PixKeysStuckPendingDict`, `PixLedgerReservationsStuck` | crítico / aviso | [circuit-breaker-aberto.md](circuit-breaker-aberto.md) |
 | `PixPaymentsStuck` | crítico | [pagamento-preso.md](pagamento-preso.md) |
 | `PixDltMessages` | crítico | [mensagem-na-dlt.md](mensagem-na-dlt.md) |
+| `PixWebhookDeliveriesDead`, `PixWebhookDeliveriesOverdue` | aviso | [webhook-entregas.md](webhook-entregas.md) |
 | `PixOutboxSlotLag`, `PixOutboxBacklog` | crítico / aviso | [debezium-slot-lag.md](debezium-slot-lag.md) |
 | `PixConsumerLagHigh`, `PixConsumerStuck` | aviso / crítico | [mensagem-na-dlt.md](mensagem-na-dlt.md) §Lag |
 | `PixHighLatencyP95`, `PixErrorRate`, `PixDbPoolSaturated` | aviso / crítico | [app-fora-do-ar.md](app-fora-do-ar.md) §Degradação |

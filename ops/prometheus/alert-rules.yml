@@ -69,3 +69,13 @@ groups:
         for: 2m
         labels: { severity: warning }
         annotations: { summary: "Threads esperando conexão do pool do banco (pool saturado)" }
+      - alert: PixWebhookDeliveriesDead
+        expr: pix_webhook_deliveries_dead > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Entregas de webhook DEAD (receptor do cliente fora do ar ou recusando): o cliente não está sendo avisado dos Pix recebidos", runbook: "docs/runbooks/webhook-entregas.md" }
+      - alert: PixWebhookDeliveriesOverdue
+        expr: pix_webhook_deliveries_overdue > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Entregas de webhook vencidas sem serem enviadas há mais de 5 min (job parado, lote pequeno demais ou receptores lentos)", runbook: "docs/runbooks/webhook-entregas.md" }
