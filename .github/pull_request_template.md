@@ -3,6 +3,7 @@
 
 ## Tipo
 - [ ] feat · [ ] fix · [ ] perf · [ ] refactor · [ ] test · [ ] docs · [ ] chore · [ ] ci
+<!-- Os labels type/* e area/* são aplicados automaticamente (branch e arquivos). Quebra de contrato: acrescente `type/breaking-change` e `!` no título. -->
 
 ## Checklist
 - [ ] Spec (FR/BR em `docs/02`) e contrato (OpenAPI/Avro/DDL) atualizados **no mesmo PR** quando o comportamento muda

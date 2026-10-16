@@ -1,0 +1,24 @@
+name: Release
+description: Planejar e acompanhar a publicação de uma versão (branch release/X.Y.Z)
+title: "release: vX.Y.Z"
+labels: [type/release, priority/p1-high]
+body:
+  - type: input
+    id: versao
+    attributes: { label: Versão (SemVer), placeholder: "1.2.0" }
+    validations: { required: true }
+  - type: textarea
+    id: escopo
+    attributes: { label: Escopo, description: "Issues/PRs incluídos e migrações Liquibase da versão." }
+    validations: { required: true }
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist
+      value: |
+        - [ ] release/X.Y.Z criada a partir da develop
+        - [ ] Versão do pom.xml e CHANGELOG.md atualizados
+        - [ ] CI verde (inclui nightly: concorrência, carga e dependency-check)
+        - [ ] PR para main aprovado e mesclado (merge commit)
+        - [ ] Tag vX.Y.Z criada e imagem publicada no GHCR
+        - [ ] main mesclada de volta na develop e branch release apagada
