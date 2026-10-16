@@ -1,0 +1,14 @@
+# Achados conhecidos: chaves SÓ de dev (.env.example, seed, scripts de demo), fixtures de teste e JWTs de exemplo da spec do BCB.
+# Segredo real de hml/prd vem do cofre e nunca entra no repositório.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "dev/test/docs"
+paths = [
+  '''^\.env(\.example)?$''',
+  '''^src/test/''',
+  '''^scripts/''',
+  '''^docker/seed/''',
+  '''^docs/''',
+]
