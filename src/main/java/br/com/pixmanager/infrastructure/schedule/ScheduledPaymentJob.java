@@ -19,7 +19,7 @@ public class ScheduledPaymentJob {
         this.execute = execute;
     }
 
-    @Scheduled(fixedDelayString = "${pix.schedule.dispatch-delay:PT30S}")
+    @Scheduled(initialDelayString = "${pix.schedule.dispatch-delay:PT30S}", fixedDelayString = "${pix.schedule.dispatch-delay:PT30S}")   // 1ª execução também só depois do atraso: não corre junto com o início dos ITs
     @SchedulerLock(name = "scheduled-payments", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1S")
     void run() {
         var r = execute.runCycle();

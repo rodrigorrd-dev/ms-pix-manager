@@ -39,6 +39,12 @@ pix:
       activation-min-age: PT0S
   ledger:
     sweeper-delay: PT1H
+  schedule:
+    dispatch-delay: PT1H            # os ITs chamam o caso de uso direto: o job em segundo plano concorria com o teste
+  automatic:
+    dispatch-delay: PT1H
+  med:
+    follow-delay: PT1H
   dict-gateway:
     sweeper-delay: PT1H
   docs:
