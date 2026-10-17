@@ -123,3 +123,6 @@ A Wiki do GitHub é **gerada** de `README.md`, `subida-producao.md` e `docs/**/*
 
 ## Merge automático
 O workflow `automerge` liga o auto-merge (squash) em PRs com o label `automerge` e no PR `develop` → `main` do dono. O merge só acontece quando os checks obrigatórios da `main` passam. Configuração única no GitHub: *Settings → General → Allow auto-merge* e *Settings → Branches → regra da `main`* com os checks `build-test`, `security`, `secrets`, `codeql`, `contracts`, `image` e `title`. Para o merge também disparar a imagem e a wiki, crie o secret `AUTOMERGE_TOKEN` (PAT com escopo `repo`).
+
+## Versões e tags (automático)
+Ninguém cria tag à mão. A cada push na `main` o workflow `release-please` calcula a próxima versão pelos Conventional Commits (`feat` → minor, `fix`/`perf` → patch, `!`/`BREAKING CHANGE` → major) e mantém aberto o PR `chore(main): release X.Y.Z` (CHANGELOG + `pom.xml`). Esse PR leva o label `automerge`; ao ser mergeado, saem a tag `vX.Y.Z`, a GitHub Release e a imagem versionada. Depois de cada release, faça merge da `main` na `develop` para trazer a versão e o CHANGELOG. Requer o secret `AUTOMERGE_TOKEN` (PAT com `repo`).
