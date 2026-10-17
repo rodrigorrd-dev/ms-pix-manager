@@ -1,0 +1,35 @@
+# Liga o merge automático nos PRs (merge commit em develop -> main; squash nos demais) com o label "automerge" e no PR develop -> main aberto pelo dono do repositório.
+# O GitHub só conclui o merge quando TODOS os checks obrigatórios da proteção da main passam (Settings > Branches).
+# Requisitos (uma vez): Settings > General > "Allow auto-merge" ligado e proteção da main com os checks obrigatórios.
+# Opcional: secret AUTOMERGE_TOKEN (PAT com repo). Sem ele usa o GITHUB_TOKEN, e então o merge NÃO dispara os workflows
+# de push na main (imagem, wiki); com o PAT dispara normalmente.
+name: automerge
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    if: >-
+      github.event.pull_request.draft == false &&
+      (contains(github.event.pull_request.labels.*.name, 'automerge') ||
+       (github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.login == github.repository_owner))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Liga o auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # develop -> main usa merge commit: squash reescreve o histórico e a develop passa a divergir da main (conflito a cada PR)
+          if [ "$BASE" = "main" ] && [ "$HEAD" = "develop" ]; then METHOD=--merge; else METHOD=--squash; fi
+          gh pr merge --auto $METHOD "$PR"
