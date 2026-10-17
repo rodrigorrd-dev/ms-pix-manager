@@ -15,34 +15,74 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # só PR cancela a execução anterior; push em main/develop e tags terminam
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/develop' }}   # PR e develop cancelam a execução anterior (evita fila); main, release/hotfix e tags terminam
 
 jobs:
-  build-test:
+  unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21', cache: maven }
-      - name: Unit + slice + ArchUnit + integração (Testcontainers) + JaCoCo (gate 85% linhas no core + 65% branches global)
-        run: mvn -B verify
+      - name: Unit + slice + contrato + ArchUnit (Surefire, sem Docker)
+        run: mvn -B test
+      - uses: actions/upload-artifact@v4
+        with: { name: jacoco-unit, path: target/jacoco.exec, retention-days: 1 }
+      - name: Relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: test-reports-unit, path: target/surefire-reports, retention-days: 14 }
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - name: Integração (Failsafe + Testcontainers)
+        run: mvn -B test-compile jacoco:prepare-agent failsafe:integration-test failsafe:verify
+      - uses: actions/upload-artifact@v4
+        with: { name: jacoco-it, path: target/jacoco.exec, retention-days: 1 }
+      - name: Relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: test-reports-it, path: target/failsafe-reports, retention-days: 14 }
+
+  coverage:
+    needs: [unit, integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - uses: actions/download-artifact@v4
+        with: { name: jacoco-unit, path: jacoco-unit }
+      - uses: actions/download-artifact@v4
+        with: { name: jacoco-it, path: jacoco-it }
+      - name: JaCoCo unit + IT (gate 85% linhas no core + 65% branches global)
+        run: |
+          mkdir -p target
+          cat jacoco-unit/jacoco.exec jacoco-it/jacoco.exec > target/jacoco.exec
+          mvn -B compile jacoco:report@report-full jacoco:check@check-core
+      - name: Relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: test-reports-coverage, path: target/site/jacoco-full, retention-days: 14 }
+
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
       - name: Regras de alerta do Prometheus (sintaxe e testes)
         run: |
           docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool prom/prometheus:v2.55.0 check rules /p/alert-rules.yml
           docker run --rm -v "$PWD/ops/prometheus:/p" --entrypoint promtool prom/prometheus:v2.55.0 test rules /p/tests/alert-rules.test.yml
       - name: Compose válido
         run: docker compose config -q
-      - name: Relatórios
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports
-          path: |
-            target/surefire-reports
-            target/failsafe-reports
-            target/site/jacoco
-          retention-days: 14
 
   security:
     runs-on: ubuntu-latest
@@ -116,16 +156,13 @@ jobs:
         run: npx --yes @redocly/cli@1.25.11 lint docs/api/ms-pix-manager.openapi.yaml || true
 
   image:
-    needs: [build-test, security]
+    needs: [security]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Build (sem push em PR)
+      - name: Build (sem push)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -140,12 +177,22 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+  publish:
+    if: github.event_name == 'push'
+    needs: [unit, integration, coverage, ops, security, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Login no GHCR
-        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
       - name: Publica (main => sha; tag vX.Y.Z => versão)
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: .
