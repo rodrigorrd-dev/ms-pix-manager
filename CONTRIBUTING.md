@@ -120,3 +120,6 @@ A Wiki do GitHub é **gerada** de `README.md`, `subida-producao.md` e `docs/**/*
 ## Issues automáticas e quadro
 - PR com título `feat`, `fix` ou `perf` e sem `Closes #N` ganha uma issue criada pelo workflow `issue-from-pr` (a issue é vinculada no corpo do PR e fecha no merge). Para controlar a issue, abra-a antes e escreva `Closes #N` no PR.
 - O quadro (GitHub Projects) se move sozinho pelas automações do próprio projeto: item novo entra em **Aberto**; PR/issue fechado ou mergeado vai para **Resolvido** (*Projects → Workflows*).
+
+## Merge automático
+O workflow `automerge` liga o auto-merge (squash) em PRs com o label `automerge` e no PR `develop` → `main` do dono. O merge só acontece quando os checks obrigatórios da `main` passam. Configuração única no GitHub: *Settings → General → Allow auto-merge* e *Settings → Branches → regra da `main`* com os checks `build-test`, `security`, `secrets`, `codeql`, `contracts`, `image` e `title`. Para o merge também disparar a imagem e a wiki, crie o secret `AUTOMERGE_TOKEN` (PAT com escopo `repo`).
