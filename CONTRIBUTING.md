@@ -116,3 +116,7 @@ Require a pull request (1 aprovação, *code owners*), require status checks (`b
 
 ## Wiki
 A Wiki do GitHub é **gerada** de `README.md`, `subida-producao.md` e `docs/**/*.md` por `scripts/build-wiki.py`, via `.github/workflows/wiki.yml`, a cada push na `main`. Não edite a Wiki direto: a edição é sobrescrita. Para pré-visualizar: `python3 scripts/build-wiki.py /tmp/wiki`.
+
+## Issues automáticas e quadro
+- PR com título `feat`, `fix` ou `perf` e sem `Closes #N` ganha uma issue criada pelo workflow `issue-from-pr` (a issue é vinculada no corpo do PR e fecha no merge). Para controlar a issue, abra-a antes e escreva `Closes #N` no PR.
+- O quadro (GitHub Projects) se move sozinho pelas automações do próprio projeto: item novo entra em **Aberto**; PR/issue fechado ou mergeado vai para **Resolvido** (*Projects → Workflows*).
