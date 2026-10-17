@@ -56,7 +56,7 @@ class HttpDynamicQrPayloadAdapterTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        server = new WireMockServer(options().dynamicPort().dynamicHttpsPort());
+        server = new WireMockServer(options().dynamicPort().dynamicHttpsPort().keystorePath("src/test/resources/tls/test-server.p12").keystorePassword("changeit").keyManagerPassword("changeit"));
         server.start();
         leaf = p12("/qr/leaf.p12");
         other = p12("/qr/outro.p12");
@@ -168,7 +168,7 @@ class HttpDynamicQrPayloadAdapterTest {
     @DisplayName("fetch: URL com esquema ou recusada pela política anti-SSRF nunca gera requisição")
     void shouldNotCallForbiddenUrls() {
         var denying = new HttpDynamicQrPayloadAdapter(url -> new Verdict.Forbidden("host interno"), Duration.ofSeconds(1), Duration.ofSeconds(1),
-                65_536, "", "", "PKCS12", true, true);
+                65_536, "", "", "PKCS12", true, "src/test/resources/tls/test-server.crt");
 
         assertInvalid(() -> denying.fetch("http://x.example/qr"), "esquema");
         assertInvalid(() -> denying.fetch("169.254.169.254/latest"), "recusada");
@@ -179,7 +179,7 @@ class HttpDynamicQrPayloadAdapterTest {
 
     private HttpDynamicQrPayloadAdapter adapter(boolean withTrustStore, boolean allowUnverified) {
         return new HttpDynamicQrPayloadAdapter(allowAll, Duration.ofSeconds(2), Duration.ofSeconds(2), 65_536,
-                withTrustStore ? trustStore.toString() : "", withTrustStore ? "changeit" : "", "PKCS12", allowUnverified, true);
+                withTrustStore ? trustStore.toString() : "", withTrustStore ? "changeit" : "", "PKCS12", allowUnverified, "src/test/resources/tls/test-server.crt");
     }
 
     private static String sign(KeyStore store, JWSAlgorithm alg, String json) throws Exception {

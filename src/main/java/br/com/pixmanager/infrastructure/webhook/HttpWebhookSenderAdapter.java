@@ -1,15 +1,10 @@
 package br.com.pixmanager.infrastructure.webhook;
 
+import br.com.pixmanager.shared.util.TlsTrust;
 import br.com.pixmanager.core.port.out.WebhookSenderPortOut;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.X509ExtendedTrustManager;
-import java.net.Socket;
-import java.security.cert.X509Certificate;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -41,7 +36,7 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
     public HttpWebhookSenderAdapter(@Value("${pix.webhook.signing-key-base64:}") String signingKeyBase64,
                                     @Value("${pix.webhook.connect-timeout:3s}") Duration connectTimeout,
                                     @Value("${pix.webhook.request-timeout:5s}") Duration requestTimeout,
-                                    @Value("${pix.webhook.insecure-tls:false}") boolean insecureTls, Clock clock) {
+                                    @Value("${pix.webhook.tls-ca-path:}") String tlsCaPath, Clock clock) {
         if (signingKeyBase64 == null || signingKeyBase64.isBlank()) {
             throw new IllegalStateException("pix.webhook.signing-key-base64 (PIX_WEBHOOK_SIGNING_KEY) é obrigatório: assina os webhooks enviados");
         }
@@ -52,9 +47,8 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
         this.signingKey = new SecretKeySpec(key, "HmacSHA256");
         HttpClient.Builder builder = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(connectTimeout)
                 .followRedirects(HttpClient.Redirect.NEVER);
-        if (insecureTls) {
-            LoggerFactory.getLogger(HttpWebhookSenderAdapter.class).warn("pix.webhook.insecure-tls=true: o certificado do receptor NÃO é validado. SÓ dev/teste");
-            builder.sslContext(trustAllContext());
+        if (tlsCaPath != null && !tlsCaPath.isBlank()) {
+            builder.sslContext(TlsTrust.withExtraCa(tlsCaPath));   // CA/certificado extra do receptor (dev/teste ou CA privada); a cadeia e o host continuam validados
         }
         this.client = builder.build();
         this.requestTimeout = requestTimeout;
@@ -86,27 +80,6 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
         return URI.create(u.getScheme() + "://" + u.getRawAuthority() + path + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery()));
     }
 
-    /** SÓ dev/teste (receptores com certificado autoassinado). Em hml/prd o padrão é validar a cadeia normalmente. */
-    private static SSLContext trustAllContext() {
-        try {
-            // X509ExtendedTrustManager (e não X509TrustManager): o JDK embrulha o simples e AINDA verifica o nome do host
-            TrustManager trustAll = new X509ExtendedTrustManager() {
-                public void checkClientTrusted(X509Certificate[] c, String t) { }
-                public void checkServerTrusted(X509Certificate[] c, String t) { }
-                public void checkClientTrusted(X509Certificate[] c, String t, Socket s) { }
-                public void checkServerTrusted(X509Certificate[] c, String t, Socket s) { }
-                public void checkClientTrusted(X509Certificate[] c, String t, SSLEngine e) { }
-                public void checkServerTrusted(X509Certificate[] c, String t, SSLEngine e) { }
-                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-            };
-            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context -- "TLS" negocia 1.3/1.2 no JDK 21 (1.0/1.1 desativados); contexto só de dev
-            SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, new TrustManager[]{trustAll}, new java.security.SecureRandom());
-            return context;
-        } catch (java.security.GeneralSecurityException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     String sign(String timestamp, String body) {
         try {

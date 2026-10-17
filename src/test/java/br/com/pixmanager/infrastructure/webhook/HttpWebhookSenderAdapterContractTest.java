@@ -37,10 +37,10 @@ class HttpWebhookSenderAdapterContractTest {
 
     @BeforeEach
     void setUp() {
-        wm = new WireMockServer(options().dynamicPort().dynamicHttpsPort());
+        wm = new WireMockServer(options().dynamicPort().dynamicHttpsPort().keystorePath("src/test/resources/tls/test-server.p12").keystorePassword("changeit").keyManagerPassword("changeit"));
         wm.start();
         clock = FixedClock.at("2026-10-16T12:00:00Z");
-        sender = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofMillis(500), Duration.ofMillis(600), false, clock);
+        sender = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofMillis(500), Duration.ofMillis(600), "", clock);
     }
 
     @AfterEach
@@ -136,14 +136,14 @@ class HttpWebhookSenderAdapterContractTest {
     @Test
     @DisplayName("a chave de assinatura é obrigatória e precisa ter ao menos 32 bytes (fail-fast)")
     void signingKeyIsRequired() {
-        assertThatThrownBy(() -> new HttpWebhookSenderAdapter("", Duration.ofSeconds(1), Duration.ofSeconds(1), false, clock)).hasMessageContaining("obrigatório");
-        assertThatThrownBy(() -> new HttpWebhookSenderAdapter(null, Duration.ofSeconds(1), Duration.ofSeconds(1), false, clock)).hasMessageContaining("obrigatório");
-        assertThatThrownBy(() -> new HttpWebhookSenderAdapter(Base64.getEncoder().encodeToString(new byte[16]), Duration.ofSeconds(1), Duration.ofSeconds(1), false, clock))
+        assertThatThrownBy(() -> new HttpWebhookSenderAdapter("", Duration.ofSeconds(1), Duration.ofSeconds(1), "", clock)).hasMessageContaining("obrigatório");
+        assertThatThrownBy(() -> new HttpWebhookSenderAdapter(null, Duration.ofSeconds(1), Duration.ofSeconds(1), "", clock)).hasMessageContaining("obrigatório");
+        assertThatThrownBy(() -> new HttpWebhookSenderAdapter(Base64.getEncoder().encodeToString(new byte[16]), Duration.ofSeconds(1), Duration.ofSeconds(1), "", clock))
                 .hasMessageContaining("32 bytes");
     }
 
     @Test
-    @DisplayName("HTTPS com certificado autoassinado: por padrão FALHA (valida a cadeia); com insecure-tls (dev/teste) entrega")
+    @DisplayName("HTTPS com certificado autoassinado: por padrão FALHA (valida a cadeia); confiando no certificado informado (tls-ca-path) entrega")
     void selfSignedCertificate() {
         wm.stubFor(post(urlEqualTo("/receptor/pix")).willReturn(aResponse().withStatus(200)));
         String https = "https://localhost:" + wm.httpsPort() + "/receptor";
@@ -152,9 +152,9 @@ class HttpWebhookSenderAdapterContractTest {
         assertThat(strict.httpStatus()).isNull();
         assertThat(strict.error()).isNotBlank();
 
-        HttpWebhookSenderAdapter dev = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofSeconds(3), Duration.ofSeconds(3), true, clock);
+        HttpWebhookSenderAdapter dev = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofSeconds(3), Duration.ofSeconds(3), "src/test/resources/tls/test-server.crt", clock);
         SendResult lenient = dev.send(https, BODY);
-        assertThat(lenient.error()).as("erro com insecure-tls").isNull();
+        assertThat(lenient.error()).as("erro confiando no certificado de teste").isNull();
         assertThat(lenient.success()).isTrue();
     }
 }

@@ -1,0 +1,39 @@
+# Todo PR feat/fix/perf sem issue vinculada ganha uma issue criada automaticamente (e "Closes #N" no corpo do PR),
+# para que o trabalho apareça no quadro e a issue feche sozinha no merge. Docs, chore, ci, test etc. não geram issue.
+# Segurança: pull_request_target roda no código da base e NUNCA faz checkout do PR; título e corpo só são lidos como dados.
+name: issue-from-pr
+on:
+  pull_request_target:
+    types: [opened, reopened, edited]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  issue:
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title.trim();
+            const body = pr.body || '';
+            const m = title.match(/^(feat|fix|perf)(\([a-z0-9-]+\))?!?: (.{3,})/);
+            if (!m) { core.info('Tipo sem issue automática.'); return; }
+            if (/\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s*:?\s+#\d+/i.test(body)) { core.info('PR já vincula uma issue.'); return; }
+
+            const type = { feat: 'type/feature', fix: 'type/bug', perf: 'type/perf' }[m[1]];
+            const issue = await github.rest.issues.create({
+              ...context.repo,
+              title: m[3].charAt(0).toUpperCase() + m[3].slice(1),
+              body: `Criada automaticamente a partir do PR #${pr.number}.\n\n${body.slice(0, 3000)}`,
+              labels: [type, 'status/triage'],
+              assignees: [pr.user.login],
+            });
+            const closes = `Closes #${issue.data.number}`;
+            await github.rest.pulls.update({ ...context.repo, pull_number: pr.number, body: body ? `${body}\n\n${closes}` : closes });
+            core.info(`Issue #${issue.data.number} criada e vinculada ao PR #${pr.number}.`);

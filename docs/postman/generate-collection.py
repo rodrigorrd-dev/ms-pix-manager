@@ -96,7 +96,7 @@ bcb=folder("API BCB — /api/pix/v2 (token_partner)",[
   ]),
   folder("Webhook de Pix recebido",[
     req("Cadastrar webhook da chave (PUT, 201 novo / 200 atualiza)","PUT","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",{"webhookUrl":"{{webhook_url}}"},
-        test=status_test(200,201),desc="Só HTTPS (o banco também exige) e host público (anti-SSRF). No dev a URL do receptor fictício é https://mocks:8443/webhook-receiver/ok (certificado de dev; `PIX_WEBHOOK_INSECURE_TLS` e `ALLOW_PRIVATE_HOSTS` ligados só no perfil local). O app envia POST para <webhookUrl>/pix com x-pix-signature."),
+        test=status_test(200,201),desc="Só HTTPS (o banco também exige) e host público (anti-SSRF). No dev a URL do receptor fictício é https://mocks:8443/webhook-receiver/ok (certificado de dev; `PIX_WEBHOOK_TLS_CA_PATH` (confia no certificado de dev) e `ALLOW_PRIVATE_HOSTS` ligados só no perfil local). O app envia POST para <webhookUrl>/pix com x-pix-signature."),
     req("Consultar webhook da chave","GET","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",test=status_test(200)),
     req("Listar webhooks (por período)","GET","{{base_url}}/api/pix/v2/webhook?inicio={{inicio}}&fim={{fim}}&paginacao.paginaAtual=0&paginacao.itensPorPagina=100",test=status_test(200)),
     req("URL fora da política (http) ⇒ 422 PIX-422-017","PUT","{{base_url}}/api/pix/v2/webhook/{{pix_key}}",{"webhookUrl":"http://mocks:8080/x"},test=status_test(422)),

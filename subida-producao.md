@@ -19,7 +19,7 @@ Objetivo: tudo que precisa estar configurado **antes** de subir em `prd` (vale i
 - [ ] TLS/mTLS terminado no gateway/ingress; o ingress publica só a porta da API — o actuator fica na **porta de gerenciamento** (§9)
 - [ ] Pool de conexões do banco dimensionado e **medido** (§3.2, `docs/load-test-results.md`)
 - [ ] Canal de OTP (SMS/e-mail) configurado, se chaves de e-mail/telefone forem permitidas (§8)
-- [ ] **Webhook:** `PIX_WEBHOOK_SIGNING_KEY` no cofre e combinada com cada cliente; saída (egress) controlada por firewall/proxy; `INSECURE_TLS` e `ALLOW_PRIVATE_HOSTS` **desligados** (§3.2, §8)
+- [ ] **Webhook:** `PIX_WEBHOOK_SIGNING_KEY` no cofre e combinada com cada cliente; saída (egress) controlada por firewall/proxy; `PIX_WEBHOOK_TLS_CA_PATH`/`PIX_QR_TLS_CA_PATH` vazios (ou só com a CA privada real) e `ALLOW_PRIVATE_HOSTS` **desligado** (§3.2, §8)
 - [ ] Prometheus, regras de alerta, dashboard e OTLP apontados; **runbooks** lidos pelo plantão (§10, `docs/runbooks`)
 - [ ] Rotação de chave ensaiada em hml (`docs/runbooks/rotacao-de-chave.md`) e plano de backup/DR aprovado (`docs/runbooks/backup-e-dr.md`)
 - [ ] Valores regulatórios de `pix.policy.*` validados pelo compliance (§12, `docs/regulatory-verification.md`)
@@ -95,10 +95,11 @@ openssl rand -base64 32     # PIX_CRYPTO_HMAC_KEY   (tem que ser outro valor)
 | `KAFKA_RETRY_PARTITIONS` | `12` | partições dos tópicos `-retry-N` (≥ as do principal); só vale com `KAFKA_AUTO_CREATE_RETRY_TOPICS=true` — em prd crie os tópicos à mão (§5) |
 | `PIX_OTP_SENDER` / `PIX_OTP_GATEWAY_URL` | `none` / vazio | `http` + URL do serviço de notificação para a prova de posse de e-mail/telefone (§8). `none` = padrão **seguro** (a prova de posse responde 503). **Nunca** `log` em hml/prd (escreve o código no log) |
 | `PIX_QR_TRUST_STORE_PATH` / `_PASSWORD` / `_TYPE` | arquivo PKCS12 (ou JKS) com a cadeia **ICP-Brasil** | **Obrigatória para pagar QR dinâmico.** Sem ela o ms recusa todo QR dinâmico (falha fechada, PIX-422-018). Revogação (CRL/OCSP) não é verificada |
-| `PIX_QR_ALLOW_UNVERIFIED_CHAIN` / `PIX_QR_INSECURE_TLS` | `false` | **Mantenha `false`.** `true` aceita JWS sem validar a cadeia / TLS autoassinado (só dev; o perfil `local` liga) |
+| `PIX_QR_ALLOW_UNVERIFIED_CHAIN` | `false` | **Mantenha `false`.** `true` aceita JWS sem validar a cadeia (só dev; o perfil `local` liga). A aplicação não sobe com `true` em hml/prd |
+| `PIX_QR_TLS_CA_PATH` / `PIX_WEBHOOK_TLS_CA_PATH` | vazio | Caminho de um PEM com CA/certificado extra do recebedor/receptor (dev com certificado autoassinado ou CA privada). A cadeia e o host continuam validados |
 | `PIX_SCHEDULE_*` (`MAX_HORIZON_DAYS` 730, `MAX_LATE_DAYS` 3, `MAX_TECHNICAL_ATTEMPTS` 5, `DISPATCH_DELAY` PT30S, `BATCH` 20) | — | Pix Agendado. Valores de projeto; `MAX_LATE_DAYS`: sistema parado além disso ⇒ a ocorrência vira `FAILED(MISSED)` (não paga fora de hora) |
 | `PIX_AUTOMATIC_*` (`MIN/MAX_NOTICE_DAYS` 2/10, `RETRY_DAYS` 3, `MAX_LATE_DAYS` 1, `REQUEST_VALIDITY` P7D, `GATEWAY_URL`) | — | Pix Automático (pagador). **Prazos NÃO confirmados no regulamento: valide com o compliance antes de ligar.** `GATEWAY_URL` padrão = dict-gateway |
-| `PIX_WEBHOOK_INSECURE_TLS` / `PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS` | `false` | **mantenha `false`.** `true` aceita certificado autoassinado do receptor / hosts internos (desliga o anti-SSRF); existem só para dev e testes (o perfil `local` liga os dois) |
+| `PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS` | `false` | **mantenha `false`.** `true` aceita hosts internos (desliga o anti-SSRF); existe só para dev e testes (o perfil `local` liga) |
 | `PIX_WEBHOOK_DISPATCH_BATCH` / `_DISPATCH_DELAY` / `_CONNECT_TIMEOUT` / `_REQUEST_TIMEOUT` | `20` / `PT2S` / `3s` / `5s` | vazão do envio: sequencial, então `lote × timeout` limita o tempo de um ciclo; aumente o lote com receptores rápidos |
 | `pix.policy.otp.*` | 5 min / 5 tentativas / 60 s / 10 por dia | parâmetros **de projeto** do OTP (não são do regulamento) |
 | `DB_CONNECTION_TIMEOUT_MS` | `3000` | ok |

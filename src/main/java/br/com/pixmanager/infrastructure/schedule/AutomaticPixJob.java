@@ -19,7 +19,7 @@ public class AutomaticPixJob {
         this.execute = execute;
     }
 
-    @Scheduled(fixedDelayString = "${pix.automatic.dispatch-delay:PT30S}")
+    @Scheduled(initialDelayString = "${pix.automatic.dispatch-delay:PT30S}", fixedDelayString = "${pix.automatic.dispatch-delay:PT30S}")   // 1ª execução também só depois do atraso: não corre junto com o início dos ITs
     @SchedulerLock(name = "automatic-pix", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1S")
     void run() {
         var r = execute.runCycle();

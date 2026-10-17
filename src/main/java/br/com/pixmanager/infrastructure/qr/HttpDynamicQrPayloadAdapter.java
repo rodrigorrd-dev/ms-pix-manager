@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.qr;
 
+import br.com.pixmanager.shared.util.TlsTrust;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut;
 import br.com.pixmanager.core.port.out.WebhookUrlPolicyPortOut;
@@ -19,15 +20,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -36,8 +32,8 @@ import java.security.KeyStore;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertificateFactory;
-import java.security.cert.PKIXParameters;
 import java.security.cert.X509Certificate;
+import java.security.cert.PKIXParameters;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
@@ -77,7 +73,7 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
                                        @Value("${pix.qr.trust-store-password:}") String trustStorePassword,
                                        @Value("${pix.qr.trust-store-type:PKCS12}") String trustStoreType,
                                        @Value("${pix.qr.allow-unverified-chain:false}") boolean allowUnverifiedChain,
-                                       @Value("${pix.qr.insecure-tls:false}") boolean insecureTls) {
+                                       @Value("${pix.qr.tls-ca-path:}") String tlsCaPath) {
         this.urlPolicy = urlPolicy;
         this.requestTimeout = requestTimeout;
         this.maxBytes = maxBytes;
@@ -90,9 +86,8 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
         }
         HttpClient.Builder builder = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(connectTimeout)
                 .followRedirects(HttpClient.Redirect.NEVER);
-        if (insecureTls) {
-            log.warn("pix.qr.insecure-tls=true: o certificado TLS do recebedor NÃO é validado. SÓ dev/teste");
-            builder.sslContext(trustAllContext());
+        if (tlsCaPath != null && !tlsCaPath.isBlank()) {
+            builder.sslContext(TlsTrust.withExtraCa(tlsCaPath));   // CA/certificado extra do recebedor (dev/teste ou CA privada); a cadeia e o host continuam validados
         }
         this.client = builder.build();
     }
@@ -262,23 +257,4 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
         }
     }
 
-    private static SSLContext trustAllContext() {
-        try {
-            TrustManager trustAll = new X509ExtendedTrustManager() {
-                public void checkClientTrusted(X509Certificate[] c, String t) { }
-                public void checkServerTrusted(X509Certificate[] c, String t) { }
-                public void checkClientTrusted(X509Certificate[] c, String t, Socket s) { }
-                public void checkServerTrusted(X509Certificate[] c, String t, Socket s) { }
-                public void checkClientTrusted(X509Certificate[] c, String t, SSLEngine e) { }
-                public void checkServerTrusted(X509Certificate[] c, String t, SSLEngine e) { }
-                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-            };
-            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context -- "TLS" negocia 1.3/1.2 no JDK 21 (1.0/1.1 desativados); contexto só de dev
-            SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, new TrustManager[]{trustAll}, new java.security.SecureRandom());
-            return context;
-        } catch (java.security.GeneralSecurityException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 }
