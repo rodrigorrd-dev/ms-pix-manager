@@ -182,7 +182,7 @@ pix:
     read-timeout: ${PIX_OTP_READ_TIMEOUT:3s}
   webhook:                                              # notificação de Pix recebido (entrega ao recebedor)
     signing-key-base64: ${PIX_WEBHOOK_SIGNING_KEY:}     # OBRIGATÓRIO (>= 32 bytes, Base64): assina cada envio (x-pix-signature). Cofre em hml/prd
-    insecure-tls: ${PIX_WEBHOOK_INSECURE_TLS:false}     # SÓ dev/teste: NÃO valida o certificado do receptor (autoassinado)
+    tls-ca-path: ${PIX_WEBHOOK_TLS_CA_PATH:}     # opcional: PEM com CA/certificado extra do receptor (dev ou CA privada); a cadeia segue validada
     allow-private-hosts: ${PIX_WEBHOOK_ALLOW_PRIVATE_HOSTS:false}   # SÓ dev/teste: aceita host interno/loopback (desliga a proteção anti-SSRF)
     dispatch-delay: ${PIX_WEBHOOK_DISPATCH_DELAY:PT2S}
     dispatch-batch: ${PIX_WEBHOOK_DISPATCH_BATCH:20}
@@ -194,7 +194,7 @@ pix:
     trust-store-password: ${PIX_QR_TRUST_STORE_PASSWORD:}
     trust-store-type: ${PIX_QR_TRUST_STORE_TYPE:PKCS12}
     allow-unverified-chain: ${PIX_QR_ALLOW_UNVERIFIED_CHAIN:false}   # SÓ dev/teste: aceita o JWS sem validar a cadeia (confere só a assinatura)
-    insecure-tls: ${PIX_QR_INSECURE_TLS:false}          # SÓ dev/teste: não valida o TLS do recebedor
+    tls-ca-path: ${PIX_QR_TLS_CA_PATH:}          # opcional: PEM com CA/certificado extra do recebedor (dev ou CA privada)
     connect-timeout: ${PIX_QR_CONNECT_TIMEOUT:3s}
     request-timeout: ${PIX_QR_REQUEST_TIMEOUT:5s}
     max-bytes: ${PIX_QR_MAX_BYTES:65536}

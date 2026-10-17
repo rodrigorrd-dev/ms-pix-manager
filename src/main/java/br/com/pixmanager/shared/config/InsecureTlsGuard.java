@@ -8,14 +8,13 @@ import org.springframework.core.env.Profiles;
 import java.util.List;
 
 /**
- * Fail-fast: as opções que desligam a validação de TLS/cadeia (só para dev e teste) NÃO podem ficar ligadas em hml/prd.
- * Sem isto, uma variável de ambiente esquecida abriria o serviço a ataque de intermediário sem nenhum aviso além de um log.
+ * Fail-fast: a opção que desliga a validação da cadeia do QR dinâmico (só para dev e teste) NÃO pode ficar ligada em hml/prd.
+ * Sem isto, uma variável de ambiente esquecida aceitaria QR forjado sem nenhum aviso além de um log.
  */
 @Configuration
 public class InsecureTlsGuard {
 
-    private static final List<String> FLAGS = List.of(
-            "pix.webhook.insecure-tls", "pix.qr.insecure-tls", "pix.qr.allow-unverified-chain");
+    private static final List<String> FLAGS = List.of("pix.qr.allow-unverified-chain");
 
     private final Environment env;
 

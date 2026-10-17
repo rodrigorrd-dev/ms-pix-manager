@@ -56,7 +56,7 @@ class WebhookApiIT extends AbstractApplicationIT {
 
     @BeforeAll
     static void startReceiver() {
-        receiver = new WireMockServer(options().dynamicPort().dynamicHttpsPort());
+        receiver = new WireMockServer(options().dynamicPort().dynamicHttpsPort().keystorePath("src/test/resources/tls/test-server.p12").keystorePassword("changeit").keyManagerPassword("changeit"));
         receiver.start();
     }
 

@@ -28,10 +28,10 @@ pix:
       max-delay-ms: 400
   qr:
     allow-unverified-chain: true      # ITs: o certificado de teste não é ICP-Brasil
-    insecure-tls: true
+    tls-ca-path: src/test/resources/tls/test-server.crt
   webhook:
     signing-key-base64: ZGV2LXdlYmhvb2stc2lnbmluZy1rZXktMzItYnl0ZXMhIQ==
-    insecure-tls: true
+    tls-ca-path: src/test/resources/tls/test-server.crt
     allow-private-hosts: true
     dispatch-delay: PT1H            # os ITs chamam o caso de uso direto
   policy:

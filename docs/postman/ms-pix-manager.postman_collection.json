@@ -838,7 +838,7 @@
                     }
                   }
                 },
-                "description": "Só HTTPS (o banco também exige) e host público (anti-SSRF). No dev a URL do receptor fictício é https://mocks:8443/webhook-receiver/ok (certificado de dev; `PIX_WEBHOOK_INSECURE_TLS` e `ALLOW_PRIVATE_HOSTS` ligados só no perfil local). O app envia POST para <webhookUrl>/pix com x-pix-signature."
+                "description": "Só HTTPS (o banco também exige) e host público (anti-SSRF). No dev a URL do receptor fictício é https://mocks:8443/webhook-receiver/ok (certificado de dev; `PIX_WEBHOOK_TLS_CA_PATH` (confia no certificado de dev) e `ALLOW_PRIVATE_HOSTS` ligados só no perfil local). O app envia POST para <webhookUrl>/pix com x-pix-signature."
               },
               "event": [
                 {

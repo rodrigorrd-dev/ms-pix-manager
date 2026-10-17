@@ -23,7 +23,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 /** PSP do recebedor simulado (HTTPS): serve o payload JWS de QR dinâmico assinado com o certificado de teste. Servidor ÚNICO por JVM. */
 public final class QrReceiverStub {
 
-    public static final WireMockServer SERVER = new WireMockServer(options().dynamicPort().dynamicHttpsPort());
+    public static final WireMockServer SERVER = new WireMockServer(options().dynamicPort().dynamicHttpsPort().keystorePath("src/test/resources/tls/test-server.p12").keystorePassword("changeit").keyManagerPassword("changeit"));
     private static final char[] PW = "changeit".toCharArray();
 
     static {
