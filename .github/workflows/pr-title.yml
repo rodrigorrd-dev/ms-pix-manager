@@ -13,6 +13,7 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
+          TITLE="$(printf '%s' "$TITLE" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"   # ignora espaços nas pontas
           if ! printf '%s' "$TITLE" | grep -Eq '^(feat|fix|perf|refactor|test|docs|chore|ci|build|revert)(\([a-z0-9-]+\))?!?: .{3,}'; then
             echo "Título fora do padrão Conventional Commits: $TITLE"
             echo "Exemplo: feat(charge): lista cobranças em lote"
