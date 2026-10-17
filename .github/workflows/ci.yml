@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # só PR cancela a execução anterior; push em main/develop e tags terminam
 
 jobs:
   build-test:
