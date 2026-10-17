@@ -273,6 +273,7 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
                 public void checkServerTrusted(X509Certificate[] c, String t, SSLEngine e) { }
                 public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
             };
+            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context -- "TLS" negocia 1.3/1.2 no JDK 21 (1.0/1.1 desativados); contexto só de dev
             SSLContext context = SSLContext.getInstance("TLS");
             context.init(null, new TrustManager[]{trustAll}, new java.security.SecureRandom());
             return context;

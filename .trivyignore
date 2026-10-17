@@ -1,0 +1,5 @@
+# Risco aceito, com prazo: o Spring Framework 6.2.x (Spring Boot 3.5.16) não recebeu correção; a correção só existe na 7.0.9 (Spring Boot 4).
+# Reavaliar ao migrar para o Spring Boot 4 (pendência E1, docs/10) ou até a data de expiração.
+# O serviço não usa XsltView nem Server-Sent Events (SseEmitter / text/event-stream), que são os vetores dos dois CVEs.
+CVE-2026-47884 exp:2026-12-31
+CVE-2026-47890 exp:2026-12-31
