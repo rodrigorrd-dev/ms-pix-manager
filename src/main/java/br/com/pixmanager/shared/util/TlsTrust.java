@@ -29,19 +29,19 @@ public final class TlsTrust {
         try {
             KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
             store.load(null, null);
-            int i = 0;
+            int index = 0;
             TrustManagerFactory defaults = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             defaults.init((KeyStore) null);
-            for (TrustManager tm : defaults.getTrustManagers()) {
-                if (tm instanceof X509TrustManager x509) {
+            for (TrustManager trustManager : defaults.getTrustManagers()) {
+                if (trustManager instanceof X509TrustManager x509) {
                     for (X509Certificate issuer : x509.getAcceptedIssuers()) {
-                        store.setCertificateEntry("default-" + i++, issuer);
+                        store.setCertificateEntry("default-" + index++, issuer);
                     }
                 }
             }
             try (InputStream in = ResourceUtils.getURL(location).openStream()) {
                 for (Certificate certificate : CertificateFactory.getInstance("X.509").generateCertificates(in)) {
-                    store.setCertificateEntry("extra-" + i++, certificate);
+                    store.setCertificateEntry("extra-" + index++, certificate);
                 }
             }
             TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -50,8 +50,8 @@ public final class TlsTrust {
             SSLContext context = SSLContext.getInstance("TLS");
             context.init(null, factory.getTrustManagers(), new SecureRandom());
             return context;
-        } catch (GeneralSecurityException | IOException e) {
-            throw new IllegalStateException("Certificado de confiança inválido ou ilegível: " + location, e);
+        } catch (GeneralSecurityException | IOException exception) {
+            throw new IllegalStateException("Certificado de confiança inválido ou ilegível: " + location, exception);
         }
     }
 }

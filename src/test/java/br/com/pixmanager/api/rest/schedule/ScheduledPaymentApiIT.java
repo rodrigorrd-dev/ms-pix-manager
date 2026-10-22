@@ -90,10 +90,10 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
     }
 
     JsonNode create(String body) throws Exception {
-        var r = mvc.perform(post("/v1/scheduled-payments").with(jwt("schedule.write")).header("Idempotency-Key", UUID.randomUUID().toString())
+        var mvcResult = mvc.perform(post("/v1/scheduled-payments").with(jwt("schedule.write")).header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn();
-        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(r.getResponse().getContentAsString());
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     String occurrenceStatus(String scheduleId) {
@@ -153,8 +153,8 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
     @Test
     @DisplayName("Cancelamento: do agendamento (If-Match) cancela as ocorrências em espera; ocorrência avulsa cancela e conclui; fora do estado ⇒ 422 PIX-422-062")
     void shouldCancel() throws Exception {
-        JsonNode s = create(body("WEEKLY", "2026-10-20", ",\"occurrencesTotal\":2", "10.00"));
-        String id = s.get("id").asText();
+        JsonNode schedule = create(body("WEEKLY", "2026-10-20", ",\"occurrencesTotal\":2", "10.00"));
+        String id = schedule.get("id").asText();
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write"))).andExpect(status().isPreconditionRequired());
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write")).header("If-Match", "\"99\"")).andExpect(status().isPreconditionFailed());
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write")).header("If-Match", "\"0\""))
@@ -164,13 +164,13 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("PIX-422-062"));
 
         JsonNode two = create(body("WEEKLY", "2026-10-20", ",\"occurrencesTotal\":2", "10.00"));
-        List<UUID> occ = jdbc.sql("SELECT id FROM scheduled_payment_occurrence WHERE scheduled_payment_id = :id ORDER BY sequence_no").param("id", UUID.fromString(two.get("id").asText())).query(UUID.class).list();
-        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occ.get(0)).with(jwt("schedule.write")))
+        List<UUID> occurrenceIds = jdbc.sql("SELECT id FROM scheduled_payment_occurrence WHERE scheduled_payment_id = :id ORDER BY sequence_no").param("id", UUID.fromString(two.get("id").asText())).query(UUID.class).list();
+        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occurrenceIds.get(0)).with(jwt("schedule.write")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
-        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occ.get(0)).with(jwt("schedule.write")))
+        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occurrenceIds.get(0)).with(jwt("schedule.write")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("PIX-422-062"));
         assertThat(scheduleStatus(two.get("id").asText())).isEqualTo("ACTIVE");
-        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occ.get(1)).with(jwt("schedule.write"))).andExpect(status().isOk());
+        mvc.perform(post("/v1/scheduled-payments/{id}/occurrences/{o}/cancellation", two.get("id").asText(), occurrenceIds.get(1)).with(jwt("schedule.write"))).andExpect(status().isOk());
         assertThat(scheduleStatus(two.get("id").asText())).as("sem ocorrência em aberto ⇒ concluído").isEqualTo("COMPLETED");
     }
 
@@ -190,11 +190,11 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
         assertThat(jdbc.sql("SELECT origin FROM payment_order WHERE id = :id").param("id", order).query(String.class).single()).isEqualTo("SCHEDULED");
         assertThat(jdbc.sql("SELECT scheduled_occurrence_id IS NOT NULL FROM payment_order WHERE id = :id").param("id", order).query(Boolean.class).single()).isTrue();
 
-        String e2e = e2eOf(order);
+        String endToEndId = e2eOf(order);
         worker.runCycle();
         assertThat(occurrenceStatus(id)).as("ordem ainda VALIDATED").isEqualTo("PROCESSING");
-        processReservation.process(jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key = :k").param("k", e2e).query(UUID.class).single());
-        applyStatus.apply("it", "sch1", "pix.spi.payment-status.v1", 0, 1, e2e, SpiStatus.SENT, null, Instant.now());
+        processReservation.process(jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key = :k").param("k", endToEndId).query(UUID.class).single());
+        applyStatus.apply("it", "sch1", "pix.spi.payment-status.v1", 0, 1, endToEndId, SpiStatus.SENT, null, Instant.now());
 
         assertThat(worker.runCycle().settled()).isEqualTo(1);
         assertThat(occurrenceStatus(id)).isEqualTo("EXECUTED");
@@ -238,9 +238,9 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
         DictGatewayStub.lookupNotFound();
 
         clock.set(Instant.parse(DUE_NOON));
-        var r = worker.runCycle();
+        var cycleResult = worker.runCycle();
 
-        assertThat(r.failed()).isEqualTo(1);
+        assertThat(cycleResult.failed()).isEqualTo(1);
         assertThat(jdbc.sql("SELECT status || ':' || last_error_code FROM scheduled_payment_occurrence WHERE scheduled_payment_id = :id AND sequence_no = 1").param("id", UUID.fromString(id)).query(String.class).single()).isEqualTo("FAILED:PIX-422-012");
         assertThat(jdbc.sql("SELECT payment_order_id IS NULL FROM scheduled_payment_occurrence WHERE scheduled_payment_id = :id AND sequence_no = 1").param("id", UUID.fromString(id)).query(Boolean.class).single()).isTrue();
         assertThat(jdbc.sql("SELECT status FROM scheduled_payment_occurrence WHERE scheduled_payment_id = :id AND sequence_no = 2").param("id", UUID.fromString(id)).query(String.class).single()).isEqualTo("SCHEDULED");

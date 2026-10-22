@@ -67,13 +67,13 @@ public class ReceivePixConsumer {
             payloadType = SpiPaymentSettled.class))
     @KafkaAsyncOperationBinding
     public void onPaymentSettled(ConsumerRecord<String, byte[]> record) {
-        SpiPaymentSettled m = decoder.decode(record.topic(), record.value(), SpiPaymentSettled.class);
-        MDC.put("e2eId", String.valueOf(m.getEndToEndId()));        // consumer roda em thread do listener: sempre limpar
+        SpiPaymentSettled spiPaymentSettled = decoder.decode(record.topic(), record.value(), SpiPaymentSettled.class);
+        MDC.put("e2eId", String.valueOf(spiPaymentSettled.getEndToEndId()));        // consumer roda em thread do listener: sempre limpar
         try {
             ReceivePixResult result = RetryableConflicts.retryOnConflict(
-                    () -> receivePix.receive(toCommand(record.topic(), record.partition(), record.offset(), record.headers(), m)));
+                    () -> receivePix.receive(toCommand(record.topic(), record.partition(), record.offset(), record.headers(), spiPaymentSettled)));
             if (result instanceof ReceivePixResult.Duplicate) {
-                log.info("Pix duplicado ignorado (e2e={})", m.getEndToEndId());
+                log.info("Pix duplicado ignorado (e2e={})", spiPaymentSettled.getEndToEndId());
             }
         } finally {
             MDC.remove("e2eId");
@@ -89,29 +89,29 @@ public class ReceivePixConsumer {
     }
 
     private static ReceivePixCommand toCommand(String topic, int partition, long offset, org.apache.kafka.common.header.Headers headers,
-                                               SpiPaymentSettled m) {
-        List<ValueComponent> components = m.getComponents().stream().map(ReceivePixConsumer::toComponent).toList();
-        return new ReceivePixCommand(CONSUMER_GROUP, messageId(topic, partition, offset, headers, m), topic, partition, offset,
-                m.getEndToEndId(), m.getTxid(), Money.of(m.getAmount()), m.getSettledAt(), m.getReceiverIspb(), m.getReceiverBranch(),
-                m.getReceiverAccount(), m.getReceiverAccountType(), m.getPayerDocument(), m.getPayerName(), m.getPayerIspb(),
-                m.getPayerBranch(), m.getPayerAccount(), m.getPayerAccountType(), m.getPayerInfo(), components, m.getReceiverKeyHash());
+                                               SpiPaymentSettled spiPaymentSettled) {
+        List<ValueComponent> components = spiPaymentSettled.getComponents().stream().map(ReceivePixConsumer::toComponent).toList();
+        return new ReceivePixCommand(CONSUMER_GROUP, messageId(topic, partition, offset, headers, spiPaymentSettled), topic, partition, offset,
+                spiPaymentSettled.getEndToEndId(), spiPaymentSettled.getTxid(), Money.of(spiPaymentSettled.getAmount()), spiPaymentSettled.getSettledAt(), spiPaymentSettled.getReceiverIspb(), spiPaymentSettled.getReceiverBranch(),
+                spiPaymentSettled.getReceiverAccount(), spiPaymentSettled.getReceiverAccountType(), spiPaymentSettled.getPayerDocument(), spiPaymentSettled.getPayerName(), spiPaymentSettled.getPayerIspb(),
+                spiPaymentSettled.getPayerBranch(), spiPaymentSettled.getPayerAccount(), spiPaymentSettled.getPayerAccountType(), spiPaymentSettled.getPayerInfo(), components, spiPaymentSettled.getReceiverKeyHash());
     }
 
-    private static ValueComponent toComponent(SpiValueComponent c) {
+    private static ValueComponent toComponent(SpiValueComponent spiValueComponent) {
         try {
-            return new ValueComponent(ComponentType.valueOf(c.getType()), Money.of(c.getAmount()), c.getAgentModality(),
-                    c.getWithdrawalProviderIspb());
-        } catch (IllegalArgumentException e) {
+            return new ValueComponent(ComponentType.valueOf(spiValueComponent.getType()), Money.of(spiValueComponent.getAmount()), spiValueComponent.getAgentModality(),
+                    spiValueComponent.getWithdrawalProviderIspb());
+        } catch (IllegalArgumentException exception) {
             // mensagem malformada nunca melhora com retry: vai direto à DLT
-            throw new BusinessException(br.com.pixmanager.shared.constant.ErrorCodes.INVALID_PAYLOAD, "Componente de valor inválido no Pix recebido.", e);
+            throw new BusinessException(br.com.pixmanager.shared.constant.ErrorCodes.INVALID_PAYLOAD, "Componente de valor inválido no Pix recebido.", exception);
         }
     }
 
     /** {@code messageId} do gateway; sem ele, {@code topic-partition-offset} (estável na reentrega). */
     private static String messageId(String topic, int partition, long offset, org.apache.kafka.common.header.Headers headers,
-                                    SpiPaymentSettled m) {
-        if (m.getMessageId() != null && !m.getMessageId().isBlank()) {
-            return m.getMessageId();
+                                    SpiPaymentSettled spiPaymentSettled) {
+        if (spiPaymentSettled.getMessageId() != null && !spiPaymentSettled.getMessageId().isBlank()) {
+            return spiPaymentSettled.getMessageId();
         }
         var header = headers.lastHeader("id");
         return header != null ? new String(header.value(), StandardCharsets.UTF_8)

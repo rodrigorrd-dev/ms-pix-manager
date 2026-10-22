@@ -33,19 +33,19 @@ public final class CallerContext {
      * Premissa documentada em docs/10 (G1): o IdP carrega o vínculo cliente → contas. Sem o claim ⇒ nenhuma conta.
      */
     public static Caller current() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String client = clientId();
         boolean full = canSeeFullDocument();
-        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
             List<String> claim = jwt.getClaimAsStringList("pix_accounts");
             if (claim != null) {
                 if (claim.contains("*")) {
                     return new Caller(client, Set.of(), true, full);
                 }
                 Set<UUID> ids = new HashSet<>();
-                for (String c : claim) {
+                for (String accountId : claim) {
                     try {
-                        ids.add(UUID.fromString(c));
+                        ids.add(UUID.fromString(accountId));
                     } catch (IllegalArgumentException ignored) {
                         // valor inválido no claim: ignorado (nega acesso, nunca amplia)
                     }

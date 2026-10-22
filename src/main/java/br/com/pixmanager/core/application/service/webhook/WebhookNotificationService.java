@@ -60,9 +60,9 @@ public class WebhookNotificationService implements NotifyPixReceivedUseCase {
             }
             deliveries.enqueue(WebhookDelivery.pending(ids.newId(), subscription.get().id(), pix.id(), EVENT_TYPE, clock.instant()),
                     payload(pix, key.get().value().value()));
-        } catch (RuntimeException e) {
+        } catch (RuntimeException exception) {
             // notificar é secundário: um erro aqui jamais pode impedir o crédito do Pix (que já foi liquidado no SPI)
-            log.error("Falha ao enfileirar webhook do Pix {}: {}", pix.endToEndId(), e.toString());
+            log.error("Falha ao enfileirar webhook do Pix {}: {}", pix.endToEndId(), exception.toString());
         }
     }
 

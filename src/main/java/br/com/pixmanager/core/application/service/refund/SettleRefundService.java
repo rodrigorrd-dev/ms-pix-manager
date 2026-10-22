@@ -26,17 +26,17 @@ public class SettleRefundService implements SettleRefundUseCase {
     private final ExecuteReservationUseCase ledger;
     private final DomainEventPublisherPortOut events;
     private final InboxPortOut inbox;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
 
     public SettleRefundService(RefundPersistencePortOut refunds, ReceivedPixPersistencePortOut receivedPix,
                                ExecuteReservationUseCase ledger, DomainEventPublisherPortOut events, InboxPortOut inbox,
-                               TransactionRunnerPortOut tx) {
+                               TransactionRunnerPortOut transactionRunner) {
         this.refunds = refunds;
         this.receivedPix = receivedPix;
         this.ledger = ledger;
         this.events = events;
         this.inbox = inbox;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
     }
 
     @Override
@@ -49,7 +49,7 @@ public class SettleRefundService implements SettleRefundUseCase {
         } else {
             ledger.cancel(rtrId);
         }
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             if (!inbox.firstTime(consumerGroup, messageId, topic, partition, offset)) {
                 return;
             }

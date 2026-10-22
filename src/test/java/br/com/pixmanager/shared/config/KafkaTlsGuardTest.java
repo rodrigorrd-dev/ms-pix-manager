@@ -12,19 +12,19 @@ class KafkaTlsGuardTest {
     @Test
     @DisplayName("kafka-tls sem a variável do truststore (placeholder não resolvido) recusa subir e nomeia a variável")
     void tlsSemVariavel() {
-        MockEnvironment env = new MockEnvironment().withProperty("spring.kafka.ssl.trust-store-location", "${KAFKA_SSL_TRUSTSTORE_LOCATION}");
-        env.setActiveProfiles("kafka-tls");
-        assertThatThrownBy(() -> new KafkaTlsGuard(env).validate())
+        MockEnvironment environment = new MockEnvironment().withProperty("spring.kafka.ssl.trust-store-location", "${KAFKA_SSL_TRUSTSTORE_LOCATION}");
+        environment.setActiveProfiles("kafka-tls");
+        assertThatThrownBy(() -> new KafkaTlsGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("KAFKA_SSL_TRUSTSTORE_LOCATION");
     }
 
     @Test
     @DisplayName("kafka-tls com valor em branco recusa subir")
     void tlsEmBranco() {
-        MockEnvironment env = new MockEnvironment()
+        MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.kafka.ssl.trust-store-location", "file:/certs/t.jks").withProperty("spring.kafka.ssl.trust-store-password", " ");
-        env.setActiveProfiles("kafka-tls");
-        assertThatThrownBy(() -> new KafkaTlsGuard(env).validate())
+        environment.setActiveProfiles("kafka-tls");
+        assertThatThrownBy(() -> new KafkaTlsGuard(environment).validate())
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("KAFKA_SSL_TRUSTSTORE_PASSWORD");
     }
 

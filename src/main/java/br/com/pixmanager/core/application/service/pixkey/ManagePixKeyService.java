@@ -30,15 +30,15 @@ public class ManagePixKeyService implements ManagePixKeyUseCase {
     private final PixKeyPersistencePortOut persistence;
     private final DictGatewayPortOut dict;
     private final DomainEventPublisherPortOut events;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
 
     public ManagePixKeyService(PixKeyPersistencePortOut persistence, DictGatewayPortOut dict, DomainEventPublisherPortOut events,
-                               TransactionRunnerPortOut tx, Clock clock) {
+                               TransactionRunnerPortOut transactionRunner, Clock clock) {
         this.persistence = persistence;
         this.dict = dict;
         this.events = events;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
     }
 
@@ -65,7 +65,7 @@ public class ManagePixKeyService implements ManagePixKeyUseCase {
         if (key.dictCid() != null) {
             dict.delete(key, reason);                                   // HTTP via dict-gateway, fora de transação
         }
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             PixKey saved = persistence.save(deleted);
             events.publish(new PixKeyEvent("PixKeyDeleted", saved));
             return saved;

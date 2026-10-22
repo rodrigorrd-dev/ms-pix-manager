@@ -50,17 +50,17 @@ class JsonAppenderMaskingTest {
     }
 
     private static LoggingInitializationContext contextFor(String profile) {
-        MockEnvironment env = new MockEnvironment();
-        env.setActiveProfiles(profile);
-        env.setProperty("spring.application.name", "ms-pix-manager");
-        return new LoggingInitializationContext(env);
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles(profile);
+        environment.setProperty("spring.application.name", "ms-pix-manager");
+        return new LoggingInitializationContext(environment);
     }
 
     private static String logThrough(boolean masked) {
-        LoggerContext ctx = new LoggerContext();
-        ctx.setMDCAdapter(new ch.qos.logback.classic.util.LogbackMDCAdapter());
+        LoggerContext loggerContext = new LoggerContext();
+        loggerContext.setMDCAdapter(new ch.qos.logback.classic.util.LogbackMDCAdapter());
         LogstashEncoder encoder = new LogstashEncoder();
-        encoder.setContext(ctx);
+        encoder.setContext(loggerContext);
         if (masked) {
             MaskingJsonGeneratorDecorator decorator = new MaskingJsonGeneratorDecorator();
             decorator.addValueMasker(new PiiValueMasker());
@@ -70,11 +70,11 @@ class JsonAppenderMaskingTest {
         encoder.start();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         OutputStreamAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender = new OutputStreamAppender<>();
-        appender.setContext(ctx);
+        appender.setContext(loggerContext);
         appender.setEncoder(encoder);
         appender.setOutputStream(out);
         appender.start();
-        Logger logger = ctx.getLogger("teste");
+        Logger logger = loggerContext.getLogger("teste");
         logger.addAppender(appender);
         logger.error("devedor {} falhou", CPF, new IllegalStateException("documento 52998224725 inválido"));
         appender.stop();

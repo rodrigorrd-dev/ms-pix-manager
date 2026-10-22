@@ -27,11 +27,11 @@ class PaymentOrderTest {
 
     @Test
     void happyPathCreatedToSettled() {
-        PaymentOrder o = order("10.00").validated(UUID.randomUUID()).reserved().sentToSpi(NOW).settled(NOW.plusSeconds(2));
-        assertThat(o.status()).isEqualTo(PaymentStatus.SETTLED);
-        assertThat(o.ledgerReservationId()).isNotNull();
-        assertThat(o.sentAt()).isEqualTo(NOW);
-        assertThat(o.settledAt()).isEqualTo(NOW.plusSeconds(2));
+        PaymentOrder paymentOrder = order("10.00").validated(UUID.randomUUID()).reserved().sentToSpi(NOW).settled(NOW.plusSeconds(2));
+        assertThat(paymentOrder.status()).isEqualTo(PaymentStatus.SETTLED);
+        assertThat(paymentOrder.ledgerReservationId()).isNotNull();
+        assertThat(paymentOrder.sentAt()).isEqualTo(NOW);
+        assertThat(paymentOrder.settledAt()).isEqualTo(NOW.plusSeconds(2));
     }
 
     @Test
@@ -64,9 +64,9 @@ class PaymentOrderTest {
 
     @Test
     void rejectionCarriesTheCode() {
-        PaymentOrder r = order("1.00").validated(UUID.randomUUID()).rejected("AM04", "saldo");
-        assertThat(r.rejectReasonCode()).isEqualTo("AM04");
-        assertThat(r.rejectReasonDetail()).isEqualTo("saldo");
+        PaymentOrder paymentOrder = order("1.00").validated(UUID.randomUUID()).rejected("AM04", "saldo");
+        assertThat(paymentOrder.rejectReasonCode()).isEqualTo("AM04");
+        assertThat(paymentOrder.rejectReasonDetail()).isEqualTo("saldo");
     }
 
     @Test

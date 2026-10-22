@@ -41,13 +41,13 @@ public class PiiReencryptionRunner implements ApplicationRunner {
     record Target(String table, String column) {}
 
     private final JdbcClient jdbc;
-    private final TransactionTemplate tx;
+    private final TransactionTemplate transactionTemplate;
     private final CryptoService crypto;
     private final int batchSize;
 
-    public PiiReencryptionRunner(JdbcClient jdbc, PlatformTransactionManager txManager, CryptoService crypto, CryptoProperties properties) {
+    public PiiReencryptionRunner(JdbcClient jdbc, PlatformTransactionManager transactionManager, CryptoService crypto, CryptoProperties properties) {
         this.jdbc = jdbc;
-        this.tx = new TransactionTemplate(txManager);
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.crypto = crypto;
         this.batchSize = properties.reencrypt().batchSize();
     }
@@ -61,41 +61,41 @@ public class PiiReencryptionRunner implements ApplicationRunner {
     /** @return linhas atualizadas por {@code tabela.coluna} (falhas de decifragem são logadas e contadas como {@code .falhas}). */
     public Map<String, Integer> reencryptAll() {
         Map<String, Integer> result = new LinkedHashMap<>();
-        for (Target t : TARGETS) {
+        for (Target target : TARGETS) {
             int updated = 0;
             int failed = 0;
             while (true) {
-                int[] batch = tx.execute(status -> reencryptBatch(t));
+                int[] batch = transactionTemplate.execute(status -> reencryptBatch(target));
                 updated += batch[0];
                 failed += batch[1];
                 if (batch[0] == 0) {
                     break;                       // nada mais a migrar (ou só restaram linhas ilegíveis: não girar em falso)
                 }
             }
-            result.put(t.table() + "." + t.column(), updated);
+            result.put(target.table() + "." + target.column(), updated);
             if (failed > 0) {
-                result.put(t.table() + "." + t.column() + ".falhas", failed);
-                log.error("{}.{}: {} linha(s) não puderam ser decifradas (chave antiga ausente em pix.crypto.previous-aes-keys?)", t.table(), t.column(), failed);
+                result.put(target.table() + "." + target.column() + ".falhas", failed);
+                log.error("{}.{}: {} linha(s) não puderam ser decifradas (chave antiga ausente em pix.crypto.previous-aes-keys?)", target.table(), target.column(), failed);
             }
         }
         return result;
     }
 
-    private int[] reencryptBatch(Target t) {
+    private int[] reencryptBatch(Target target) {
         String select = "SELECT id, %1$s AS value FROM %2$s WHERE %1$s IS NOT NULL AND %1$s NOT LIKE :current ORDER BY id LIMIT :n"
-                .formatted(t.column(), t.table());
-        String update = "UPDATE %2$s SET %1$s = :new WHERE id = :id AND %1$s = :old".formatted(t.column(), t.table());
+                .formatted(target.column(), target.table());
+        String update = "UPDATE %2$s SET %1$s = :new WHERE id = :id AND %1$s = :old".formatted(target.column(), target.table());
         var rows = jdbc.sql(select).param("current", crypto.currentVersion() + ":%").param("n", batchSize)
-                .query((rs, i) -> new Object[]{rs.getObject("id"), rs.getString("value")}).list();
+                .query((resultSet, rowNumber) -> new Object[]{resultSet.getObject("id"), resultSet.getString("value")}).list();
         int updated = 0;
         int failed = 0;
         for (Object[] row : rows) {
             try {
                 String fresh = crypto.encrypt(crypto.decrypt((String) row[1]));
                 updated += jdbc.sql(update).param("new", fresh).param("id", row[0]).param("old", row[1]).update();
-            } catch (CryptoException e) {
+            } catch (CryptoException exception) {
                 failed++;
-                log.error("{}.{} id={}: {}", t.table(), t.column(), row[0], e.getMessage());
+                log.error("{}.{} id={}: {}", target.table(), target.column(), row[0], exception.getMessage());
             }
         }
         return new int[]{updated, failed};

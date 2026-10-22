@@ -24,25 +24,25 @@ public class PixKeyEntityMapper {
         return crypto.blindIndex("key:" + value.value());     // prefixo: domínio HMAC próprio (≠ hash de documento)
     }
 
-    public PixKey toDomain(PixKeyEntity e) {
-        PixKeyValue value = PixKeyValue.of(PixKeyType.valueOf(e.getKeyType()), crypto.decrypt(e.getKeyValueEnc()));
-        return new PixKey(e.getId(), e.getAccountId(), value, PixKeyStatus.valueOf(e.getStatus()), e.getDictCid(),
-                e.getDictRegisteredAt(), e.getDeletedReason() == null ? null : DeletionReason.valueOf(e.getDeletedReason()),
-                e.getDeletedAt(), e.getVersion(), e.getCreatedAt());
+    public PixKey toDomain(PixKeyEntity entity) {
+        PixKeyValue value = PixKeyValue.of(PixKeyType.valueOf(entity.getKeyType()), crypto.decrypt(entity.getKeyValueEnc()));
+        return new PixKey(entity.getId(), entity.getAccountId(), value, PixKeyStatus.valueOf(entity.getStatus()), entity.getDictCid(),
+                entity.getDictRegisteredAt(), entity.getDeletedReason() == null ? null : DeletionReason.valueOf(entity.getDeletedReason()),
+                entity.getDeletedAt(), entity.getVersion(), entity.getCreatedAt());
     }
 
-    public void apply(PixKey d, PixKeyEntity e, boolean isNew) {
+    public void apply(PixKey pixKey, PixKeyEntity entity, boolean isNew) {
         if (isNew) {
-            e.setAccountId(d.accountId());
-            e.setKeyType(d.value().type().name());
-            e.setKeyValueEnc(crypto.encrypt(d.value().value()));
-            e.setKeyHash(hashOf(d.value()));
-            e.setKeyMasked(d.value().masked());
+            entity.setAccountId(pixKey.accountId());
+            entity.setKeyType(pixKey.value().type().name());
+            entity.setKeyValueEnc(crypto.encrypt(pixKey.value().value()));
+            entity.setKeyHash(hashOf(pixKey.value()));
+            entity.setKeyMasked(pixKey.value().masked());
         }
-        e.setStatus(d.status().name());
-        e.setDictCid(d.dictCid());
-        e.setDictRegisteredAt(d.dictRegisteredAt());
-        e.setDeletedReason(d.deletedReason() == null ? null : d.deletedReason().name());
-        e.setDeletedAt(d.deletedAt());
+        entity.setStatus(pixKey.status().name());
+        entity.setDictCid(pixKey.dictCid());
+        entity.setDictRegisteredAt(pixKey.dictRegisteredAt());
+        entity.setDeletedReason(pixKey.deletedReason() == null ? null : pixKey.deletedReason().name());
+        entity.setDeletedAt(pixKey.deletedAt());
     }
 }

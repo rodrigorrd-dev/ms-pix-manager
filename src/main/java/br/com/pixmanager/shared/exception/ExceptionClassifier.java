@@ -85,11 +85,11 @@ public class ExceptionClassifier {
      * tentar de novo), e não 500 ("bug"). Percorre as causas porque o Spring/Hibernate embrulham a exceção de conexão.
      */
     public static boolean isDatabaseUnavailable(Throwable error) {
-        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
-            if (t instanceof org.springframework.transaction.CannotCreateTransactionException
-                    || t instanceof org.springframework.dao.DataAccessResourceFailureException
-                    || t instanceof org.springframework.dao.TransientDataAccessResourceException
-                    || t instanceof org.hibernate.exception.JDBCConnectionException) {
+        for (Throwable exception = error; exception != null; exception = exception.getCause() == exception ? null : exception.getCause()) {
+            if (exception instanceof org.springframework.transaction.CannotCreateTransactionException
+                    || exception instanceof org.springframework.dao.DataAccessResourceFailureException
+                    || exception instanceof org.springframework.dao.TransientDataAccessResourceException
+                    || exception instanceof org.hibernate.exception.JDBCConnectionException) {
                 return true;
             }
         }

@@ -34,16 +34,16 @@ class ProcessReservationServiceTest {
     UUID id;
 
     /** Transação simulada: se o bloco lança, o estado do "banco" volta ao que era (rollback). */
-    final TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+    final TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
         @Override
         public <T> T inTransaction(Supplier<T> action) {
             var snapshot = new LinkedHashMap<>(persistence.store);
             try {
                 return action.get();
-            } catch (RuntimeException e) {
+            } catch (RuntimeException exception) {
                 persistence.store.clear();
                 persistence.store.putAll(snapshot);
-                throw e;
+                throw exception;
             }
         }
     };
@@ -51,14 +51,14 @@ class ProcessReservationServiceTest {
     @BeforeEach
     void setUp() {
         var execute = new ExecuteReservationService(persistence, gateway, clock);
-        process = new ProcessReservationService(execute, tx, List.of(handler));
+        process = new ProcessReservationService(execute, transactionRunner, List.of(handler));
         id = new RequestReservationService(persistence, new SequentialIds(), clock)
                 .request(E2E, SequentialIds.id(9), LedgerPurpose.PAYMENT, "PAYMENT_ORDER", SequentialIds.id(5), Money.of("10.00")).id();
     }
 
     @Test
     void outcomeAndHandlerAreCommittedTogether() {
-        gateway.onReserve = r -> new GatewayResult.Done("L");
+        gateway.onReserve = reservation -> new GatewayResult.Done("L");
 
         process.process(id);
 
@@ -68,7 +68,7 @@ class ProcessReservationServiceTest {
 
     @Test
     void whenTheHandlerFailsTheReservationStaysPendingSoTheSweeperRetries() {
-        gateway.onReserve = r -> new GatewayResult.Done("L");
+        gateway.onReserve = reservation -> new GatewayResult.Done("L");
         handler.failure = new IllegalStateException("outbox indisponível");
 
         assertThatThrownBy(() -> process.process(id)).isSameAs(handler.failure);
@@ -82,7 +82,7 @@ class ProcessReservationServiceTest {
 
     @Test
     void refusalIsDispatchedToOnRefused() {
-        gateway.onReserve = r -> new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo");
+        gateway.onReserve = reservation -> new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo");
 
         process.process(id);
 
@@ -96,12 +96,12 @@ class ProcessReservationServiceTest {
 
         public LedgerPurpose purpose() { return LedgerPurpose.PAYMENT; }
 
-        public void onReserved(LedgerReservation r) {
+        public void onReserved(LedgerReservation reservation) {
             if (failure != null) { throw failure; }
             reserved++;
         }
 
-        public void onRefused(LedgerReservation r) {
+        public void onRefused(LedgerReservation reservation) {
             if (failure != null) { throw failure; }
             refused++;
         }

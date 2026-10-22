@@ -26,14 +26,14 @@ public final class TransactionalUseCases {
                 return template.execute(status -> {
                     try {
                         return method.invoke(target, args);
-                    } catch (InvocationTargetException e) {
-                        throw sneaky(e.getCause());
-                    } catch (IllegalAccessException e) {
-                        throw new IllegalStateException(e);
+                    } catch (InvocationTargetException exception) {
+                        throw sneaky(exception.getCause());
+                    } catch (IllegalAccessException exception) {
+                        throw new IllegalStateException(exception);
                     }
                 });
-            } catch (UndeclaredThrowableWrapper e) {
-                throw e.getCause();
+            } catch (UndeclaredThrowableWrapper undeclaredThrowableWrapper) {
+                throw undeclaredThrowableWrapper.getCause();
             }
         });
     }

@@ -32,7 +32,7 @@ public sealed interface ExpectedVersion {
                 throw new NumberFormatException();
             }
             return new Exact(version);
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException exception) {
             throw new BadRequestException(ErrorCodes.INVALID_PRECONDITION, "If-Match malformado.");
         }
     }

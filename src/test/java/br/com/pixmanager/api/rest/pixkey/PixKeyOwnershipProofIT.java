@@ -78,32 +78,32 @@ class PixKeyOwnershipProofIT extends AbstractApplicationIT {
     @Autowired ActivatePendingKeysUseCase activate;
     @Autowired FixedClock clock;
 
-    Account pf;
+    Account account;
 
     @BeforeEach
     void setUp() {
         DictGatewayStub.reset();
         TestBeans.SENDER.sent.clear();
         clock.set(Instant.parse("2026-10-16T15:00:00Z"));
-        pf = fixtures.account(TestDocuments.randomCpf(), "Titular PF");
+        account = fixtures.account(TestDocuments.randomCpf(), "Titular PF");
     }
 
     org.springframework.test.web.servlet.request.RequestPostProcessor jwt(String... scopes) {
-        return TestJwt.client("cli", List.of(pf.id()), scopes);
+        return TestJwt.client("cli", List.of(account.id()), scopes);
     }
 
     String newEmailKey() throws Exception {
         String email = "otp-" + UUID.randomUUID() + "@exemplo.com.br";
-        MvcResult r = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"%s\"}".formatted(pf.id(), email)))
+        MvcResult mvcResult = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"%s\"}".formatted(account.id(), email)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING_OWNERSHIP_PROOF")).andReturn();
-        return json.readTree(r.getResponse().getContentAsString()).get("id").asText();
+        return json.readTree(mvcResult.getResponse().getContentAsString()).get("id").asText();
     }
 
     JsonNode challenge(String keyId) throws Exception {
-        MvcResult r = mvc.perform(post("/v1/pix-keys/" + keyId + "/ownership-proof/challenges").with(jwt("pixkey.write")))
+        MvcResult mvcResult = mvc.perform(post("/v1/pix-keys/" + keyId + "/ownership-proof/challenges").with(jwt("pixkey.write")))
                 .andExpect(status().isAccepted()).andReturn();
-        return json.readTree(r.getResponse().getContentAsString());
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     org.springframework.test.web.servlet.ResultActions verify(String keyId, String code) throws Exception {
@@ -194,9 +194,9 @@ class PixKeyOwnershipProofIT extends AbstractApplicationIT {
                 .andExpect(status().isNotFound());
 
         MvcResult cpfKey = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"EVP\"}".formatted(pf.id()))).andExpect(status().isCreated()).andReturn();
-        String evp = json.readTree(cpfKey.getResponse().getContentAsString()).get("id").asText();
-        mvc.perform(post("/v1/pix-keys/" + evp + "/ownership-proof/challenges").with(jwt("pixkey.write")))
+                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"EVP\"}".formatted(account.id()))).andExpect(status().isCreated()).andReturn();
+        String evpKeyId = json.readTree(cpfKey.getResponse().getContentAsString()).get("id").asText();
+        mvc.perform(post("/v1/pix-keys/" + evpKeyId + "/ownership-proof/challenges").with(jwt("pixkey.write")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(content().string(containsString("não está aguardando")));
     }
 }

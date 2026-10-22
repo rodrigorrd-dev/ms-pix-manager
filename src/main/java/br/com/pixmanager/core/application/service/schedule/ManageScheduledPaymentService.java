@@ -49,31 +49,31 @@ public class ManageScheduledPaymentService implements ManageScheduledPaymentUseC
     }
 
     @Override
-    public ScheduledPayment create(Caller caller, CreateScheduledPaymentCommand c) {
-        if (!caller.canAccess(c.payerAccountId())) {
+    public ScheduledPayment create(Caller caller, CreateScheduledPaymentCommand command) {
+        if (!caller.canAccess(command.payerAccountId())) {
             throw new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada.");
         }
-        AccountInfo payer = accounts.findById(c.payerAccountId()).orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada."));
+        AccountInfo payer = accounts.findById(command.payerAccountId()).orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada."));
         if (!payer.isActive()) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "A conta do pagador não está ativa.");
         }
-        String key = c.pixKey();
-        if (c.method() == PaymentMethod.KEY) {
-            key = PixKeyValue.infer(c.pixKey()).filter(v -> v.type() == c.pixKeyType()).map(PixKeyValue::value)
-                    .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_SCHEDULE, "A chave informada não é válida para o tipo " + c.pixKeyType() + "."));
+        String key = command.pixKey();
+        if (command.method() == PaymentMethod.KEY) {
+            key = PixKeyValue.infer(command.pixKey()).filter(inferred -> inferred.type() == command.pixKeyType()).map(PixKeyValue::value)
+                    .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_SCHEDULE, "A chave informada não é válida para o tipo " + command.pixKeyType() + "."));
         }
         LocalDate today = today();
-        ScheduledPayment payment = ScheduledPayment.create(ids.newId(), payer.id(), c.recurrence(), c.method(), c.pixKeyType(), key, c.ispb(),
-                c.branch(), c.account(), c.accountType(), c.name(), c.document(), c.amount(), c.payerMessage(), c.firstDate(), c.endDate(),
-                c.occurrencesTotal(), today, true);
+        ScheduledPayment payment = ScheduledPayment.create(ids.newId(), payer.id(), command.recurrence(), command.method(), command.pixKeyType(), key, command.ispb(),
+                command.branch(), command.account(), command.accountType(), command.name(), command.document(), command.amount(), command.payerMessage(), command.firstDate(), command.endDate(),
+                command.occurrencesTotal(), today, true);
         List<LocalDate> dates = payment.occurrenceDates();
         if (dates.get(dates.size() - 1).isAfter(today.plusDays(properties.maxHorizonDays()))) {
             throw new BusinessException(ErrorCodes.INVALID_SCHEDULE,
                     "A última ocorrência passa do horizonte máximo de " + properties.maxHorizonDays() + " dias.");
         }
         List<ScheduledOccurrence> occurrences = new ArrayList<>();
-        for (int i = 0; i < dates.size(); i++) {
-            occurrences.add(ScheduledOccurrence.scheduled(ids.newId(), payment.id(), i + 1, dates.get(i)));
+        for (int index = 0; index < dates.size(); index++) {
+            occurrences.add(ScheduledOccurrence.scheduled(ids.newId(), payment.id(), index + 1, dates.get(index)));
         }
         persistence.insert(payment, occurrences);
         events.publish(new ScheduledPaymentEvent("ScheduledPaymentCreated", payment.id(), null, payment.payerAccountId(),
@@ -107,9 +107,9 @@ public class ManageScheduledPaymentService implements ManageScheduledPaymentUseC
             throw new PreconditionFailedException("O agendamento foi alterado por outra requisição (versão desatualizada).");
         }
         ScheduledPayment cancelled = persistence.save(payment.cancelled());
-        for (ScheduledOccurrence o : persistence.occurrencesOf(id)) {
-            if (o.status().isCancellable()) {
-                ScheduledOccurrence saved = persistence.saveOccurrence(o.cancelled());
+        for (ScheduledOccurrence occurrence : persistence.occurrencesOf(id)) {
+            if (occurrence.status().isCancellable()) {
+                ScheduledOccurrence saved = persistence.saveOccurrence(occurrence.cancelled());
                 publish("ScheduledOccurrenceCancelled", cancelled, saved, false);
             }
         }
@@ -121,7 +121,7 @@ public class ManageScheduledPaymentService implements ManageScheduledPaymentUseC
     @Override
     public ScheduledOccurrence cancelOccurrence(Caller caller, UUID id, UUID occurrenceId) {
         ScheduledPayment payment = load(caller, id);
-        ScheduledOccurrence occurrence = persistence.findOccurrence(occurrenceId).filter(o -> o.scheduledPaymentId().equals(id))
+        ScheduledOccurrence occurrence = persistence.findOccurrence(occurrenceId).filter(candidate -> candidate.scheduledPaymentId().equals(id))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Ocorrência não encontrada."));
         ScheduledOccurrence saved = persistence.saveOccurrence(occurrence.cancelled());
         publish("ScheduledOccurrenceCancelled", payment, saved, false);
@@ -134,13 +134,13 @@ public class ManageScheduledPaymentService implements ManageScheduledPaymentUseC
     }
 
     private ScheduledPayment load(Caller caller, UUID id) {
-        return persistence.findById(id).filter(p -> caller.canAccess(p.payerAccountId()))
+        return persistence.findById(id).filter(scheduledPayment -> caller.canAccess(scheduledPayment.payerAccountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Agendamento não encontrado."));
     }
 
-    private void publish(String type, ScheduledPayment payment, ScheduledOccurrence o, boolean notify) {
-        events.publish(new ScheduledPaymentEvent(type, payment.id(), o.id(), payment.payerAccountId(), o.status().name(), o.dueDate(),
-                payment.amount(), o.nextAttemptAt(), notify, o.paymentOrderId()));
+    private void publish(String type, ScheduledPayment payment, ScheduledOccurrence occurrence, boolean notify) {
+        events.publish(new ScheduledPaymentEvent(type, payment.id(), occurrence.id(), payment.payerAccountId(), occurrence.status().name(), occurrence.dueDate(),
+                payment.amount(), occurrence.nextAttemptAt(), notify, occurrence.paymentOrderId()));
     }
 
     private LocalDate today() {

@@ -29,25 +29,25 @@ class ReceivePixConsumerIT extends AbstractKafkaIT {
         account = fixtures.account(TestDocuments.randomCpf(), "Recebedor");
     }
 
-    String e2e() {
+    String newEndToEndId() {
         return "E12345678202610151403" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     }
 
-    int rows(String e2eId) {
-        return jdbc.sql("SELECT count(*) FROM pix_received WHERE end_to_end_id = :e").param("e", e2eId).query(Integer.class).single();
+    int rows(String endToEndId) {
+        return jdbc.sql("SELECT count(*) FROM pix_received WHERE end_to_end_id = :e").param("e", endToEndId).query(Integer.class).single();
     }
 
     @Test
     @DisplayName("Mensagem válida ⇒ Pix gravado e evento na outbox; MESMA mensagem 2× ⇒ 1 efeito (inbox)")
     void shouldProcessOnceEvenWhenDelivered2Times() {
-        String e2eId = e2e();
+        String endToEndId = newEndToEndId();
         String messageId = "msg-" + UUID.randomUUID();
-        publishAvro(TOPIC, e2eId, settled(messageId, e2eId, null, "33.00", account.number()));
-        publishAvro(TOPIC, e2eId, settled(messageId, e2eId, null, "33.00", account.number()));
+        publishAvro(TOPIC, endToEndId, settled(messageId, endToEndId, null, "33.00", account.number()));
+        publishAvro(TOPIC, endToEndId, settled(messageId, endToEndId, null, "33.00", account.number()));
 
-        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(rows(e2eId)).isEqualTo(1));
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(rows(endToEndId)).isEqualTo(1));
         // dá tempo de a 2ª mensagem ser consumida e absorvida
-        await().during(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(6)).untilAsserted(() -> assertThat(rows(e2eId)).isEqualTo(1));
+        await().during(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(6)).untilAsserted(() -> assertThat(rows(endToEndId)).isEqualTo(1));
         assertThat(jdbc.sql("SELECT count(*) FROM inbox_message WHERE message_id = :m").param("m", messageId).query(Integer.class).single())
                 .isEqualTo(1);
     }
@@ -55,13 +55,13 @@ class ReceivePixConsumerIT extends AbstractKafkaIT {
     @Test
     @DisplayName("Falha de NEGÓCIO (conta desconhecida) ⇒ DLT direta, SEM passar pelos tópicos de retry")
     void businessFailureGoesStraightToDlt() {
-        String e2eId = e2e();
-        publishAvro(TOPIC, e2eId, settled("biz-" + UUID.randomUUID(), e2eId, null, "1.00", "000000"));
+        String endToEndId = newEndToEndId();
+        publishAvro(TOPIC, endToEndId, settled("biz-" + UUID.randomUUID(), endToEndId, null, "1.00", "000000"));
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(r -> e2eId.equals(r.key())));
-        assertThat(rows(e2eId)).isZero();
-        assertThat(readAll(TOPIC + "-retry-0", Duration.ofSeconds(2))).noneMatch(r -> e2eId.equals(r.key()));
+                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(record -> endToEndId.equals(record.key())));
+        assertThat(rows(endToEndId)).isZero();
+        assertThat(readAll(TOPIC + "-retry-0", Duration.ofSeconds(2))).noneMatch(record -> endToEndId.equals(record.key()));
     }
 
     @Test
@@ -72,11 +72,11 @@ class ReceivePixConsumerIT extends AbstractKafkaIT {
         publishRaw(TOPIC, badKey, garbage);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(r -> badKey.equals(r.key()) && java.util.Arrays.equals(garbage, r.value())));
+                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(record -> badKey.equals(record.key()) && java.util.Arrays.equals(garbage, record.value())));
 
         // depois da poison pill, uma mensagem boa ainda é processada
-        String e2eId = e2e();
-        publishAvro(TOPIC, e2eId, settled("after-" + UUID.randomUUID(), e2eId, null, "2.00", account.number()));
-        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(rows(e2eId)).isEqualTo(1));
+        String endToEndId = newEndToEndId();
+        publishAvro(TOPIC, endToEndId, settled("after-" + UUID.randomUUID(), endToEndId, null, "2.00", account.number()));
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(rows(endToEndId)).isEqualTo(1));
     }
 }

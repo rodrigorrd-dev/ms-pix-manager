@@ -83,12 +83,12 @@ public record ScheduledPayment(UUID id, UUID payerAccountId, Recurrence recurren
             return List.of(first);
         }
         List<LocalDate> dates = new ArrayList<>();
-        for (int n = 1; ; n++) {
-            LocalDate d = recurrence.dateOf(first, n);
-            if (total != null ? n > total : d.isAfter(end)) {
+        for (int sequenceNumber = 1; ; sequenceNumber++) {
+            LocalDate dueDate = recurrence.dateOf(first, sequenceNumber);
+            if (total != null ? sequenceNumber > total : dueDate.isAfter(end)) {
                 return dates;
             }
-            dates.add(d);
+            dates.add(dueDate);
             if (dates.size() > MAX_OCCURRENCES) {
                 return dates;
             }
@@ -106,9 +106,9 @@ public record ScheduledPayment(UUID id, UUID payerAccountId, Recurrence recurren
         return status == ScheduleStatus.ACTIVE ? withStatus(ScheduleStatus.COMPLETED) : this;
     }
 
-    private ScheduledPayment withStatus(ScheduleStatus s) {
+    private ScheduledPayment withStatus(ScheduleStatus scheduleStatus) {
         return new ScheduledPayment(id, payerAccountId, recurrence, method, pixKeyType, pixKey, ispb, branch, account, accountType, name,
-                document, amount, payerMessage, firstDate, endDate, occurrencesTotal, s, deviceRegistered, version);
+                document, amount, payerMessage, firstDate, endDate, occurrencesTotal, scheduleStatus, deviceRegistered, version);
     }
 
     private static BusinessException invalid(String message) {

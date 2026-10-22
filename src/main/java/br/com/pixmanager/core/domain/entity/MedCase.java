@@ -17,9 +17,9 @@ public record MedCase(UUID id, String dictFundsRecoveryId, String endToEndId, UU
                       MedCaseType caseType, MedRole role, MedStatus status, int layer, String description, Instant reportedAt,
                       Instant analysisDeadlineAt, Money trackedAmount, Money blockedAmount, UUID refundId, long version) {
 
-    public static MedCase open(UUID id, String fundsRecoveryId, String e2e, UUID receivedId, UUID orderId, UUID accountId, MedCaseType type,
+    public static MedCase open(UUID id, String fundsRecoveryId, String endToEndId, UUID receivedId, UUID orderId, UUID accountId, MedCaseType type,
                                MedRole role, int layer, String description, Instant now, Instant analysisDeadline, Money tracked) {
-        return new MedCase(id, fundsRecoveryId, e2e, receivedId, orderId, accountId, type, role, MedStatus.OPEN, layer, description, now,
+        return new MedCase(id, fundsRecoveryId, endToEndId, receivedId, orderId, accountId, type, role, MedStatus.OPEN, layer, description, now,
                 analysisDeadline, tracked, Money.ZERO, null, 0);
     }
 

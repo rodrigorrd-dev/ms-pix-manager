@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.AutomaticAuthorization;
 import br.com.pixmanager.core.domain.entity.event.AutomaticAuthorizationEvent;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
@@ -20,18 +21,18 @@ public class AutomaticAuthorizationEventAvroConverter implements EventAvroConver
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        AutomaticAuthorization a = ((AutomaticAuthorizationEvent) event).authorization();
+        AutomaticAuthorization authorization = ((AutomaticAuthorizationEvent) event).authorization();
         return br.com.pixmanager.events.v1.AutomaticAuthorizationEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setAuthorizationId(a.id())
-                .setIdRec(a.idRec())
-                .setStatus(a.status())
-                .setRequestStatus(a.requestStatus())
-                .setRejectionCode(a.rejectionCode())
-                .setCancelledBy(a.cancelledBy())
-                .setPayerAccountId(a.payerAccountId())
-                .setPayerMaxAmount(a.payerMaxAmount() == null ? null : a.payerMaxAmount().value())
-                .setReceiverDocumentMasked(a.receiverDocument() == null ? null : Document.of(a.receiverDocument()).masked())
+                .setAuthorizationId(authorization.id())
+                .setIdRec(authorization.idRec())
+                .setStatus(authorization.status())
+                .setRequestStatus(authorization.requestStatus())
+                .setRejectionCode(authorization.rejectionCode())
+                .setCancelledBy(authorization.cancelledBy())
+                .setPayerAccountId(authorization.payerAccountId())
+                .setPayerMaxAmount(Money.valueOrNull(authorization.payerMaxAmount()))
+                .setReceiverDocumentMasked(authorization.receiverDocument() == null ? null : Document.of(authorization.receiverDocument()).masked())
                 .build();
     }
 }

@@ -28,19 +28,19 @@ public class ChargeEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        Charge c = ((ChargeEvent) event).charge();
+        Charge charge = ((ChargeEvent) event).charge();
         return br.com.pixmanager.events.v1.ChargeEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setChargeId(c.id())
-                .setTxid(c.txid().value())
-                .setChargeType(c.type().name())
-                .setStatus(c.status().name())
-                .setRevision(c.revision())
-                .setReceiverAccountId(c.receiverAccountId())
-                .setOriginalAmount(c.originalAmount().value())
-                .setExpiresAt(c.expiresAt())
-                .setDueDate(c.dueDate())
-                .setDebtorDocumentHash(c.debtor() == null ? null : crypto.blindIndex(c.debtor().document().value()))
+                .setChargeId(charge.id())
+                .setTxid(charge.txid().value())
+                .setChargeType(charge.type().name())
+                .setStatus(charge.status().name())
+                .setRevision(charge.revision())
+                .setReceiverAccountId(charge.receiverAccountId())
+                .setOriginalAmount(charge.originalAmount().value())
+                .setExpiresAt(charge.expiresAt())
+                .setDueDate(charge.dueDate())
+                .setDebtorDocumentHash(charge.debtor() == null ? null : crypto.blindIndex(charge.debtor().document().value()))
                 .build();
     }
 }

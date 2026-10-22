@@ -39,10 +39,10 @@ public class EndToEndIdGeneratorAdapter implements EndToEndIdGeneratorPortOut {
     }
 
     private String next(char prefix) {
-        StringBuilder sb = new StringBuilder(32).append(prefix).append(institution.ispb()).append(STAMP.format(clock.instant()));
-        for (int i = 0; i < 11; i++) {
-            sb.append(ALPHABET.charAt(random.nextInt(ALPHABET.length())));
+        StringBuilder builder = new StringBuilder(32).append(prefix).append(institution.ispb()).append(STAMP.format(clock.instant()));
+        for (int index = 0; index < 11; index++) {
+            builder.append(ALPHABET.charAt(random.nextInt(ALPHABET.length())));
         }
-        return sb.toString();
+        return builder.toString();
     }
 }

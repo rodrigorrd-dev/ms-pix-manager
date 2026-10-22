@@ -25,14 +25,14 @@ public class UuidV7IdGeneratorAdapter implements IdGeneratorPortOut {
     @Override
     public UUID newId() {
         long millis = clock.millis();
-        byte[] rnd = new byte[10];
-        random.nextBytes(rnd);
-        long msb = (millis << 16) | 0x7000L | ((rnd[0] & 0x0FL) << 8) | (rnd[1] & 0xFFL);
-        long lsb = 0L;
-        for (int i = 2; i < 10; i++) {
-            lsb = (lsb << 8) | (rnd[i] & 0xFF);
+        byte[] randomBytes = new byte[10];
+        random.nextBytes(randomBytes);
+        long mostSignificantBits = (millis << 16) | 0x7000L | ((randomBytes[0] & 0x0FL) << 8) | (randomBytes[1] & 0xFFL);
+        long leastSignificantBits = 0L;
+        for (int index = 2; index < 10; index++) {
+            leastSignificantBits = (leastSignificantBits << 8) | (randomBytes[index] & 0xFF);
         }
-        lsb = (lsb & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;   // variante RFC 4122
-        return new UUID(msb, lsb);
+        leastSignificantBits = (leastSignificantBits & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;   // variante RFC 4122
+        return new UUID(mostSignificantBits, leastSignificantBits);
     }
 }

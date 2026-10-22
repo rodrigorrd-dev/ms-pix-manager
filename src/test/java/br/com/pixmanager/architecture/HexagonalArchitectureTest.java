@@ -108,9 +108,9 @@ class HexagonalArchitectureTest {
     @DisplayName("A8: todo método de controller REST tem @PreAuthorize (na interface do contrato) — nenhum endpoint fica aberto por esquecimento")
     void everyControllerMethodIsGuarded() {
         List<JavaMethod> unguarded = classes.stream()
-                .filter(c -> c.isInterface() && c.isAnnotatedWith(RequestMapping.class) && c.getPackageName().contains(".api.rest."))
-                .flatMap(c -> c.getMethods().stream())
-                .filter(m -> !m.isAnnotatedWith(PreAuthorize.class))
+                .filter(javaClass -> javaClass.isInterface() && javaClass.isAnnotatedWith(RequestMapping.class) && javaClass.getPackageName().contains(".api.rest."))
+                .flatMap(javaClass -> javaClass.getMethods().stream())
+                .filter(method -> !method.isAnnotatedWith(PreAuthorize.class))
                 .toList();
         assertThat(unguarded).as("métodos de controller sem @PreAuthorize").isEmpty();
     }
@@ -119,19 +119,19 @@ class HexagonalArchitectureTest {
     @DisplayName("Todo literal de escopo em @PreAuthorize usa as constantes de ScopeAuthorization (typo vira erro de build)")
     void scopesComeFromTheCatalog() throws Exception {
         List<String> catalog = java.util.Arrays.stream(br.com.pixmanager.api.rest.security.ScopeAuthorization.class.getFields())
-                .filter(f -> f.getType() == String.class).map(f -> {
+                .filter(field -> field.getType() == String.class).map(field -> {
                     try {
-                        return (String) f.get(null);
-                    } catch (IllegalAccessException e) {
-                        throw new IllegalStateException(e);
+                        return (String) field.get(null);
+                    } catch (IllegalAccessException exception) {
+                        throw new IllegalStateException(exception);
                     }
                 }).toList();
         List<String> offenders = classes.stream()
-                .filter(c -> c.isInterface() && c.getPackageName().contains(".api.rest."))
-                .flatMap(c -> c.getMethods().stream())
-                .filter(m -> m.isAnnotatedWith(PreAuthorize.class))
-                .map(m -> m.getAnnotationOfType(PreAuthorize.class).value())
-                .filter(v -> !catalog.contains(v)).toList();
+                .filter(javaClass -> javaClass.isInterface() && javaClass.getPackageName().contains(".api.rest."))
+                .flatMap(javaClass -> javaClass.getMethods().stream())
+                .filter(method -> method.isAnnotatedWith(PreAuthorize.class))
+                .map(method -> method.getAnnotationOfType(PreAuthorize.class).value())
+                .filter(permission -> !catalog.contains(permission)).toList();
         assertThat(offenders).as("@PreAuthorize com literal fora do catálogo").isEmpty();
     }
 }

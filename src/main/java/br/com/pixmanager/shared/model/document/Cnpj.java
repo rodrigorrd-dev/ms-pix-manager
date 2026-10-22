@@ -35,13 +35,13 @@ public record Cnpj(String value) implements Document {
     }
 
     public static boolean isValid(String raw) {
-        String chars = normalize(raw);
-        if (!SHAPE.matcher(chars).matches() || chars.chars().distinct().count() == 1) {
+        String normalized = normalize(raw);
+        if (!SHAPE.matcher(normalized).matches() || normalized.chars().distinct().count() == 1) {
             return false;
         }
-        int dv1 = checkDigit(chars.substring(0, 12), WEIGHTS_1);
-        int dv2 = checkDigit(chars.substring(0, 12) + dv1, WEIGHTS_2);
-        return chars.charAt(12) - '0' == dv1 && chars.charAt(13) - '0' == dv2;
+        int firstCheckDigit = checkDigit(normalized.substring(0, 12), WEIGHTS_1);
+        int secondCheckDigit = checkDigit(normalized.substring(0, 12) + firstCheckDigit, WEIGHTS_2);
+        return normalized.charAt(12) - '0' == firstCheckDigit && normalized.charAt(13) - '0' == secondCheckDigit;
     }
 
     @Override
@@ -66,10 +66,10 @@ public record Cnpj(String value) implements Document {
 
     private static int checkDigit(String base, int[] weights) {
         int sum = 0;
-        for (int i = 0; i < base.length(); i++) {
-            sum += (base.charAt(i) - '0') * weights[i];   // letras: 'A'-48 = 17 … 'Z'-48 = 42
+        for (int index = 0; index < base.length(); index++) {
+            sum += (base.charAt(index) - '0') * weights[index];   // letras: 'A'-48 = 17 … 'Z'-48 = 42
         }
-        int rest = sum % 11;
-        return rest < 2 ? 0 : 11 - rest;
+        int remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
     }
 }

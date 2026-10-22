@@ -25,8 +25,8 @@ class DocumentTest {
 
     @Test
     void sealedSwitchShouldBeExhaustive() {
-        Document doc = Document.of("52998224725");
-        String type = switch (doc) {
+        Document document = Document.of("52998224725");
+        String type = switch (document) {
             case Cpf cpf -> "pf:" + cpf.masked();
             case Cnpj cnpj -> "pj:" + cnpj.masked();
         };

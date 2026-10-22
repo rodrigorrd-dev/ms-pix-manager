@@ -81,56 +81,56 @@ public class PaymentOrderEntity extends AuditableEntity {
 
     public UUID getId() { return id; }
     public UUID getPayerAccountId() { return payerAccountId; }
-    public void setPayerAccountId(UUID v) { this.payerAccountId = v; }
+    public void setPayerAccountId(UUID payerAccountId) { this.payerAccountId = payerAccountId; }
     public String getPaymentMethod() { return paymentMethod; }
-    public void setPaymentMethod(String v) { this.paymentMethod = v; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getOrigin() { return origin; }
-    public void setOrigin(String v) { this.origin = v; }
+    public void setOrigin(String origin) { this.origin = origin; }
     public boolean isDeviceRegistered() { return deviceRegistered; }
-    public void setDeviceRegistered(boolean v) { this.deviceRegistered = v; }
+    public void setDeviceRegistered(boolean deviceRegistered) { this.deviceRegistered = deviceRegistered; }
     public String getDestinationKeyType() { return destinationKeyType; }
-    public void setDestinationKeyType(String v) { this.destinationKeyType = v; }
+    public void setDestinationKeyType(String destinationKeyType) { this.destinationKeyType = destinationKeyType; }
     public String getDestinationKeyHash() { return destinationKeyHash; }
-    public void setDestinationKeyHash(String v) { this.destinationKeyHash = v; }
+    public void setDestinationKeyHash(String destinationKeyHash) { this.destinationKeyHash = destinationKeyHash; }
     public String getDestDocumentType() { return destDocumentType; }
-    public void setDestDocumentType(String v) { this.destDocumentType = v; }
+    public void setDestDocumentType(String destDocumentType) { this.destDocumentType = destDocumentType; }
     public String getDestDocumentEnc() { return destDocumentEnc; }
-    public void setDestDocumentEnc(String v) { this.destDocumentEnc = v; }
+    public void setDestDocumentEnc(String destDocumentEnc) { this.destDocumentEnc = destDocumentEnc; }
     public String getDestDocumentHash() { return destDocumentHash; }
-    public void setDestDocumentHash(String v) { this.destDocumentHash = v; }
+    public void setDestDocumentHash(String destDocumentHash) { this.destDocumentHash = destDocumentHash; }
     public String getDestDocumentMasked() { return destDocumentMasked; }
-    public void setDestDocumentMasked(String v) { this.destDocumentMasked = v; }
+    public void setDestDocumentMasked(String destDocumentMasked) { this.destDocumentMasked = destDocumentMasked; }
     public String getDestName() { return destName; }
-    public void setDestName(String v) { this.destName = v; }
+    public void setDestName(String destName) { this.destName = destName; }
     public String getDestIspb() { return destIspb; }
-    public void setDestIspb(String v) { this.destIspb = v; }
+    public void setDestIspb(String destIspb) { this.destIspb = destIspb; }
     public String getDestBranch() { return destBranch; }
-    public void setDestBranch(String v) { this.destBranch = v; }
+    public void setDestBranch(String destBranch) { this.destBranch = destBranch; }
     public String getDestAccount() { return destAccount; }
-    public void setDestAccount(String v) { this.destAccount = v; }
+    public void setDestAccount(String destAccount) { this.destAccount = destAccount; }
     public String getDestAccountType() { return destAccountType; }
-    public void setDestAccountType(String v) { this.destAccountType = v; }
+    public void setDestAccountType(String destAccountType) { this.destAccountType = destAccountType; }
     public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal v) { this.amount = v; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
     public String getQrTxid() { return qrTxid; }
-    public void setQrTxid(String v) { this.qrTxid = v; }
+    public void setQrTxid(String qrTxid) { this.qrTxid = qrTxid; }
     public String getPayerMessage() { return payerMessage; }
-    public void setPayerMessage(String v) { this.payerMessage = v; }
+    public void setPayerMessage(String payerMessage) { this.payerMessage = payerMessage; }
     public String getEndToEndId() { return endToEndId; }
-    public void setEndToEndId(String v) { this.endToEndId = v; }
+    public void setEndToEndId(String endToEndId) { this.endToEndId = endToEndId; }
     public String getStatus() { return status; }
-    public void setStatus(String v) { this.status = v; }
+    public void setStatus(String status) { this.status = status; }
     public String getRejectReasonCode() { return rejectReasonCode; }
-    public void setRejectReasonCode(String v) { this.rejectReasonCode = v; }
+    public void setRejectReasonCode(String rejectReasonCode) { this.rejectReasonCode = rejectReasonCode; }
     public String getRejectReasonDetail() { return rejectReasonDetail; }
-    public void setRejectReasonDetail(String v) { this.rejectReasonDetail = v; }
+    public void setRejectReasonDetail(String rejectReasonDetail) { this.rejectReasonDetail = rejectReasonDetail; }
     public UUID getLedgerReservationId() { return ledgerReservationId; }
-    public void setLedgerReservationId(UUID v) { this.ledgerReservationId = v; }
+    public void setLedgerReservationId(UUID ledgerReservationId) { this.ledgerReservationId = ledgerReservationId; }
     public Instant getRequestedAt() { return requestedAt; }
-    public void setRequestedAt(Instant v) { this.requestedAt = v; }
+    public void setRequestedAt(Instant requestedAt) { this.requestedAt = requestedAt; }
     public Instant getSentAt() { return sentAt; }
-    public void setSentAt(Instant v) { this.sentAt = v; }
+    public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
     public Instant getSettledAt() { return settledAt; }
-    public void setSettledAt(Instant v) { this.settledAt = v; }
+    public void setSettledAt(Instant settledAt) { this.settledAt = settledAt; }
     public Long getVersion() { return version; }
 }

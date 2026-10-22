@@ -53,28 +53,28 @@ public class RefundEntity extends AuditableEntity {
 
     public UUID getId() { return id; }
     public String getClientRefundId() { return clientRefundId; }
-    public void setClientRefundId(String v) { this.clientRefundId = v; }
+    public void setClientRefundId(String clientRefundId) { this.clientRefundId = clientRefundId; }
     public UUID getReceivedId() { return receivedId; }
-    public void setReceivedId(UUID v) { this.receivedId = v; }
+    public void setReceivedId(UUID receivedId) { this.receivedId = receivedId; }
     public String getEndToEndId() { return endToEndId; }
-    public void setEndToEndId(String v) { this.endToEndId = v; }
+    public void setEndToEndId(String endToEndId) { this.endToEndId = endToEndId; }
     public String getRtrId() { return rtrId; }
-    public void setRtrId(String v) { this.rtrId = v; }
+    public void setRtrId(String rtrId) { this.rtrId = rtrId; }
     public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal v) { this.amount = v; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
     public String getNature() { return nature; }
-    public void setNature(String v) { this.nature = v; }
+    public void setNature(String nature) { this.nature = nature; }
     public String getDescription() { return description; }
-    public void setDescription(String v) { this.description = v; }
+    public void setDescription(String description) { this.description = description; }
     public String getStatus() { return status; }
-    public void setStatus(String v) { this.status = v; }
+    public void setStatus(String status) { this.status = status; }
     public String getStatusReason() { return statusReason; }
-    public void setStatusReason(String v) { this.statusReason = v; }
+    public void setStatusReason(String statusReason) { this.statusReason = statusReason; }
     public String getRequestHash() { return requestHash; }
-    public void setRequestHash(String v) { this.requestHash = v; }
+    public void setRequestHash(String requestHash) { this.requestHash = requestHash; }
     public Instant getRequestedAt() { return requestedAt; }
-    public void setRequestedAt(Instant v) { this.requestedAt = v; }
+    public void setRequestedAt(Instant requestedAt) { this.requestedAt = requestedAt; }
     public Instant getSettledAt() { return settledAt; }
-    public void setSettledAt(Instant v) { this.settledAt = v; }
+    public void setSettledAt(Instant settledAt) { this.settledAt = settledAt; }
     public Long getVersion() { return version; }
 }

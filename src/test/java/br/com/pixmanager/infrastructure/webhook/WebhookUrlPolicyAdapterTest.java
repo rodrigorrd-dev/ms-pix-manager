@@ -56,10 +56,10 @@ class WebhookUrlPolicyAdapterTest {
     @Test
     @DisplayName("flag de dev allow-private-hosts aceita loopback, mas http NUNCA é aceito (o banco também exige https)")
     void devFlag() {
-        WebhookUrlPolicyAdapter dev = new WebhookUrlPolicyAdapter(true);
-        assertThat(dev.check("https://127.0.0.1/hook").allowed()).isTrue();
-        assertThat(dev.check("https://localhost:8443/hook").allowed()).isTrue();
-        assertThat(dev.check("http://127.0.0.1/hook").allowed()).isFalse();
-        assertThat(dev.check("ftp://127.0.0.1/hook").allowed()).isFalse();
+        WebhookUrlPolicyAdapter devPolicy = new WebhookUrlPolicyAdapter(true);
+        assertThat(devPolicy.check("https://127.0.0.1/hook").allowed()).isTrue();
+        assertThat(devPolicy.check("https://localhost:8443/hook").allowed()).isTrue();
+        assertThat(devPolicy.check("http://127.0.0.1/hook").allowed()).isFalse();
+        assertThat(devPolicy.check("ftp://127.0.0.1/hook").allowed()).isFalse();
     }
 }

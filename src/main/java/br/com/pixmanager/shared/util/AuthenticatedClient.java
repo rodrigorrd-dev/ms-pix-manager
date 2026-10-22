@@ -15,19 +15,19 @@ public final class AuthenticatedClient {
     private AuthenticatedClient() {}
 
     public static String clientId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
             String client = jwt.getClaimAsString("azp");
             if (client == null) {
                 client = jwt.getClaimAsString("client_id");
             }
             return client != null ? client : jwt.getSubject();
         }
-        return auth != null ? auth.getName() : "anonymous";
+        return authentication != null ? authentication.getName() : "anonymous";
     }
 
     public static boolean canSeeFullDocument() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream().anyMatch(a -> ScopeNames.PII_DOCUMENT_READ.equals(a.getAuthority()));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream().anyMatch(authority -> ScopeNames.PII_DOCUMENT_READ.equals(authority.getAuthority()));
     }
 }

@@ -23,8 +23,8 @@ public class FindRefundService implements FindRefundUseCase {
     @Override
     public Optional<Refund> find(Caller caller, String endToEndId, String clientRefundId) {
         return receivedPix.findByEndToEndId(endToEndId)
-                .filter(p -> caller.canAccess(p.receiverAccountId()))
-                .flatMap(p -> refunds.findByEndToEndIdAndClientId(endToEndId, clientRefundId));
+                .filter(pix -> caller.canAccess(pix.receiverAccountId()))
+                .flatMap(pix -> refunds.findByEndToEndIdAndClientId(endToEndId, clientRefundId));
     }
 
     @Override

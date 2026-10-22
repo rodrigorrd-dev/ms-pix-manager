@@ -30,8 +30,8 @@ public record PaymentOrder(UUID id, UUID payerAccountId, PaymentMethod method, P
 
     public static PaymentOrder create(UUID id, UUID payerAccountId, PaymentMethod method, PaymentOrigin origin,
                                       PaymentDestination destination, Money amount, String qrTxid, String payerMessage,
-                                      EndToEndId e2e, boolean deviceRegistered, Instant now) {
-        return new PaymentOrder(id, payerAccountId, method, origin, destination, amount, qrTxid, payerMessage, e2e,
+                                      EndToEndId endToEndId, boolean deviceRegistered, Instant now) {
+        return new PaymentOrder(id, payerAccountId, method, origin, destination, amount, qrTxid, payerMessage, endToEndId,
                 PaymentStatus.CREATED, null, null, null, deviceRegistered, now, null, null, 0);
     }
 
@@ -67,10 +67,10 @@ public record PaymentOrder(UUID id, UUID payerAccountId, PaymentMethod method, P
         return moveTo(PaymentStatus.CANCELLED, null, null, null, null, null);
     }
 
-    private PaymentOrder withReservation(PaymentOrder o, UUID reservationId) {
-        return new PaymentOrder(o.id, o.payerAccountId, o.method, o.origin, o.destination, o.amount, o.qrTxid, o.payerMessage,
-                o.endToEndId, o.status, o.rejectReasonCode, o.rejectReasonDetail, reservationId, o.deviceRegistered, o.requestedAt,
-                o.sentAt, o.settledAt, o.version);
+    private PaymentOrder withReservation(PaymentOrder paymentOrder, UUID reservationId) {
+        return new PaymentOrder(paymentOrder.id, paymentOrder.payerAccountId, paymentOrder.method, paymentOrder.origin, paymentOrder.destination, paymentOrder.amount, paymentOrder.qrTxid, paymentOrder.payerMessage,
+                paymentOrder.endToEndId, paymentOrder.status, paymentOrder.rejectReasonCode, paymentOrder.rejectReasonDetail, reservationId, paymentOrder.deviceRegistered, paymentOrder.requestedAt,
+                paymentOrder.sentAt, paymentOrder.settledAt, paymentOrder.version);
     }
 
     private PaymentOrder moveTo(PaymentStatus target, String code, String detail, Instant sent, Instant settled, UUID unused) {

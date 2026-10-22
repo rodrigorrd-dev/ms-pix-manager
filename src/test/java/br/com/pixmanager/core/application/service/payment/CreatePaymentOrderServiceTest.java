@@ -73,7 +73,7 @@ class CreatePaymentOrderServiceTest {
     @Mock PaymentOrderPersistencePortOut persistence;
     @Mock TrustedDevicePortOut devices;
     @Mock DomainEventPublisherPortOut events;
-    @Mock EndToEndIdGeneratorPortOut e2eIds;
+    @Mock EndToEndIdGeneratorPortOut endToEndIdGenerator;
     @Mock br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut dynamicQr;
 
     final UUID payerId = SequentialIds.id(100);
@@ -82,28 +82,28 @@ class CreatePaymentOrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
-        service = new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds,
-                new SequentialIds(), tx, FixedClock.at("2026-10-15T15:00:00Z"), dynamicQr);
+        service = new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, endToEndIdGenerator,
+                new SequentialIds(), transactionRunner, FixedClock.at("2026-10-15T15:00:00Z"), dynamicQr);
     }
 
     @Test
     void shouldCreateValidatedOrderWithReservationAndEventWhenLimitAllows() {
         activePayer();
         stubKeyLookup();
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(devices.isRegistered(payerId, "dev-1")).thenReturn(true);
         when(limits.consume(eq(payerId), eq(Money.of("150.00")), eq(NOW), eq(true)))
                 .thenReturn(new LimitDecision.Allowed(null, true, Money.of("150.00")));
         UUID reservationId = SequentialIds.id(900);
         when(reservations.request(eq(E2E), eq(payerId), eq(LedgerPurpose.PAYMENT), eq("PAYMENT_ORDER"), any(UUID.class), eq(Money.of("150.00"))))
                 .thenReturn(reservation(reservationId));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PaymentOrderResult result = service.create(caller, byKey("150.00", "dev-1"));
 
@@ -122,10 +122,10 @@ class CreatePaymentOrderServiceTest {
     void shouldPersistRejectedOrderAndSkipReservationWhenLimitIsExceeded() {
         activePayer();
         stubKeyLookup();
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(limits.consume(any(), any(), any(), anyBoolean()))
                 .thenReturn(new LimitDecision.Rejected(LimitScope.DAILY, Money.of("5000.00")));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PaymentOrderResult result = service.create(caller, byKey("6000.00", null));
 
@@ -143,9 +143,9 @@ class CreatePaymentOrderServiceTest {
     void shouldTreatMissingDeviceAsUnregistered() {
         activePayer();
         stubKeyLookup();
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(limits.consume(any(), any(), any(), eq(false))).thenReturn(new LimitDecision.Rejected(LimitScope.DAILY, Money.of("1.00")));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.create(caller, byKey("10.00", null));
 
@@ -157,23 +157,23 @@ class CreatePaymentOrderServiceTest {
     void shouldSkipDeviceLookupWhenSystemInitiated() {
         activePayer();
         stubKeyLookup();
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(limits.consume(any(), any(), any(), eq(true))).thenReturn(new LimitDecision.Rejected(LimitScope.DAILY, Money.of("1.00")));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, PaymentOrigin.SCHEDULED, Money.of("10.00"), PixKeyType.CPF,
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, PaymentOrigin.SCHEDULED, Money.of("10.00"), PixKeyType.CPF,
                 OWNER_CPF, null, null, null, null, null, null, null, null, null, null, true);
 
-        service.create(Caller.system("scheduler"), cmd);
+        service.create(Caller.system("scheduler"), command);
 
         verifyNoInteractions(devices);
     }
 
     @Test
     void shouldHideAccountOutsideTheCallerScopeAsNotFound() {
-        var cmd = byKey("10.00", null);
+        var command = byKey("10.00", null);
         Caller other = Caller.forAccounts("other", SequentialIds.id(7));
 
-        assertThatThrownBy(() -> service.create(other, cmd)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.create(other, command)).isInstanceOf(NotFoundException.class);
 
         verifyNoInteractions(accounts, lookup, limits, persistence);
     }
@@ -184,7 +184,7 @@ class CreatePaymentOrderServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, byKey("10.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.BUSINESS_RULE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.BUSINESS_RULE));
 
         verifyNoInteractions(lookup, limits, persistence);
     }
@@ -196,7 +196,7 @@ class CreatePaymentOrderServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, byKey("10.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
 
         verifyNoInteractions(limits, persistence);
     }
@@ -206,12 +206,12 @@ class CreatePaymentOrderServiceTest {
     void shouldRejectWhenDocumentHintDoesNotMatchTheKeyOwner() {
         activePayer();
         stubKeyLookup();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, Money.of("10.00"), PixKeyType.CPF, OWNER_CPF,
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, Money.of("10.00"), PixKeyType.CPF, OWNER_CPF,
                 "11144477735", null, null, null, null, null, null, null, null, null, false);
 
-        assertThatThrownBy(() -> service.create(caller, cmd))
+        assertThatThrownBy(() -> service.create(caller, command))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.DESTINATION_MISMATCH));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.DESTINATION_MISMATCH));
 
         verify(limits, never()).consume(any(), any(), any(), anyBoolean());
     }
@@ -219,10 +219,10 @@ class CreatePaymentOrderServiceTest {
     @Test
     void shouldRequireAmountWhenPayingByKey() {
         activePayer();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, null, PixKeyType.CPF, OWNER_CPF,
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, null, PixKeyType.CPF, OWNER_CPF,
                 null, null, null, null, null, null, null, null, null, null, false);
 
-        assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.create(caller, command)).isInstanceOf(BadRequestException.class);
 
         verifyNoInteractions(lookup, limits);
     }
@@ -230,19 +230,19 @@ class CreatePaymentOrderServiceTest {
     @Test
     void shouldRequireKeyTypeAndValueWhenPayingByKey() {
         activePayer();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, Money.of("10.00"), null, null,
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.KEY, null, Money.of("10.00"), null, null,
                 null, null, null, null, null, null, null, null, null, null, false);
 
-        assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.create(caller, command)).isInstanceOf(BadRequestException.class);
     }
 
     @Test
     void shouldRejectManualPaymentWithMalformedIspb() {
         activePayer();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.MANUAL, null, Money.of("10.00"), null, null, null,
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.MANUAL, null, Money.of("10.00"), null, null, null,
                 "123", "0001", "12345", "CACC", "Fulano", OWNER_CPF, null, null, null, false);
 
-        assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.create(caller, command)).isInstanceOf(BadRequestException.class);
 
         verifyNoInteractions(lookup, limits);
     }
@@ -250,13 +250,13 @@ class CreatePaymentOrderServiceTest {
     @Test
     void shouldNotResolveDestinationThroughTheDictForManualPayment() {
         activePayer();
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(limits.consume(any(), any(), any(), anyBoolean())).thenReturn(new LimitDecision.Rejected(LimitScope.DAILY, Money.of("1.00")));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.MANUAL, null, Money.of("10.00"), null, null, null,
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.MANUAL, null, Money.of("10.00"), null, null, null,
                 "12345678", "0001", "12345", "CACC", "Fulano", OWNER_CPF, null, null, null, false);
 
-        service.create(caller, cmd);
+        service.create(caller, command);
 
         verifyNoInteractions(lookup);
         var saved = ArgumentCaptor.forClass(PaymentOrder.class);
@@ -283,12 +283,12 @@ class CreatePaymentOrderServiceTest {
         when(dynamicQr.fetch("pix.example.com/qr/v2/abc")).thenReturn(payload("ATIVA", NOW.plusSeconds(600)));
         when(lookup.lookup(any(), eq(payerId), eq(PixKeyType.EVP), eq(DYNAMIC_KEY))).thenReturn(Optional.of(
                 new DictEntry("Favorecido", Cpf.of(OWNER_CPF), "87654321", "0002", "98765", "CACC", NOW)));
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(limits.consume(eq(payerId), eq(Money.of("25.00")), eq(NOW), eq(false)))
                 .thenReturn(new LimitDecision.Allowed(null, false, Money.of("25.00")));
         when(reservations.request(eq(E2E), eq(payerId), eq(LedgerPurpose.PAYMENT), eq("PAYMENT_ORDER"), any(UUID.class), eq(Money.of("25.00"))))
                 .thenReturn(reservation(SequentialIds.id(901)));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PaymentOrderResult result = service.create(caller, dynamicCmd(null));
 
@@ -314,10 +314,10 @@ class CreatePaymentOrderServiceTest {
     @DisplayName("QR estático enviado como dinâmico ⇒ recusa antes de qualquer chamada externa")
     void shouldRefuseAStaticBrCodeSentAsDynamic() {
         activePayer();
-        var cmd = new CreatePaymentOrderCommand(payerId, PaymentMethod.QR_DYNAMIC, null, null, null, null, null,
+        var command = new CreatePaymentOrderCommand(payerId, PaymentMethod.QR_DYNAMIC, null, null, null, null, null,
                 null, null, null, null, null, null, br.com.pixmanager.support.BrCodeFactory.staticQr(DYNAMIC_KEY, "10.00", "Loja", "SAO PAULO", "***"), null, null, false);
 
-        assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.create(caller, command)).isInstanceOf(BusinessException.class);
 
         verifyNoInteractions(dynamicQr, lookup, limits);
     }

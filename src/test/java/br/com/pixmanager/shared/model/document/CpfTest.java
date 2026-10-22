@@ -55,7 +55,7 @@ class CpfTest {
         assertThatThrownBy(() -> Cpf.of("111.111.111-11"))
                 .isInstanceOf(InvalidDocumentException.class)
                 .hasMessageNotContaining("111")
-                .satisfies(e -> assertThat(((InvalidDocumentException) e).getCode()).isEqualTo(ErrorCodes.INVALID_CPF));
+                .satisfies(exception -> assertThat(((InvalidDocumentException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_CPF));
     }
 
     @Test

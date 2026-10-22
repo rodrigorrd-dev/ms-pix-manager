@@ -51,18 +51,18 @@ public class WebhookDispatchService implements DispatchWebhooksUseCase {
     @Override
     public int dispatchDue(int batch) {
         List<DueDelivery> due = deliveries.findDue(clock.instant(), batch);
-        for (DueDelivery d : due) {
-            Verdict verdict = urlPolicy.check(d.url());
-            SendResult result = verdict.allowed() ? sender.send(d.url(), d.payloadJson())
+        for (DueDelivery dueDelivery : due) {
+            Verdict verdict = urlPolicy.check(dueDelivery.url());
+            SendResult result = verdict.allowed() ? sender.send(dueDelivery.url(), dueDelivery.payloadJson())
                     : new SendResult(null, "URL bloqueada pela política: " + verdict.describe());
             WebhookDelivery next = result.success()
-                    ? d.delivery().delivered(result.httpStatus(), clock.instant())
-                    : d.delivery().failed(result.httpStatus(), result.error() != null ? result.error() : "HTTP " + result.httpStatus(),
+                    ? dueDelivery.delivery().delivered(result.httpStatus(), clock.instant())
+                    : dueDelivery.delivery().failed(result.httpStatus(), result.error() != null ? result.error() : "HTTP " + result.httpStatus(),
                             clock.instant(), retryPolicy, random.getAsDouble());
             try {
                 deliveries.save(next);
-            } catch (ConflictException e) {
-                log.debug("Entrega {} foi alterada por outra instância; segue sem sobrescrever", d.delivery().id());
+            } catch (ConflictException exception) {
+                log.debug("Entrega {} foi alterada por outra instância; segue sem sobrescrever", dueDelivery.delivery().id());
             }
         }
         return due.size();

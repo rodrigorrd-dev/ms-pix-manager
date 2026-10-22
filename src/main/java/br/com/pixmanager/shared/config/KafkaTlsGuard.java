@@ -14,19 +14,19 @@ import org.springframework.core.env.Environment;
 @Profile({"kafka-tls", "kafka-mtls"})
 public class KafkaTlsGuard {
 
-    private final Environment env;
+    private final Environment environment;
 
-    public KafkaTlsGuard(Environment env) {
-        this.env = env;
+    public KafkaTlsGuard(Environment environment) {
+        this.environment = environment;
     }
 
     @PostConstruct
     void validate() {
-        if (env.acceptsProfiles(org.springframework.core.env.Profiles.of("kafka-tls"))) {
+        if (environment.acceptsProfiles(org.springframework.core.env.Profiles.of("kafka-tls"))) {
             require("spring.kafka.ssl.trust-store-location", "KAFKA_SSL_TRUSTSTORE_LOCATION");
             require("spring.kafka.ssl.trust-store-password", "KAFKA_SSL_TRUSTSTORE_PASSWORD");
         }
-        if (env.acceptsProfiles(org.springframework.core.env.Profiles.of("kafka-mtls"))) {
+        if (environment.acceptsProfiles(org.springframework.core.env.Profiles.of("kafka-mtls"))) {
             require("spring.kafka.ssl.key-store-location", "KAFKA_SSL_KEYSTORE_LOCATION");
             require("spring.kafka.ssl.key-store-password", "KAFKA_SSL_KEYSTORE_PASSWORD");
             require("spring.kafka.ssl.key-password", "KAFKA_SSL_KEY_PASSWORD");
@@ -36,9 +36,9 @@ public class KafkaTlsGuard {
     private void require(String property, String variable) {
         String value;
         try {
-            value = env.getRequiredProperty(property);          // resolve ${...} de forma estrita: lança se a variável não existe
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " não foi definida", e);
+            value = environment.getRequiredProperty(property);          // resolve ${...} de forma estrita: lança se a variável não existe
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " não foi definida", exception);
         }
         if (value.isBlank()) {
             throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " está em branco");

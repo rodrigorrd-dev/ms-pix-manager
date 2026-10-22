@@ -60,7 +60,7 @@ public class ReceivedPixControllerImpl implements ReceivedPixController {
         Caller caller = CallerContext.current();
         var result = find.search(caller, new ReceivedPixSearch(from, to, Optional.ofNullable(txid), payer), PageQuery.of(page, pageSize));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(mapper.toPage(result, p -> refundsOf(caller, p), from, to, caller.fullDocument()));
+                .body(mapper.toPage(result, receivedPix -> refundsOf(caller, receivedPix), from, to, caller.fullDocument()));
     }
 
     private List<Refund> refundsOf(Caller caller, ReceivedPix pix) {

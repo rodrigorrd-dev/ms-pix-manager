@@ -21,7 +21,7 @@ public interface DictGatewayPortOut {
     /** {@code requester} = documento do pagador (o DICT exige para auditoria/limite de consulta). */
     Optional<DictEntry> lookup(PixKeyValue value, Document requester);
 
-    record DictRegistration(String cid, Instant registeredAt) {}
+    record DictRegistration(String dictCid, Instant registeredAt) {}
 
     record DictEntry(String ownerName, Document ownerDocument, String ispb, String branch, String accountNumber,
                      String accountType, Instant ownershipDate) {}

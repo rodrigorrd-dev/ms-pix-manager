@@ -58,7 +58,7 @@ public class ExecuteReservationService implements ExecuteReservationUseCase {
         if (reservation.status() != LedgerStatus.PENDING) {
             return reservation;                                // idempotente: já decidida
         }
-        return decide(reservation, gateway::reserve, r -> r.reserved(null), LedgerReservation::cancelled, true);
+        return decide(reservation, gateway::reserve, current -> current.reserved(null), LedgerReservation::cancelled, true);
     }
 
     @Override
@@ -72,7 +72,7 @@ public class ExecuteReservationService implements ExecuteReservationUseCase {
         if (reservation.status() == LedgerStatus.CONFIRMED) {
             return reservation;
         }
-        return apply(reservation, gateway::confirm, LedgerReservation::confirmed, r -> r.failed("confirmação recusada"));
+        return apply(reservation, gateway::confirm, LedgerReservation::confirmed, current -> current.failed("confirmação recusada"));
     }
 
     @Override
@@ -110,15 +110,15 @@ public class ExecuteReservationService implements ExecuteReservationUseCase {
         GatewayResult result;
         try {
             result = call.apply(reservation);
-        } catch (IntegrationException e) {
+        } catch (IntegrationException exception) {
             if (capAttempts && reservation.attempts() + 1 >= MAX_TECHNICAL_ATTEMPTS) {
-                log.error("Reserva {} esgotou {} tentativas técnicas no core; marcada FAILED", reservation.id(), MAX_TECHNICAL_ATTEMPTS, e);
-                return reservation.failed("tentativas esgotadas: " + e.getMessage());
+                log.error("Reserva {} esgotou {} tentativas técnicas no core; marcada FAILED", reservation.id(), MAX_TECHNICAL_ATTEMPTS, exception);
+                return reservation.failed("tentativas esgotadas: " + exception.getMessage());
             }
             Instant next = clock.instant().plus(backoff(reservation.attempts()));
-            persistence.save(reservation.technicalFailure(e.getMessage(), next));
-            log.warn("Falha técnica no core [{}] (tentativa {}, reserva {}): {}", e.getCode(), reservation.attempts() + 1, reservation.id(), e.getMessage());
-            throw e;
+            persistence.save(reservation.technicalFailure(exception.getMessage(), next));
+            log.warn("Falha técnica no core [{}] (tentativa {}, reserva {}): {}", exception.getCode(), reservation.attempts() + 1, reservation.id(), exception.getMessage());
+            throw exception;
         }
         return switch (result) {
             case GatewayResult.Done done -> onDone.apply(reservation).withLedgerRef(done.ledgerRef());

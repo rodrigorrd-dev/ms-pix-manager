@@ -15,7 +15,7 @@ public final class SequentialIds implements IdGeneratorPortOut {
         return new UUID(0L, counter.incrementAndGet());
     }
 
-    public static UUID id(long n) {
-        return new UUID(0L, n);
+    public static UUID id(long sequence) {
+        return new UUID(0L, sequence);
     }
 }

@@ -62,12 +62,12 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
         when(ledgerGateway.cancel(any())).thenReturn(new GatewayResult.Done("L-1"));
     }
 
-    String e2e() {
+    String newEndToEndId() {
         return "E12345678202610151403" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     }
 
-    ReceivePixCommand command(String messageId, String e2eId, String txid, String amount, Instant settledAt) {
-        return new ReceivePixCommand("it-group", messageId, "pix.spi.payment-settled.v1", 0, 1, e2eId, txid, Money.of(amount), settledAt,
+    ReceivePixCommand command(String messageId, String endToEndId, String txid, String amount, Instant settledAt) {
+        return new ReceivePixCommand("it-group", messageId, "pix.spi.payment-settled.v1", 0, 1, endToEndId, txid, Money.of(amount), settledAt,
                 "12345678", "0001", account.number(), "CACC", "11144477735", "Maria Pagadora", "87654321", "0002", "99887", "CACC",
                 "pagamento teste", List.of(new ValueComponent(ComponentType.ORIGINAL, Money.of(amount), null, null)));
     }
@@ -85,22 +85,22 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
         return jdbc.sql("SELECT status FROM pix_charge WHERE txid = :t").param("t", txid).query(String.class).single();
     }
 
-    String reconciliation(String e2eId) {
-        return jdbc.sql("SELECT reconciliation_status FROM pix_received WHERE end_to_end_id = :e").param("e", e2eId).query(String.class).single();
+    String reconciliation(String endToEndId) {
+        return jdbc.sql("SELECT reconciliation_status FROM pix_received WHERE end_to_end_id = :e").param("e", endToEndId).query(String.class).single();
     }
 
     @Test
     @DisplayName("BR-PIX-02: Pix com txid igual ao da cobrança → MATCHED, cobrança CONCLUIDA, eventos PixReceived e ChargePaid")
     void shouldReconcileAndPublishEvents() throws Exception {
         String txid = createCharge("150.00", 3600);
-        String e2eId = e2e();
+        String endToEndId = newEndToEndId();
         int pixEvents = fixtures.outboxCount("PixReceived");
         int paidEvents = fixtures.outboxCount("ChargePaid");
 
-        var result = receivePix.receive(command("m1", e2eId, txid, "150.00", Instant.now()));
+        var result = receivePix.receive(command("m1", endToEndId, txid, "150.00", Instant.now()));
 
         assertThat(result).isInstanceOf(ReceivePixResult.Received.class);
-        assertThat(reconciliation(e2eId)).isEqualTo("MATCHED");
+        assertThat(reconciliation(endToEndId)).isEqualTo("MATCHED");
         assertThat(chargeStatus(txid)).isEqualTo("CONCLUIDA");
         assertThat(fixtures.outboxCount("PixReceived")).isEqualTo(pixEvents + 1);
         assertThat(fixtures.outboxCount("ChargePaid")).isEqualTo(paidEvents + 1);
@@ -110,84 +110,84 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
     @DisplayName("BR-PIX-01/GEN-02: mesma mensagem 2× (inbox) e mesmo e2eId em outra mensagem ⇒ 1 efeito só")
     void shouldBeIdempotentByInboxAndEndToEndId() throws Exception {
         String txid = createCharge("20.00", 3600);
-        String e2eId = e2e();
+        String endToEndId = newEndToEndId();
 
-        assertThat(receivePix.receive(command("dup-1", e2eId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Received.class);
-        assertThat(receivePix.receive(command("dup-1", e2eId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Duplicate.class);
-        assertThat(receivePix.receive(command("dup-2", e2eId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Duplicate.class);
+        assertThat(receivePix.receive(command("dup-1", endToEndId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Received.class);
+        assertThat(receivePix.receive(command("dup-1", endToEndId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Duplicate.class);
+        assertThat(receivePix.receive(command("dup-2", endToEndId, txid, "20.00", Instant.now()))).isInstanceOf(ReceivePixResult.Duplicate.class);
 
-        assertThat(jdbc.sql("SELECT count(*) FROM pix_received WHERE end_to_end_id = :e").param("e", e2eId).query(Integer.class).single()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT count(*) FROM pix_received WHERE end_to_end_id = :e").param("e", endToEndId).query(Integer.class).single()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("BR-PIX-03: valor diferente ⇒ MISMATCH; depois de expirar ⇒ MATCHED_AFTER_EXPIRATION; sem cobrança ⇒ NO_CHARGE (o Pix nunca é rejeitado)")
     void shouldNeverRejectALiquidatedPix() throws Exception {
-        String t1 = createCharge("50.00", 3600);
-        String e1 = e2e();
-        receivePix.receive(command("mm-1", e1, t1, "49.00", Instant.now()));
-        assertThat(reconciliation(e1)).isEqualTo("MISMATCH");
-        assertThat(chargeStatus(t1)).isEqualTo("ATIVA");
+        String firstTxid = createCharge("50.00", 3600);
+        String firstEndToEndId = newEndToEndId();
+        receivePix.receive(command("mm-1", firstEndToEndId, firstTxid, "49.00", Instant.now()));
+        assertThat(reconciliation(firstEndToEndId)).isEqualTo("MISMATCH");
+        assertThat(chargeStatus(firstTxid)).isEqualTo("ATIVA");
 
-        String t2 = createCharge("50.00", 60);
-        String e2 = e2e();
-        receivePix.receive(command("exp-1", e2, t2, "50.00", Instant.now().plusSeconds(86_400)));
-        assertThat(reconciliation(e2)).isEqualTo("MATCHED_AFTER_EXPIRATION");
-        assertThat(chargeStatus(t2)).isEqualTo("ATIVA");
+        String secondTxid = createCharge("50.00", 60);
+        String secondEndToEndId = newEndToEndId();
+        receivePix.receive(command("exp-1", secondEndToEndId, secondTxid, "50.00", Instant.now().plusSeconds(86_400)));
+        assertThat(reconciliation(secondEndToEndId)).isEqualTo("MATCHED_AFTER_EXPIRATION");
+        assertThat(chargeStatus(secondTxid)).isEqualTo("ATIVA");
 
-        String e3 = e2e();
-        receivePix.receive(command("nc-1", e3, null, "10.00", Instant.now()));
-        assertThat(reconciliation(e3)).isEqualTo("NO_CHARGE");
+        String thirdEndToEndId = newEndToEndId();
+        receivePix.receive(command("nc-1", thirdEndToEndId, null, "10.00", Instant.now()));
+        assertThat(reconciliation(thirdEndToEndId)).isEqualTo("NO_CHARGE");
 
         // BR-COB-10: segundo Pix para cobrança já concluída vira "sem cobrança vinculada"
-        String t4 = createCharge("5.00", 3600);
-        receivePix.receive(command("p4a", e2e(), t4, "5.00", Instant.now()));
-        String e4b = e2e();
-        receivePix.receive(command("p4b", e4b, t4, "5.00", Instant.now()));
-        assertThat(reconciliation(e4b)).isEqualTo("NO_CHARGE");
+        String fourthTxid = createCharge("5.00", 3600);
+        receivePix.receive(command("p4a", newEndToEndId(), fourthTxid, "5.00", Instant.now()));
+        String fourthEndToEndId = newEndToEndId();
+        receivePix.receive(command("p4b", fourthEndToEndId, fourthTxid, "5.00", Instant.now()));
+        assertThat(reconciliation(fourthEndToEndId)).isEqualTo("NO_CHARGE");
     }
 
     @Test
     @DisplayName("Conta recebedora desconhecida ⇒ NotFoundException (negócio: o consumidor manda direto à DLT, sem retry)")
     void unknownReceiverAccountIsABusinessFailure() {
-        ReceivePixCommand cmd = command("u1", e2e(), null, "1.00", Instant.now());
-        ReceivePixCommand unknown = new ReceivePixCommand(cmd.consumerGroup(), "u2", cmd.topic(), 0, 2, e2e(), null, cmd.amount(),
-                cmd.settledAt(), "12345678", "0001", "000000", "CACC", null, null, null, null, null, null, null, List.of());
+        ReceivePixCommand command = command("u1", newEndToEndId(), null, "1.00", Instant.now());
+        ReceivePixCommand unknown = new ReceivePixCommand(command.consumerGroup(), "u2", command.topic(), 0, 2, newEndToEndId(), null, command.amount(),
+                command.settledAt(), "12345678", "0001", "000000", "CACC", null, null, null, null, null, null, null, List.of());
         assertThatThrownBy(() -> receivePix.receive(unknown)).isInstanceOf(NotFoundException.class);
     }
 
     @Test
     @DisplayName("Devolução: 201 → replay 200 (mesmo recurso) → corpo diferente 422 → teto devolvível 422 → pacs.004 liquidado confirma no core")
     void shouldRefundWithIdempotencyCapAndSettlement() throws Exception {
-        String e2eId = e2e();
-        receivePix.receive(command("r1", e2eId, null, "100.00", Instant.now()));
+        String endToEndId = newEndToEndId();
+        receivePix.receive(command("r1", endToEndId, null, "100.00", Instant.now()));
         var jwt = TestJwt.client("cli", List.of(account.id()), "pix.write", "pix.read");
 
         // 1ª vez
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"60.00\",\"descricao\":\"estorno\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value("D1")).andExpect(jsonPath("$.status").value("EM_PROCESSAMENTO"))
                 .andExpect(jsonPath("$.rtrId").value(org.hamcrest.Matchers.hasLength(32)));
         // replay idêntico: 200, sem nova reserva
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"60.00\",\"descricao\":\"estorno\"}"))
                 .andExpect(status().isOk());
         assertThat(jdbc.sql("SELECT count(*) FROM ledger_reservation WHERE purpose='REFUND' AND reference_type='REFUND'").query(Integer.class).single()).isGreaterThanOrEqualTo(1);
         // mesmo id, corpo diferente
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D1").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"61.00\"}"))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("PIX-422-900"));
         // excede o devolvível (60 + 50 > 100)
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D2").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D2").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"50.00\"}"))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("PIX-422-030"));
         // cabe (60 + 40 = 100)
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D3").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D3").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"40.00\"}")).andExpect(status().isCreated());
         // natureza MED não é permitida por esta porta
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "D4").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "D4").with(jwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"1.00\",\"natureza\":\"MED_FRAUDE\"}")).andExpect(status().isUnprocessableEntity());
 
-        String rtrId = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE refund_id='D1' AND end_to_end_id=:e").param("e", e2eId).query(String.class).single();
+        String rtrId = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE refund_id='D1' AND end_to_end_id=:e").param("e", endToEndId).query(String.class).single();
         UUID reservationId = jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key=:k").param("k", rtrId).query(UUID.class).single();
         int reserved = fixtures.outboxCount("RefundReserved");
         processReservation.process(reservationId);                                  // sweeper: reserva no core + RefundReserved
@@ -202,7 +202,7 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
                 .isEqualTo(LedgerStatus.CONFIRMED.name());
 
         // GET /pix/{e2e} mostra as devoluções
-        mvc.perform(get("/api/pix/v2/pix/{e2e}", e2eId).with(jwt))
+        mvc.perform(get("/api/pix/v2/pix/{e2e}", endToEndId).with(jwt))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.devolucoes.length()").value(2))
                 .andExpect(jsonPath("$.pagador.cpf").value("***.444.777-**"));
     }
@@ -210,31 +210,31 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
     @Test
     @DisplayName("BR-REF-07: o core recusa a reserva ⇒ devolução NAO_REALIZADO e o valor devolvível é liberado (compensação)")
     void shouldCompensateWhenCoreRefuses() throws Exception {
-        String e2eId = e2e();
-        receivePix.receive(command("c1", e2eId, null, "100.00", Instant.now()));
+        String endToEndId = newEndToEndId();
+        receivePix.receive(command("c1", endToEndId, null, "100.00", Instant.now()));
         var jwt = TestJwt.client("cli", List.of(account.id()), "pix.write");
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "X1").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "X1").with(jwt).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"valor\":\"100.00\"}")).andExpect(status().isCreated());
         when(ledgerGateway.reserve(any())).thenReturn(new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo"));
 
-        String rtrId = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE refund_id='X1' AND end_to_end_id=:e").param("e", e2eId).query(String.class).single();
+        String rtrId = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE refund_id='X1' AND end_to_end_id=:e").param("e", endToEndId).query(String.class).single();
         UUID reservationId = jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key=:k").param("k", rtrId).query(UUID.class).single();
         processReservation.process(reservationId);
 
         assertThat(jdbc.sql("SELECT status FROM pix_refund WHERE rtr_id=:r").param("r", rtrId).query(String.class).single()).isEqualTo("NAO_REALIZADO");
-        assertThat(jdbc.sql("SELECT refunded_total FROM pix_received WHERE end_to_end_id=:e").param("e", e2eId).query(java.math.BigDecimal.class).single())
+        assertThat(jdbc.sql("SELECT refunded_total FROM pix_received WHERE end_to_end_id=:e").param("e", endToEndId).query(java.math.BigDecimal.class).single())
                 .isEqualByComparingTo("0");
         // liberado: nova devolução do valor cheio é aceita
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "X2").with(jwt).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "X2").with(jwt).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"valor\":\"100.00\"}")).andExpect(status().isCreated());
     }
 
     @Test
     @DisplayName("Posse: devolução de Pix de OUTRA conta ⇒ 404")
     void shouldHideOtherAccountsPix() throws Exception {
-        String e2eId = e2e();
-        receivePix.receive(command("o1", e2eId, null, "10.00", Instant.now()));
-        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", e2eId, "Z1")
+        String endToEndId = newEndToEndId();
+        receivePix.receive(command("o1", endToEndId, null, "10.00", Instant.now()));
+        mvc.perform(put("/api/pix/v2/pix/{e2e}/devolucao/{id}", endToEndId, "Z1")
                         .with(TestJwt.client("outro", List.of(UUID.randomUUID()), "pix.write")).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":\"1.00\"}"))
                 .andExpect(status().isNotFound());

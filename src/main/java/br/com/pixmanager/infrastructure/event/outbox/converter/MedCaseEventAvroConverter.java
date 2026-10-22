@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.MedCase;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.MedCaseEvent;
@@ -19,21 +20,21 @@ public class MedCaseEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        MedCaseEvent e = (MedCaseEvent) event;
-        MedCase c = e.medCase();
+        MedCaseEvent medCaseEvent = (MedCaseEvent) event;
+        MedCase medCase = medCaseEvent.medCase();
         return br.com.pixmanager.events.v1.MedCaseEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setMedCaseId(c.id())
+                .setMedCaseId(medCase.id())
                 .setParentCaseId(null)
-                .setEndToEndId(c.endToEndId())
-                .setLayer(c.layer())
-                .setStatus(c.status().name())
-                .setAction(e.action())
-                .setTrackedAmount(c.trackedAmount() == null ? null : c.trackedAmount().value())
-                .setBlockedAmount(c.blockedAmount() == null ? null : c.blockedAmount().value())
-                .setRefundedAmount(e.refundedAmount() == null ? null : e.refundedAmount().value())
+                .setEndToEndId(medCase.endToEndId())
+                .setLayer(medCase.layer())
+                .setStatus(medCase.status().name())
+                .setAction(medCaseEvent.action())
+                .setTrackedAmount(Money.valueOrNull(medCase.trackedAmount()))
+                .setBlockedAmount(Money.valueOrNull(medCase.blockedAmount()))
+                .setRefundedAmount(Money.valueOrNull(medCaseEvent.refundedAmount()))
                 .setWindowEndsAt(null)
-                .setContestationDeadlineAt(e.contestationDeadlineAt())
+                .setContestationDeadlineAt(medCaseEvent.contestationDeadlineAt())
                 .build();
     }
 }

@@ -30,29 +30,29 @@ public class CancelPaymentOrderService implements CancelPaymentOrderUseCase {
     private final ExecuteReservationUseCase ledger;
     private final ConsumeLimitUseCase limits;
     private final DomainEventPublisherPortOut events;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final ZoneId zone;
 
     public CancelPaymentOrderService(PaymentOrderPersistencePortOut persistence, ExecuteReservationUseCase ledger, ConsumeLimitUseCase limits,
-                                     DomainEventPublisherPortOut events, TransactionRunnerPortOut tx, ZoneId zone) {
+                                     DomainEventPublisherPortOut events, TransactionRunnerPortOut transactionRunner, ZoneId zone) {
         this.persistence = persistence;
         this.ledger = ledger;
         this.limits = limits;
         this.events = events;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.zone = zone;
     }
 
     @Override
     public PaymentOrder cancel(Caller caller, UUID id, ExpectedVersion expected) {
-        PaymentOrder order = persistence.findById(id).filter(o -> caller.canAccess(o.payerAccountId()))
+        PaymentOrder order = persistence.findById(id).filter(candidate -> caller.canAccess(candidate.payerAccountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Ordem não encontrada."));
         if (!expected.matches(order.version())) {
             throw new PreconditionFailedException("A ordem foi alterada por outra requisição (versão desatualizada).");
         }
         PaymentOrder cancelled = order.cancelled();                         // lança se já foi ao SPI: nenhum I/O antes disso
         ledger.cancel(order.endToEndId().value());                          // core: HTTP fora de transação, idempotente
-        PaymentOrder result = tx.inTransaction(() -> {
+        PaymentOrder result = transactionRunner.inTransaction(() -> {
             PaymentOrder saved = persistence.save(cancelled);
             limits.release(saved.payerAccountId(), new LimitDecision.Allowed(saved.requestedAt().atZone(zone).toLocalDate(),
                     !saved.deviceRegistered(), saved.amount()));

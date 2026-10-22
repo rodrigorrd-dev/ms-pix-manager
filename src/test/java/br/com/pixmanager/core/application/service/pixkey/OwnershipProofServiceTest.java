@@ -61,19 +61,19 @@ class OwnershipProofServiceTest {
     final Caller owner = Caller.forAccounts("cli", ACCOUNT);
 
     final PixKeyPersistencePortOut keyPort = new PixKeyPersistencePortOut() {
-        public PixKey save(PixKey k) { PixKey next = new PixKey(k.id(), k.accountId(), k.value(), k.status(), k.dictCid(), k.dictRegisteredAt(),
-                k.deletedReason(), k.deletedAt(), k.version() + 1, k.createdAt()); keys.put(k.id(), next); return next; }
+        public PixKey save(PixKey pixKey) { PixKey next = new PixKey(pixKey.id(), pixKey.accountId(), pixKey.value(), pixKey.status(), pixKey.dictCid(), pixKey.dictRegisteredAt(),
+                pixKey.deletedReason(), pixKey.deletedAt(), pixKey.version() + 1, pixKey.createdAt()); keys.put(pixKey.id(), next); return next; }
         public Optional<PixKey> findById(UUID id) { return Optional.ofNullable(keys.get(id)); }
-        public Optional<PixKey> findLiveByValue(PixKeyValue v) { return Optional.empty(); }
-        public long countLiveByAccount(UUID a) { return 0; }
-        public PageResult<PixKey> list(UUID a, Optional<PixKeyStatus> s, PageQuery p) { return new PageResult<>(List.of(), 0, 20, 0); }
+        public Optional<PixKey> findLiveByValue(PixKeyValue pixKeyValue) { return Optional.empty(); }
+        public long countLiveByAccount(UUID accountId) { return 0; }
+        public PageResult<PixKey> list(UUID accountId, Optional<PixKeyStatus> pixKeyStatus, PageQuery pageQuery) { return new PageResult<>(List.of(), 0, 20, 0); }
         public List<PixKey> findPendingDict(Instant olderThan, int limit) { return List.of(); }
     };
     final OtpChallengePortOut challengePort = new OtpChallengePortOut() {
-        public OtpChallenge save(OtpChallenge c) { challenges.removeIf(x -> x.id().equals(c.id())); challenges.add(c); return c; }
-        public Optional<OtpChallenge> findLatest(UUID keyId) { return challenges.stream().filter(c -> c.pixKeyId().equals(keyId))
+        public OtpChallenge save(OtpChallenge otpChallenge) { challenges.removeIf(existing -> existing.id().equals(otpChallenge.id())); challenges.add(otpChallenge); return otpChallenge; }
+        public Optional<OtpChallenge> findLatest(UUID keyId) { return challenges.stream().filter(otpChallenge -> otpChallenge.pixKeyId().equals(keyId))
                 .max(java.util.Comparator.comparing(OtpChallenge::createdAt)); }
-        public long countSince(UUID keyId, Instant since) { return challenges.stream().filter(c -> c.pixKeyId().equals(keyId) && !c.createdAt().isBefore(since)).count(); }
+        public long countSince(UUID keyId, Instant since) { return challenges.stream().filter(otpChallenge -> otpChallenge.pixKeyId().equals(keyId) && !otpChallenge.createdAt().isBefore(since)).count(); }
     };
     final OtpCodePortOut codePort = new OtpCodePortOut() {
         public String generate() { return nextCodes.removeFirst(); }
@@ -83,14 +83,14 @@ class OwnershipProofServiceTest {
         if (senderFails) throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "gateway fora", null);
         sent.add(channel + "|" + destination + "|" + code);
     };
-    final TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+    final TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
         public <T> T inTransaction(Supplier<T> action) { return action.get(); }
     };
 
     @BeforeEach
     void setUp() {
         clock = FixedClock.at("2026-10-16T12:00:00Z");
-        service = new OwnershipProofService(keyPort, challengePort, codePort, senderPort, new SequentialIds(), tx, clock,
+        service = new OwnershipProofService(keyPort, challengePort, codePort, senderPort, new SequentialIds(), transactionRunner, clock,
                 new PixPolicyProperties.Otp(Duration.ofMinutes(5), 3, Duration.ofSeconds(60), 3));
         key = keyPort.save(PixKey.register(SequentialIds.id(1), ACCOUNT, PixKeyValue.of(PixKeyType.EMAIL, "maria@example.com"), clock.instant()));
         assertThat(key.status()).isEqualTo(PixKeyStatus.PENDING_OWNERSHIP_PROOF);
@@ -131,9 +131,9 @@ class OwnershipProofServiceTest {
         service.issue(owner, key.id());
         clock.advance(Duration.ofSeconds(20));
 
-        assertThatThrownBy(() -> service.issue(owner, key.id())).isInstanceOfSatisfying(TooManyRequestsException.class, e -> {
-            assertThat(e.getCode()).isEqualTo(ErrorCodes.OTP_RATE_LIMITED);
-            assertThat(e.getRetryAfter()).isEqualTo(Duration.ofSeconds(40));
+        assertThatThrownBy(() -> service.issue(owner, key.id())).isInstanceOfSatisfying(TooManyRequestsException.class, exception -> {
+            assertThat(exception.getCode()).isEqualTo(ErrorCodes.OTP_RATE_LIMITED);
+            assertThat(exception.getRetryAfter()).isEqualTo(Duration.ofSeconds(40));
         });
         assertThat(sent).hasSize(1);
 
@@ -145,8 +145,8 @@ class OwnershipProofServiceTest {
     @Test
     @DisplayName("teto de códigos por chave em 24 h (3): o 4º é recusado mesmo respeitando a espera; no dia seguinte volta")
     void dailyCap() {
-        for (int i = 0; i < 3; i++) {
-            nextCodes.add("10000" + i);
+        for (int index = 0; index < 3; index++) {
+            nextCodes.add("10000" + index);
             service.issue(owner, key.id());
             clock.advance(Duration.ofSeconds(61));
         }
@@ -190,16 +190,16 @@ class OwnershipProofServiceTest {
         nextCodes.add("123456");
         service.issue(owner, key.id());
 
-        assertThatThrownBy(() -> service.verify(owner, key.id(), "000000")).isInstanceOfSatisfying(BusinessException.class, e -> {
-            assertThat(e.getCode()).isEqualTo(ErrorCodes.OTP_INVALID);
-            assertThat(e.getMessage()).contains("Restam 2");
+        assertThatThrownBy(() -> service.verify(owner, key.id(), "000000")).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getCode()).isEqualTo(ErrorCodes.OTP_INVALID);
+            assertThat(exception.getMessage()).contains("Restam 2");
         });
         assertThatThrownBy(() -> service.verify(owner, key.id(), "000001")).hasMessageContaining("Restam 1");
         assertThatThrownBy(() -> service.verify(owner, key.id(), "000002")).hasMessageContaining("esgotadas");
         assertThat(challenges.get(0).attempts()).isEqualTo(3);
 
         assertThatThrownBy(() -> service.verify(owner, key.id(), "123456")).isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getCode()).isEqualTo(ErrorCodes.OTP_ATTEMPTS_EXCEEDED));
+                exception -> assertThat(exception.getCode()).isEqualTo(ErrorCodes.OTP_ATTEMPTS_EXCEEDED));
         assertThat(keys.get(key.id()).status()).isEqualTo(PixKeyStatus.PENDING_OWNERSHIP_PROOF);
 
         clock.advance(Duration.ofSeconds(61));                      // novo pedido gera novo desafio, com tentativas zeradas
@@ -215,7 +215,7 @@ class OwnershipProofServiceTest {
         service.issue(owner, key.id());
         clock.advance(Duration.ofMinutes(5));
         assertThatThrownBy(() -> service.verify(owner, key.id(), "111111")).isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getCode()).isEqualTo(ErrorCodes.OTP_EXPIRED));
+                exception -> assertThat(exception.getCode()).isEqualTo(ErrorCodes.OTP_EXPIRED));
 
         nextCodes.add("222222");
         service.issue(owner, key.id());
@@ -227,7 +227,7 @@ class OwnershipProofServiceTest {
     @DisplayName("verificar sem nunca ter pedido código ⇒ OTP_INVALID")
     void verifyWithoutChallenge() {
         assertThatThrownBy(() -> service.verify(owner, key.id(), "123456")).isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getCode()).isEqualTo(ErrorCodes.OTP_INVALID));
+                exception -> assertThat(exception.getCode()).isEqualTo(ErrorCodes.OTP_INVALID));
     }
 
     @Test

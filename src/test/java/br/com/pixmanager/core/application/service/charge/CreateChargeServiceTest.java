@@ -75,7 +75,7 @@ class CreateChargeServiceTest {
         when(keys.findActiveKey(RAW_KEY)).thenReturn(Optional.of(activeKey));
         when(persistence.findByReceiverHashAndTxid(DOC_HASH, new TxId(TXID))).thenReturn(Optional.empty());
         when(locations.create(ChargeType.IMMEDIATE)).thenReturn(location);
-        when(persistence.save(any(Charge.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(Charge.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CreateChargeResult result = service.create(caller, immediate(TXID, "50.00", null));
 
@@ -96,7 +96,7 @@ class CreateChargeServiceTest {
         when(keys.findActiveKey(RAW_KEY)).thenReturn(Optional.of(activeKey));
         when(persistence.findByReceiverHashAndTxid(any(), any())).thenReturn(Optional.empty());
         when(locations.create(ChargeType.IMMEDIATE)).thenReturn(location);
-        when(persistence.save(any(Charge.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(Charge.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Charge charge = ((CreateChargeResult.Created) service.create(caller, immediate(TXID, "50.00", 3600))).details().charge();
 
@@ -109,7 +109,7 @@ class CreateChargeServiceTest {
         when(keys.findActiveKey(RAW_KEY)).thenReturn(Optional.of(activeKey));
         when(persistence.findByReceiverHashAndTxid(any(), any())).thenReturn(Optional.empty());
         when(locations.create(ChargeType.IMMEDIATE)).thenReturn(location);
-        when(persistence.save(any(Charge.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(Charge.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Charge charge = ((CreateChargeResult.Created) service.create(caller, immediate(null, "50.00", null))).details().charge();
 
@@ -121,11 +121,11 @@ class CreateChargeServiceTest {
         when(keys.findActiveKey(RAW_KEY)).thenReturn(Optional.of(activeKey));
         when(persistence.findByReceiverHashAndTxid(any(), any())).thenReturn(Optional.empty());
         when(locations.create(ChargeType.DUE)).thenReturn(location);
-        when(persistence.save(any(Charge.class))).thenAnswer(inv -> inv.getArgument(0));
-        var cmd = new CreateChargeCommand(ChargeType.DUE, TXID, RAW_KEY, Money.of("200.00"), null, LocalDate.of(2026, 11, 1), null,
+        when(persistence.save(any(Charge.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var command = new CreateChargeCommand(ChargeType.DUE, TXID, RAW_KEY, Money.of("200.00"), null, LocalDate.of(2026, 11, 1), null,
                 new Debtor(Cpf.of("11144477735"), "Devedor"), null, List.of());
 
-        Charge charge = ((CreateChargeResult.Created) service.create(caller, cmd)).details().charge();
+        Charge charge = ((CreateChargeResult.Created) service.create(caller, command)).details().charge();
 
         assertThat(charge.type()).isEqualTo(ChargeType.DUE);
         assertThat(charge.validityAfterDueDays()).isEqualTo(30);
@@ -169,7 +169,7 @@ class CreateChargeServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, immediate(TXID, "50.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, locations, events);
     }
@@ -182,7 +182,7 @@ class CreateChargeServiceTest {
 
         assertThatThrownBy(() -> service.create(other, immediate(TXID, "50.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, events);
     }
@@ -190,10 +190,10 @@ class CreateChargeServiceTest {
     @Test
     void shouldRejectADueChargeWithoutDebtor() {
         when(keys.findActiveKey(RAW_KEY)).thenReturn(Optional.of(activeKey));
-        var cmd = new CreateChargeCommand(ChargeType.DUE, TXID, RAW_KEY, Money.of("200.00"), null, LocalDate.of(2026, 11, 1), 10, null,
+        var command = new CreateChargeCommand(ChargeType.DUE, TXID, RAW_KEY, Money.of("200.00"), null, LocalDate.of(2026, 11, 1), 10, null,
                 null, List.of());
 
-        assertThatThrownBy(() -> service.create(caller, cmd)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.create(caller, command)).isInstanceOf(BadRequestException.class);
 
         verify(persistence, never()).save(any());
         verifyNoInteractions(events);

@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.core.domain.entity.ReceivedPix;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.PixReceivedEvent;
@@ -26,19 +27,19 @@ public class PixReceivedEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        ReceivedPix p = ((PixReceivedEvent) event).pix();
-        var payerDoc = p.payer().document();
+        ReceivedPix receivedPix = ((PixReceivedEvent) event).pix();
+        var payerDoc = receivedPix.payer().document();
         return br.com.pixmanager.events.v1.PixReceivedEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setEndToEndId(p.endToEndId().value())
-                .setTxid(p.txid())
-                .setChargeId(p.chargeId())
-                .setReceiverAccountId(p.receiverAccountId())
-                .setAmount(p.amount().value())
-                .setSettledAt(p.settledAt())
-                .setPayerDocumentMasked(payerDoc == null ? null : payerDoc.masked())
+                .setEndToEndId(receivedPix.endToEndId().value())
+                .setTxid(receivedPix.txid())
+                .setChargeId(receivedPix.chargeId())
+                .setReceiverAccountId(receivedPix.receiverAccountId())
+                .setAmount(receivedPix.amount().value())
+                .setSettledAt(receivedPix.settledAt())
+                .setPayerDocumentMasked(Document.maskedOrNull(payerDoc))
                 .setPayerDocumentHash(payerDoc == null ? null : crypto.blindIndex(payerDoc.value()))
-                .setReconciliationStatus(p.reconciliationStatus().name())
+                .setReconciliationStatus(receivedPix.reconciliationStatus().name())
                 .build();
     }
 }

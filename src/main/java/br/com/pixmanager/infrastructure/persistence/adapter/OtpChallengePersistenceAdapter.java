@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.OtpChallenge;
 import br.com.pixmanager.core.domain.enums.OtpChannel;
 import br.com.pixmanager.core.port.out.persistence.OtpChallengePortOut;
@@ -24,28 +25,28 @@ public class OtpChallengePersistenceAdapter implements OtpChallengePortOut {
     }
 
     @Override
-    public OtpChallenge save(OtpChallenge c) {
+    public OtpChallenge save(OtpChallenge otpChallenge) {
         jdbc.sql("""
                 INSERT INTO otp_challenge (id, pix_key_id, channel, code_hash, attempts, expires_at, verified_at, created_at)
                 VALUES (:id, :key, :channel, :hash, :attempts, :expires, :verified, :created)
                 ON CONFLICT (id) DO UPDATE SET attempts = EXCLUDED.attempts, verified_at = EXCLUDED.verified_at
                 """)
-                .param("id", c.id()).param("key", c.pixKeyId()).param("channel", c.channel().name()).param("hash", c.codeHash())
-                .param("attempts", c.attempts()).param("expires", Timestamp.from(c.expiresAt()))
-                .param("verified", c.verifiedAt() == null ? null : Timestamp.from(c.verifiedAt())).param("created", Timestamp.from(c.createdAt()))
+                .param("id", otpChallenge.id()).param("key", otpChallenge.pixKeyId()).param("channel", otpChallenge.channel().name()).param("hash", otpChallenge.codeHash())
+                .param("attempts", otpChallenge.attempts()).param("expires", Timestamp.from(otpChallenge.expiresAt()))
+                .param("verified", Timestamps.from(otpChallenge.verifiedAt())).param("created", Timestamp.from(otpChallenge.createdAt()))
                 .update();
-        return c;
+        return otpChallenge;
     }
 
     @Override
     public Optional<OtpChallenge> findLatest(UUID pixKeyId) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM otp_challenge WHERE pix_key_id = :key ORDER BY created_at DESC LIMIT 1")
                 .param("key", pixKeyId)
-                .query((rs, i) -> new OtpChallenge(rs.getObject("id", UUID.class), rs.getObject("pix_key_id", UUID.class),
-                        OtpChannel.valueOf(rs.getString("channel")), rs.getString("code_hash"), rs.getInt("attempts"),
-                        rs.getTimestamp("expires_at").toInstant(),
-                        rs.getTimestamp("verified_at") == null ? null : rs.getTimestamp("verified_at").toInstant(),
-                        rs.getTimestamp("created_at").toInstant()))
+                .query((resultSet, rowNumber) -> new OtpChallenge(resultSet.getObject("id", UUID.class), resultSet.getObject("pix_key_id", UUID.class),
+                        OtpChannel.valueOf(resultSet.getString("channel")), resultSet.getString("code_hash"), resultSet.getInt("attempts"),
+                        resultSet.getTimestamp("expires_at").toInstant(),
+                        Timestamps.toInstant(resultSet.getTimestamp("verified_at")),
+                        resultSet.getTimestamp("created_at").toInstant()))
                 .optional();
     }
 

@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.core.domain.entity.PaymentOrder;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.PaymentOrderEvent;
@@ -19,16 +20,16 @@ public class PaymentOrderEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        PaymentOrder o = ((PaymentOrderEvent) event).order();
+        PaymentOrder paymentOrder = ((PaymentOrderEvent) event).order();
         return br.com.pixmanager.events.v1.PaymentOrderEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setPaymentOrderId(o.id())
-                .setPayerAccountId(o.payerAccountId())
-                .setStatus(o.status().name())
-                .setAmount(o.amount().value())
-                .setEndToEndId(o.endToEndId().value())
-                .setRejectReasonCode(o.rejectReasonCode())
-                .setDestinationDocumentMasked(o.destination().document() == null ? null : o.destination().document().masked())
+                .setPaymentOrderId(paymentOrder.id())
+                .setPayerAccountId(paymentOrder.payerAccountId())
+                .setStatus(paymentOrder.status().name())
+                .setAmount(paymentOrder.amount().value())
+                .setEndToEndId(paymentOrder.endToEndId().value())
+                .setRejectReasonCode(paymentOrder.rejectReasonCode())
+                .setDestinationDocumentMasked(Document.maskedOrNull(paymentOrder.destination().document()))
                 .build();
     }
 }

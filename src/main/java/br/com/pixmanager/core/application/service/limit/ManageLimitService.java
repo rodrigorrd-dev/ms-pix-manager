@@ -53,11 +53,11 @@ public class ManageLimitService implements ManageLimitUseCase {
         List<AccountLimit> configured = persistence.findByAccount(accountId);
         List<LimitView> views = new ArrayList<>();
         for (LimitScope scope : LimitScope.values()) {
-            Optional<AccountLimit> found = configured.stream().filter(l -> l.scope() == scope).findFirst();
+            Optional<AccountLimit> found = configured.stream().filter(limit -> limit.scope() == scope).findFirst();
             Optional<Money> fallback = defaultFor(scope, account);
             if (found.isPresent()) {
-                AccountLimit l = found.get();
-                views.add(new LimitView(scope, l.effective(now), l.ceiling(), l.pendingAmount(), l.pendingEffectiveAt(), l.version(), false));
+                AccountLimit accountLimit = found.get();
+                views.add(new LimitView(scope, accountLimit.effective(now), accountLimit.ceiling(), accountLimit.pendingAmount(), accountLimit.pendingEffectiveAt(), accountLimit.version(), false));
             } else if (fallback.isPresent()) {
                 views.add(new LimitView(scope, fallback.get(), ceilingFor(account), null, null, null, true));
             }

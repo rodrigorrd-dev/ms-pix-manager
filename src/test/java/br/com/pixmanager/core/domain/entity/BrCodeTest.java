@@ -22,28 +22,28 @@ class BrCodeTest {
     @Test
     void shouldParseStaticQr() {
         String payload = BrCodeFactory.staticQr("123e4567-e12b-12d1-a456-426655440000", "25.50", "Fulano de Tal", "BRASILIA", "PED0000000000000000000000001");
-        BrCode qr = BrCode.parse(payload);
-        assertThat(qr.isDynamic()).isFalse();
-        assertThat(qr.pixKey()).contains("123e4567-e12b-12d1-a456-426655440000");
-        assertThat(qr.amount()).contains(Money.of("25.50"));
-        assertThat(qr.txid()).contains("PED0000000000000000000000001");
-        assertThat(qr.merchantName()).contains("Fulano de Tal");
-        assertThat(qr.merchantCity()).contains("BRASILIA");
+        BrCode brCode = BrCode.parse(payload);
+        assertThat(brCode.isDynamic()).isFalse();
+        assertThat(brCode.pixKey()).contains("123e4567-e12b-12d1-a456-426655440000");
+        assertThat(brCode.amount()).contains(Money.of("25.50"));
+        assertThat(brCode.txid()).contains("PED0000000000000000000000001");
+        assertThat(brCode.merchantName()).contains("Fulano de Tal");
+        assertThat(brCode.merchantCity()).contains("BRASILIA");
     }
 
     @Test
     void shouldParseStaticQrWithoutAmountAndWithPlaceholderTxid() {
-        BrCode qr = BrCode.parse(BrCodeFactory.staticQr("+5511999990001", null, "Loja", "SAO PAULO", null));
-        assertThat(qr.amount()).isEmpty();
-        assertThat(qr.txid()).as("*** = sem txid").isEmpty();
+        BrCode brCode = BrCode.parse(BrCodeFactory.staticQr("+5511999990001", null, "Loja", "SAO PAULO", null));
+        assertThat(brCode.amount()).isEmpty();
+        assertThat(brCode.txid()).as("*** = sem txid").isEmpty();
     }
 
     @Test
     void shouldRecognizeDynamicQrByTheUrl() {
-        BrCode qr = BrCode.parse(BrCodeFactory.dynamicQr("pix.example.com/qr/v2/abc123"));
-        assertThat(qr.isDynamic()).isTrue();
-        assertThat(qr.paymentUrl()).contains("pix.example.com/qr/v2/abc123");
-        assertThat(qr.pixKey()).isEmpty();
+        BrCode brCode = BrCode.parse(BrCodeFactory.dynamicQr("pix.example.com/qr/v2/abc123"));
+        assertThat(brCode.isDynamic()).isTrue();
+        assertThat(brCode.paymentUrl()).contains("pix.example.com/qr/v2/abc123");
+        assertThat(brCode.pixKey()).isEmpty();
     }
 
     @Test

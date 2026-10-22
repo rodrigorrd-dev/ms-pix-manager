@@ -49,24 +49,24 @@ public class PixKeyEntity extends AuditableEntity {
 
     public UUID getId() { return id; }
     public UUID getAccountId() { return accountId; }
-    public void setAccountId(UUID v) { this.accountId = v; }
+    public void setAccountId(UUID accountId) { this.accountId = accountId; }
     public String getKeyType() { return keyType; }
-    public void setKeyType(String v) { this.keyType = v; }
+    public void setKeyType(String keyType) { this.keyType = keyType; }
     public String getKeyValueEnc() { return keyValueEnc; }
-    public void setKeyValueEnc(String v) { this.keyValueEnc = v; }
+    public void setKeyValueEnc(String keyValueEnc) { this.keyValueEnc = keyValueEnc; }
     public String getKeyHash() { return keyHash; }
-    public void setKeyHash(String v) { this.keyHash = v; }
+    public void setKeyHash(String keyHash) { this.keyHash = keyHash; }
     public String getKeyMasked() { return keyMasked; }
-    public void setKeyMasked(String v) { this.keyMasked = v; }
+    public void setKeyMasked(String keyMasked) { this.keyMasked = keyMasked; }
     public String getStatus() { return status; }
-    public void setStatus(String v) { this.status = v; }
+    public void setStatus(String status) { this.status = status; }
     public String getDictCid() { return dictCid; }
-    public void setDictCid(String v) { this.dictCid = v; }
+    public void setDictCid(String dictCid) { this.dictCid = dictCid; }
     public Instant getDictRegisteredAt() { return dictRegisteredAt; }
-    public void setDictRegisteredAt(Instant v) { this.dictRegisteredAt = v; }
+    public void setDictRegisteredAt(Instant dictRegisteredAt) { this.dictRegisteredAt = dictRegisteredAt; }
     public String getDeletedReason() { return deletedReason; }
-    public void setDeletedReason(String v) { this.deletedReason = v; }
+    public void setDeletedReason(String deletedReason) { this.deletedReason = deletedReason; }
     public Instant getDeletedAt() { return deletedAt; }
-    public void setDeletedAt(Instant v) { this.deletedAt = v; }
+    public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
     public Long getVersion() { return version; }
 }
