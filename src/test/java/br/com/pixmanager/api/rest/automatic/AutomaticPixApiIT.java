@@ -84,6 +84,12 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         jdbc.sql("UPDATE pix_automatic_authorization SET request_expires_at = now() + interval '30 days' WHERE status = 'CRIADA'").update();
     }
 
+    /** O claim ignora tentativas tocadas há menos de 60 s (updated_at é o now() do banco); com o relógio fixo no passado, isso dependeria da data real de execução. */
+    ExecuteAutomaticUseCase.Result cycle() {
+        jdbc.sql("UPDATE pix_automatic_attempt SET updated_at = '2000-01-01' WHERE status = 'AGENDADA'").update();
+        return worker.runCycle();
+    }
+
     org.springframework.test.web.servlet.request.RequestPostProcessor jwt(String... scopes) {
         return TestJwt.client("psp", List.of(payer.id()), scopes);
     }
@@ -209,17 +215,17 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         String id = approved(idRec("R"), "").get("id").asText();
         String chargeId = json.readTree(charge(id, txid(), DUE, "50.00").andReturn().getResponse().getContentAsString()).get("id").asText();
 
-        assertThat(worker.runCycle().started()).as("ainda é 15/10").isZero();
+        assertThat(cycle().started()).as("ainda é 15/10").isZero();
         clock.set(Instant.parse(DUE_NOON));
-        assertThat(worker.runCycle().started()).isEqualTo(1);
-        assertThat(worker.runCycle().started()).isZero();
+        assertThat(cycle().started()).isEqualTo(1);
+        assertThat(cycle().started()).isZero();
         assertThat(attemptStatuses(chargeId)).containsExactly("AGND:SOLICITADA");
         String endToEndId = e2eOfOpenAttempt(chargeId);
         assertThat(jdbc.sql("SELECT origin FROM payment_order WHERE end_to_end_id = :e").param("e", endToEndId).query(String.class).single()).isEqualTo("AUTOMATIC");
 
         processReservation.process(reservationOfOrder(chargeId));
         applyStatus.apply("it", "a1", "pix.spi.payment-status.v1", 0, 1, endToEndId, SpiStatus.SENT, null, Instant.now());
-        assertThat(worker.runCycle().paid()).isEqualTo(1);
+        assertThat(cycle().paid()).isEqualTo(1);
 
         assertThat(chargeStatus(chargeId)).isEqualTo("CONCLUIDA");
         assertThat(attemptStatuses(chargeId)).containsExactly("AGND:PAGA");
@@ -235,10 +241,10 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         String noRetry = json.readTree(charge(noRetryAuth, txid(), DUE, "50.00").andReturn().getResponse().getContentAsString()).get("id").asText();
 
         clock.set(Instant.parse(DUE_NOON));
-        assertThat(worker.runCycle().started()).isEqualTo(2);
+        assertThat(cycle().started()).isEqualTo(2);
         processReservation.process(reservationOfOrder(withRetry));
         processReservation.process(reservationOfOrder(noRetry));
-        var cycleResult = worker.runCycle();
+        var cycleResult = cycle();
 
         assertThat(cycleResult.retried()).isEqualTo(1);
         assertThat(attemptStatuses(withRetry)).containsExactly("AGND:REJEITADA", "NTAG:AGENDADA");
@@ -246,7 +252,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         assertThat(chargeStatus(noRetry)).isEqualTo("REJEITADA");
 
         clock.set(Instant.parse("2026-10-19T15:00:00Z"));                                                  // dia seguinte: a NTAG dispara
-        assertThat(worker.runCycle().started()).isEqualTo(1);
+        assertThat(cycle().started()).isEqualTo(1);
         assertThat(attemptStatuses(withRetry)).containsExactly("AGND:REJEITADA", "NTAG:SOLICITADA");
 
         when(ledger.reserve(any())).thenReturn(new GatewayResult.Done("L-2"));                            // cancelar a autorização barra o débito de uma cobrança AGENDADA
@@ -261,7 +267,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         String loweredCharge = json.readTree(charge(lowered, txid(), DUE, "50.00").andReturn().getResponse().getContentAsString()).get("id").asText();
         mvc.perform(put("/v1/automatic-authorizations/{id}/limit", lowered).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"payerMaxAmount\":\"20.00\"}")).andExpect(status().isOk());
         clock.set(Instant.parse(DUE_NOON));
-        worker.runCycle();
+        cycle();
         assertThat(chargeStatus(loweredCharge)).as("teto reduzido depois da cobrança").isEqualTo("REJEITADA");
     }
 
@@ -271,7 +277,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         String id = receive(idRec("R"), "").get("id").asText();
         clock.set(Instant.parse("2026-10-30T15:00:00Z"));
 
-        assertThat(worker.runCycle().expired()).isPositive();
+        assertThat(cycle().expired()).isPositive();
 
         mvc.perform(get("/v1/automatic-authorizations/{id}", id).with(jwt("automatic.read"))).andExpect(jsonPath("$.status").value("EXPIRADA"));
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andExpect(status().isUnprocessableEntity());
