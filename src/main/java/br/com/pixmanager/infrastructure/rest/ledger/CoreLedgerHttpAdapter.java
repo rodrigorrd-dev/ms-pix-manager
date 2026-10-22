@@ -37,12 +37,12 @@ public class CoreLedgerHttpAdapter implements LedgerGatewayPortOut {
     private final CircuitBreaker breaker;
     private final ObjectMapper mapper;
 
-    public CoreLedgerHttpAdapter(CoreLedgerProperties props, CircuitBreakerRegistry registry, ObjectMapper mapper) {
+    public CoreLedgerHttpAdapter(CoreLedgerProperties ledgerProperties, CircuitBreakerRegistry registry, ObjectMapper mapper) {
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(props.connectTimeout()).build();
+                .connectTimeout(ledgerProperties.connectTimeout()).build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(client);
-        factory.setReadTimeout(props.readTimeout());
-        this.http = RestClient.builder().baseUrl(props.baseUrl()).requestFactory(factory).build();
+        factory.setReadTimeout(ledgerProperties.readTimeout());
+        this.http = RestClient.builder().baseUrl(ledgerProperties.baseUrl()).requestFactory(factory).build();
         this.breaker = registry.circuitBreaker("core-ledger");
         this.mapper = mapper;
     }

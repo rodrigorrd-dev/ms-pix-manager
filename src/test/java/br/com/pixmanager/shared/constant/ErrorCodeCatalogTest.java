@@ -37,9 +37,9 @@ class ErrorCodeCatalogTest {
     @Test
     void codesShouldBeUniqueAndWellFormed() throws IllegalAccessException {
         var seen = new java.util.HashSet<String>();
-        for (var f : ErrorCodes.class.getDeclaredFields()) {
-            if (f.getType() == String.class) {
-                String code = (String) f.get(null);
+        for (var field : ErrorCodes.class.getDeclaredFields()) {
+            if (field.getType() == String.class) {
+                String code = (String) field.get(null);
                 assertThat(code).matches("PIX-\\d{3}-\\d{3}");
                 assertThat(seen.add(code)).as("duplicado: " + code).isTrue();
             }

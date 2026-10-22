@@ -79,7 +79,7 @@ class ApplyPaymentStatusServiceTest {
         PaymentOrder sent = order(PaymentStatus.SENT_TO_SPI, true);
         stubOrder(sent);
         firstDelivery();
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         apply(SpiStatus.SETTLED, null);
 
@@ -99,7 +99,7 @@ class ApplyPaymentStatusServiceTest {
     void shouldCancelReservationRejectAndReleaseTheLimitOfTheRequestDay() {
         stubOrder(order(PaymentStatus.SENT_TO_SPI, false));
         firstDelivery();
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         apply(SpiStatus.REJECTED, "AM04");
 
@@ -120,7 +120,7 @@ class ApplyPaymentStatusServiceTest {
     void shouldUseNarrWhenTheRejectionHasNoReasonCode() {
         stubOrder(order(PaymentStatus.SENT_TO_SPI, true));
         firstDelivery();
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         apply(SpiStatus.REJECTED, null);
 
@@ -133,7 +133,7 @@ class ApplyPaymentStatusServiceTest {
     void shouldOnlyRecordTheSendWithoutTouchingTheLedger() {
         stubOrder(order(PaymentStatus.RESERVED, true));
         firstDelivery();
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         apply(SpiStatus.SENT, null);
 

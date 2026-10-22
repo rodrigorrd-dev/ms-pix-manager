@@ -32,12 +32,12 @@ public record ReceivedPix(UUID id, EndToEndId endToEndId, String txid, UUID char
         return total;
     }
 
-    public static ReceivedPix receive(UUID id, EndToEndId e2e, String txid, UUID receiverAccountId, Money amount, PixPayer payer,
+    public static ReceivedPix receive(UUID id, EndToEndId endToEndId, String txid, UUID receiverAccountId, Money amount, PixPayer payer,
                                       String payerInfo, Instant settledAt, String sourceMessageId, List<ValueComponent> components,
                                       Instant now) {
         List<ValueComponent> effective = components == null || components.isEmpty()
                 ? List.of(new ValueComponent(ComponentType.ORIGINAL, amount, null, null)) : components;
-        return new ReceivedPix(id, e2e, txid, null, receiverAccountId, amount, amount, Money.ZERO, payer, payerInfo, settledAt,
+        return new ReceivedPix(id, endToEndId, txid, null, receiverAccountId, amount, amount, Money.ZERO, payer, payerInfo, settledAt,
                 ReconciliationStatus.NO_CHARGE, sourceMessageId, effective, 0, now);
     }
 

@@ -59,7 +59,7 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
     private final PaymentOrderPersistencePortOut persistence;
     private final TrustedDevicePortOut devices;
     private final DomainEventPublisherPortOut events;
-    private final EndToEndIdGeneratorPortOut e2eIds;
+    private final EndToEndIdGeneratorPortOut endToEndIdGenerator;
     private final IdGeneratorPortOut ids;
     private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
@@ -67,15 +67,15 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
     public CreatePaymentOrderService(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup, ConsumeLimitUseCase limits,
                                      RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
                                      TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
-                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock) {
-        this(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, transactionRunner, clock, null);
+                                     EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock) {
+        this(accounts, lookup, limits, reservations, persistence, devices, events, endToEndIdGenerator, ids, transactionRunner, clock, null);
     }
 
     /** {@code dynamicQr} nulo ⇒ QR dinâmico indisponível (422). */
     public CreatePaymentOrderService(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup, ConsumeLimitUseCase limits,
                                      RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
                                      TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
-                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
+                                     EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
                                      DynamicQrPayloadPortOut dynamicQr) {
         this.accounts = accounts;
         this.destinations = new PaymentDestinationResolver(lookup, dynamicQr == null ? UNSUPPORTED : dynamicQr, clock);
@@ -84,29 +84,29 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
         this.persistence = persistence;
         this.devices = devices;
         this.events = events;
-        this.e2eIds = e2eIds;
+        this.endToEndIdGenerator = endToEndIdGenerator;
         this.ids = ids;
         this.transactionRunner = transactionRunner;
         this.clock = clock;
     }
 
     @Override
-    public PreparedPaymentOrder prepare(Caller caller, CreatePaymentOrderCommand cmd) {
-        if (!caller.canAccess(cmd.payerAccountId())) {
+    public PreparedPaymentOrder prepare(Caller caller, CreatePaymentOrderCommand command) {
+        if (!caller.canAccess(command.payerAccountId())) {
             throw new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada.");
         }
-        AccountInfo payer = accounts.findById(cmd.payerAccountId())
+        AccountInfo payer = accounts.findById(command.payerAccountId())
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada."));
         if (!payer.isActive()) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "A conta do pagador não está ativa.");
         }
-        PaymentDestinationResolver.Resolved resolved = destinations.resolve(caller, cmd);                                        // (1) HTTP fora de transação
-        boolean deviceRegistered = cmd.systemInitiated()
-                || (cmd.deviceId() != null && devices.isRegistered(payer.id(), cmd.deviceId()));
+        PaymentDestinationResolver.Resolved resolved = destinations.resolve(caller, command);                                        // (1) HTTP fora de transação
+        boolean deviceRegistered = command.systemInitiated()
+                || (command.deviceId() != null && devices.isRegistered(payer.id(), command.deviceId()));
 
-        PaymentOrder order = PaymentOrder.create(ids.newId(), payer.id(), cmd.method(),
-                cmd.origin() == null ? PaymentOrigin.IMMEDIATE : cmd.origin(), resolved.destination(), resolved.amount(),
-                resolved.qrTxid(), cmd.payerMessage(), new EndToEndId(e2eIds.nextEndToEndId()), deviceRegistered, clock.instant());
+        PaymentOrder order = PaymentOrder.create(ids.newId(), payer.id(), command.method(),
+                command.origin() == null ? PaymentOrigin.IMMEDIATE : command.origin(), resolved.destination(), resolved.amount(),
+                resolved.qrTxid(), command.payerMessage(), new EndToEndId(endToEndIdGenerator.nextEndToEndId()), deviceRegistered, clock.instant());
 
         return new PreparedPaymentOrder(order);
     }

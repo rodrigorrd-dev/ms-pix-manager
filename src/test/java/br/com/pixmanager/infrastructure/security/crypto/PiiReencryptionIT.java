@@ -59,20 +59,20 @@ class PiiReencryptionIT extends AbstractApplicationIT {
 
     /** O banco do teste é compartilhado com outros ITs, que só conhecem a chave v1: devolve tudo para v1 (também prova a rotação no sentido inverso). */
     private void voltarParaV1() {
-        CryptoProperties props = new CryptoProperties(AES_V1, HMAC, "v1", Map.of("v2", AES_V2), new CryptoProperties.Reencrypt(true, 100));
-        new PiiReencryptionRunner(jdbc, transactionManager, new CryptoService(props), props).reencryptAll();
+        CryptoProperties cryptoProperties = new CryptoProperties(AES_V1, HMAC, "v1", Map.of("v2", AES_V2), new CryptoProperties.Reencrypt(true, 100));
+        new PiiReencryptionRunner(jdbc, transactionManager, new CryptoService(cryptoProperties), cryptoProperties).reencryptAll();
     }
 
     private UUID holder(String document) {
         return holder(document, atual.encrypt(document));
     }
 
-    private UUID holder(String document, String enc) {
+    private UUID holder(String document, String encryptedDocument) {
         UUID id = UUID.randomUUID();
         jdbc.sql("""
                 INSERT INTO account_holder (id, holder_type, document_enc, document_hash, document_masked, name, status, created_by, updated_by)
                 VALUES (:id, 'CPF', :enc, :hash, 'masked', 'Rotacao', 'ACTIVE', 'test', 'test')
-                """).param("id", id).param("enc", enc).param("hash", atual.blindIndex(document + id)).update();
+                """).param("id", id).param("enc", encryptedDocument).param("hash", atual.blindIndex(document + id)).update();
         return id;
     }
 

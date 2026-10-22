@@ -32,10 +32,10 @@ public abstract class AbstractApplicationIT {
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        var pg = PostgresContainerSupport.POSTGRES;
-        registry.add("spring.datasource.url", pg::getJdbcUrl);
-        registry.add("spring.datasource.username", pg::getUsername);
-        registry.add("spring.datasource.password", pg::getPassword);
+        var postgres = PostgresContainerSupport.POSTGRES;
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("pix.dict-gateway.base-url", DictGatewayStub::baseUrl);
     }

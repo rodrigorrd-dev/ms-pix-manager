@@ -96,12 +96,12 @@ class WebhookApiIT extends AbstractApplicationIT {
                 .content("{\"webhookUrl\":\"%s\"}".formatted(url)));
     }
 
-    String e2e() {
+    String newEndToEndId() {
         return "E12345678202610161200" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     }
 
-    ReceivePixCommand pixCommand(String e2eId, String txid, String keyHash) {
-        return new ReceivePixCommand("it-group", "msg-" + e2eId, "pix.spi.payment-settled.v1", 0, 1, e2eId, txid, Money.of("42.50"), Instant.now(),
+    ReceivePixCommand pixCommand(String endToEndId, String txid, String keyHash) {
+        return new ReceivePixCommand("it-group", "msg-" + endToEndId, "pix.spi.payment-settled.v1", 0, 1, endToEndId, txid, Money.of("42.50"), Instant.now(),
                 "12345678", "0001", account.number(), "CACC", "11144477735", "Maria Pagadora", "87654321", "0002", "99887", "CACC", "pedido 7",
                 List.of(new ValueComponent(ComponentType.ORIGINAL, Money.of("42.50"), null, null)), keyHash);
     }
@@ -113,9 +113,9 @@ class WebhookApiIT extends AbstractApplicationIT {
         return txid;
     }
 
-    JsonNode onlyDelivery(String e2eId) {
+    JsonNode onlyDelivery(String endToEndId) {
         var rows = jdbc.sql("SELECT d.id, d.status, d.attempts, d.last_http_status, d.last_error, d.payload::text AS payload FROM webhook_delivery d "
-                + "JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e").param("e", e2eId)
+                + "JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e").param("e", endToEndId)
                 .query((resultSet, rowNumber) -> json.createObjectNode().put("id", resultSet.getString("id")).put("status", resultSet.getString("status")).put("attempts", resultSet.getInt("attempts"))
                         .put("lastHttp", resultSet.getInt("last_http_status")).put("lastError", resultSet.getString("last_error")).put("payload", resultSet.getString("payload"))).list();
         assertThat(rows).hasSize(1);
@@ -167,59 +167,59 @@ class WebhookApiIT extends AbstractApplicationIT {
     void shouldDeliverASignedNotificationForAChargePayment() throws Exception {
         putWebhook(baseUrl).andExpect(status().isCreated());
         String txid = createCharge();
-        String e2eId = e2e();
+        String endToEndId = newEndToEndId();
 
-        receivePix.receive(pixCommand(e2eId, txid, null));
+        receivePix.receive(pixCommand(endToEndId, txid, null));
 
-        assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("PENDING");
+        assertThat(onlyDelivery(endToEndId).get("status").asText()).isEqualTo("PENDING");
         assertThat(dispatch.dispatchDue(50)).isGreaterThanOrEqualTo(1);
 
-        LoggedRequest req = receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream()
-                .filter(request -> request.getBodyAsString().contains(e2eId)).findFirst().orElseThrow();
-        JsonNode body = json.readTree(req.getBodyAsString());
+        LoggedRequest loggedRequest = receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream()
+                .filter(request -> request.getBodyAsString().contains(endToEndId)).findFirst().orElseThrow();
+        JsonNode body = json.readTree(loggedRequest.getBodyAsString());
         JsonNode item = body.get("pix").get(0);
-        assertThat(item.get("endToEndId").asText()).isEqualTo(e2eId);
+        assertThat(item.get("endToEndId").asText()).isEqualTo(endToEndId);
         assertThat(item.get("txid").asText()).isEqualTo(txid);
         assertThat(item.get("chave").asText()).isEqualTo(pixKey);
         assertThat(item.get("valor").asText()).isEqualTo("42.50");
         assertThat(item.get("infoPagador").asText()).isEqualTo("pedido 7");
-        assertThat(req.getBodyAsString()).doesNotContain("Maria Pagadora").doesNotContain("11144477735");
+        assertThat(loggedRequest.getBodyAsString()).doesNotContain("Maria Pagadora").doesNotContain("11144477735");
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.getDecoder().decode(signingKey), "HmacSHA256"));
-        String timestamp = req.getHeader("x-pix-timestamp");
-        assertThat(req.getHeader("x-pix-signature")).isEqualTo("v1=" + HexFormat.of().formatHex(mac.doFinal((timestamp + "." + req.getBodyAsString()).getBytes(StandardCharsets.UTF_8))));
-        assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("DELIVERED");
+        String timestamp = loggedRequest.getHeader("x-pix-timestamp");
+        assertThat(loggedRequest.getHeader("x-pix-signature")).isEqualTo("v1=" + HexFormat.of().formatHex(mac.doFinal((timestamp + "." + loggedRequest.getBodyAsString()).getBytes(StandardCharsets.UTF_8))));
+        assertThat(onlyDelivery(endToEndId).get("status").asText()).isEqualTo("DELIVERED");
     }
 
     @Test
     @DisplayName("Pix sem cobrança, identificado só pelo índice cego da chave (receiverKeyHash) ⇒ também notifica; mesmo Pix reprocessado ⇒ uma entrega só")
     void shouldNotifyByKeyHashAndNeverDuplicate() throws Exception {
         putWebhook(baseUrl).andExpect(status().isCreated());
-        String e2eId = e2e();
+        String endToEndId = newEndToEndId();
         String keyHash = crypto.blindIndex("key:" + pixKey);
 
-        receivePix.receive(pixCommand(e2eId, null, keyHash));
-        receivePix.receive(pixCommand(e2eId, null, keyHash));                      // mesma mensagem outra vez (inbox/e2eId)
+        receivePix.receive(pixCommand(endToEndId, null, keyHash));
+        receivePix.receive(pixCommand(endToEndId, null, keyHash));                      // mesma mensagem outra vez (inbox/e2eId)
 
-        assertThat(onlyDelivery(e2eId).get("payload").asText()).doesNotContain("txid");
+        assertThat(onlyDelivery(endToEndId).get("payload").asText()).doesNotContain("txid");
         dispatch.dispatchDue(50);
-        assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("DELIVERED");
+        assertThat(onlyDelivery(endToEndId).get("status").asText()).isEqualTo("DELIVERED");
     }
 
     @Test
     @DisplayName("Sem webhook cadastrado, com webhook removido ou Pix sem chave identificável ⇒ nenhuma entrega (e o Pix é creditado normalmente)")
     void shouldNotNotifyWithoutASubscription() throws Exception {
-        String semWebhook = e2e();
+        String semWebhook = newEndToEndId();
         receivePix.receive(pixCommand(semWebhook, null, crypto.blindIndex("key:" + pixKey)));
         assertThat(jdbc.sql("SELECT count(*) FROM pix_received WHERE end_to_end_id = :e").param("e", semWebhook).query(Integer.class).single()).isEqualTo(1);
 
         putWebhook(baseUrl).andExpect(status().isCreated());
         mvc.perform(delete("/api/pix/v2/webhook/{chave}", pixKey).with(jwt("webhook.write"))).andExpect(status().isNoContent());
-        String removido = e2e();
+        String removido = newEndToEndId();
         receivePix.receive(pixCommand(removido, null, crypto.blindIndex("key:" + pixKey)));
 
         putWebhook(baseUrl).andExpect(status().isCreated());
-        String semChave = e2e();
+        String semChave = newEndToEndId();
         receivePix.receive(pixCommand(semChave, null, null));                       // sem hash e sem cobrança
         for (String endToEndId : new String[]{semWebhook, removido, semChave}) {
             assertThat(jdbc.sql("SELECT count(*) FROM webhook_delivery d JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e")
@@ -232,12 +232,12 @@ class WebhookApiIT extends AbstractApplicationIT {
     void shouldRetryDieAndBeResent() throws Exception {
         receiver.stubFor(post(urlEqualTo("/receptor/pix")).willReturn(aResponse().withStatus(503)));
         putWebhook(baseUrl).andExpect(status().isCreated());
-        String e2eId = e2e();
-        receivePix.receive(pixCommand(e2eId, null, crypto.blindIndex("key:" + pixKey)));
-        UUID id = UUID.fromString(onlyDelivery(e2eId).get("id").asText());
+        String endToEndId = newEndToEndId();
+        receivePix.receive(pixCommand(endToEndId, null, crypto.blindIndex("key:" + pixKey)));
+        UUID id = UUID.fromString(onlyDelivery(endToEndId).get("id").asText());
 
         dispatch.dispatchDue(50);
-        JsonNode retrying = onlyDelivery(e2eId);
+        JsonNode retrying = onlyDelivery(endToEndId);
         assertThat(retrying.get("status").asText()).isEqualTo("RETRYING");
         assertThat(retrying.get("attempts").asInt()).isEqualTo(1);
         assertThat(retrying.get("lastHttp").asInt()).isEqualTo(503);
@@ -250,7 +250,7 @@ class WebhookApiIT extends AbstractApplicationIT {
         mvc.perform(post("/v1/webhook-deliveries/{id}/resend", id).with(TestJwt.admin("backoffice", "webhook.admin")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING")).andExpect(jsonPath("$.attempts").value(0));
         dispatch.dispatchDue(50);
-        assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("DELIVERED");
+        assertThat(onlyDelivery(endToEndId).get("status").asText()).isEqualTo("DELIVERED");
         mvc.perform(post("/v1/webhook-deliveries/{id}/resend", id).with(TestJwt.admin("backoffice", "webhook.admin"))).andExpect(status().isUnprocessableEntity());
         mvc.perform(post("/v1/webhook-deliveries/{id}/resend", UUID.randomUUID()).with(TestJwt.admin("backoffice", "webhook.admin"))).andExpect(status().isNotFound());
     }
@@ -259,13 +259,13 @@ class WebhookApiIT extends AbstractApplicationIT {
     @DisplayName("Remover o webhook apaga também as entregas pendentes (nada é enviado a uma URL que o cliente retirou)")
     void deletingTheWebhookDropsPendingDeliveries() throws Exception {
         putWebhook(baseUrl).andExpect(status().isCreated());
-        String e2eId = e2e();
-        receivePix.receive(pixCommand(e2eId, null, crypto.blindIndex("key:" + pixKey)));
-        assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("PENDING");
+        String endToEndId = newEndToEndId();
+        receivePix.receive(pixCommand(endToEndId, null, crypto.blindIndex("key:" + pixKey)));
+        assertThat(onlyDelivery(endToEndId).get("status").asText()).isEqualTo("PENDING");
 
         mvc.perform(delete("/api/pix/v2/webhook/{chave}", pixKey).with(jwt("webhook.write"))).andExpect(status().isNoContent());
         dispatch.dispatchDue(50);
 
-        assertThat(receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream().anyMatch(request -> request.getBodyAsString().contains(e2eId))).isFalse();
+        assertThat(receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream().anyMatch(request -> request.getBodyAsString().contains(endToEndId))).isFalse();
     }
 }

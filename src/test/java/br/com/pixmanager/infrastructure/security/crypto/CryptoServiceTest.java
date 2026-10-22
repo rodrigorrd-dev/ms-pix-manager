@@ -102,8 +102,8 @@ class CryptoServiceTest {
 
     @Test
     void blankPreviousKeysFromYamlPlaceholdersAreIgnored() {
-        CryptoProperties props = new CryptoProperties(AES, HMAC, "v1", java.util.Map.of("v1x", "", "v2x", "  "), null);
-        assertThat(props.previousAesKeys()).isEmpty();
-        assertThat(new CryptoService(props).currentVersion()).isEqualTo("v1");
+        CryptoProperties cryptoProperties = new CryptoProperties(AES, HMAC, "v1", java.util.Map.of("v1x", "", "v2x", "  "), null);
+        assertThat(cryptoProperties.previousAesKeys()).isEmpty();
+        assertThat(new CryptoService(cryptoProperties).currentVersion()).isEqualTo("v1");
     }
 }

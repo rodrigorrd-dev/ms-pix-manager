@@ -19,8 +19,8 @@ class IdGeneratorsTest {
 
     @Test
     void uuidV7ShouldHaveVersionVariantAndBeTimeOrdered() {
-        UuidV7IdGeneratorAdapter gen = new UuidV7IdGeneratorAdapter(clock);
-        UUID id = gen.newId();
+        UuidV7IdGeneratorAdapter generator = new UuidV7IdGeneratorAdapter(clock);
+        UUID id = generator.newId();
         assertThat(id.version()).isEqualTo(7);
         assertThat(id.variant()).isEqualTo(2);
         assertThat(id.getMostSignificantBits() >>> 16).isEqualTo(clock.millis());
@@ -31,19 +31,19 @@ class IdGeneratorsTest {
 
     @Test
     void uuidV7ShouldNotCollide() {
-        UuidV7IdGeneratorAdapter gen = new UuidV7IdGeneratorAdapter(clock);
+        UuidV7IdGeneratorAdapter generator = new UuidV7IdGeneratorAdapter(clock);
         Set<UUID> ids = new HashSet<>();
         for (int index = 0; index < 20_000; index++) {
-            assertThat(ids.add(gen.newId())).isTrue();
+            assertThat(ids.add(generator.newId())).isTrue();
         }
     }
 
     @Test
     void endToEndIdShouldFollowPixFormatWithConfiguredIspb() {
-        EndToEndIdGeneratorAdapter gen = new EndToEndIdGeneratorAdapter(new InstitutionProperties("12345678", "Banco"), clock);
-        String e2e = gen.nextEndToEndId();
-        assertThat(e2e).hasSize(32).matches("[a-zA-Z0-9]{32}").startsWith("E12345678202610151403");
-        assertThat(gen.nextEndToEndId()).isNotEqualTo(e2e);
+        EndToEndIdGeneratorAdapter generator = new EndToEndIdGeneratorAdapter(new InstitutionProperties("12345678", "Banco"), clock);
+        String endToEndId = generator.nextEndToEndId();
+        assertThat(endToEndId).hasSize(32).matches("[a-zA-Z0-9]{32}").startsWith("E12345678202610151403");
+        assertThat(generator.nextEndToEndId()).isNotEqualTo(endToEndId);
     }
 
     @Test

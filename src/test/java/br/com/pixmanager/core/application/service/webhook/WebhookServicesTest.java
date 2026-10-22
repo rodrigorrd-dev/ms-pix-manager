@@ -90,8 +90,8 @@ class WebhookServicesTest {
     };
     final WebhookDeliveryPortOut deliveryPort = new WebhookDeliveryPortOut() {
         public void enqueue(WebhookDelivery delivery, Map<String, Object> payload) {
-            boolean dup = deliveries.values().stream().anyMatch(existing -> existing.subscriptionId().equals(delivery.subscriptionId()) && existing.sourceEventId().equals(delivery.sourceEventId()));
-            if (!dup) { deliveries.put(delivery.id(), delivery); payloads.put(delivery.id(), payload.toString()); }
+            boolean duplicate = deliveries.values().stream().anyMatch(existing -> existing.subscriptionId().equals(delivery.subscriptionId()) && existing.sourceEventId().equals(delivery.sourceEventId()));
+            if (!duplicate) { deliveries.put(delivery.id(), delivery); payloads.put(delivery.id(), payload.toString()); }
         }
         public List<DueDelivery> findDue(Instant now, int limit) {
             return deliveries.values().stream().filter(delivery -> delivery.isDue(now)).limit(limit)

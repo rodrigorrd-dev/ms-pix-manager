@@ -76,7 +76,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, type, rawValueFor(type));
 
@@ -93,7 +93,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, PixKeyType.EVP, "valor-do-cliente");
 
@@ -105,7 +105,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.BUSINESS, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, PixKeyType.CNPJ, HOLDER_CNPJ);
 
@@ -150,7 +150,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn((long) MAX_INDIVIDUAL - 1);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(service.register(caller, accountId, PixKeyType.CPF, HOLDER_CPF)).isNotNull();
     }

@@ -266,10 +266,10 @@ public class UseCaseConfig {
     @Bean
     RequestRefundUseCase requestRefundUseCase(ReceivedPixPersistencePortOut receivedPix, RefundPersistencePortOut refunds,
                                               RequestReservationUseCase reservations, DomainEventPublisherPortOut events,
-                                              EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, Clock clock,
+                                              EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids, Clock clock,
                                               PixPolicyProperties policy, PlatformTransactionManager transactionManager) {
         return TransactionalUseCases.wrap(RequestRefundUseCase.class,
-                new RequestRefundService(receivedPix, refunds, reservations, events, e2eIds, ids, clock,
+                new RequestRefundService(receivedPix, refunds, reservations, events, endToEndIdGenerator, ids, clock,
                         policy.refund().window()), transactionManager);
     }
 
@@ -299,17 +299,17 @@ public class UseCaseConfig {
     /** Sem TransactionalUseCases: o gateway (HTTP) roda fora de transação; o service abre as próprias janelas. */
     @Bean
     ManageAutomaticUseCase manageAutomaticUseCase(AutomaticPersistencePortOut persistence, FindAccountUseCase accounts, AutomaticGatewayPortOut gateway,
-                                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut e2eIds,
+                                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut endToEndIdGenerator,
                                                   TransactionRunnerPortOut transactionRunner, Clock clock, AutomaticProperties properties) {
-        return new ManageAutomaticService(persistence, accounts, gateway, events, ids, e2eIds, transactionRunner, clock, properties);
+        return new ManageAutomaticService(persistence, accounts, gateway, events, ids, endToEndIdGenerator, transactionRunner, clock, properties);
     }
 
     @Bean
     ExecuteAutomaticUseCase executeAutomaticUseCase(AutomaticPersistencePortOut persistence, PaymentOrderPersistencePortOut orders,
                                                     CreatePaymentOrderUseCase createOrder, DomainEventPublisherPortOut events,
-                                                    EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
+                                                    EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
                                                     AutomaticProperties properties) {
-        return new ExecuteAutomaticService(persistence, orders, createOrder, events, e2eIds, ids, transactionRunner, clock, properties);
+        return new ExecuteAutomaticService(persistence, orders, createOrder, events, endToEndIdGenerator, ids, transactionRunner, clock, properties);
     }
 
     // ---- MED ----
@@ -344,10 +344,10 @@ public class UseCaseConfig {
     /** Parâmetros regulatórios/de política dos limites vêm de {@code pix.policy.limits.*} (nunca constantes no core). */
     @Bean
     LimitPolicy.Config limitPolicyConfig(PixPolicyProperties policy) {
-        var l = policy.limits();
-        return new LimitPolicy.Config(l.zone(), l.nightStart(), l.nightEnd(), Money.of(l.nightIndividual()),
-                Money.of(l.unregisteredDevicePerTx()), Money.of(l.unregisteredDeviceDaily()), Money.of(l.defaultDailyIndividual()),
-                Money.of(l.defaultDailyBusiness()));
+        var limitProperties = policy.limits();
+        return new LimitPolicy.Config(limitProperties.zone(), limitProperties.nightStart(), limitProperties.nightEnd(), Money.of(limitProperties.nightIndividual()),
+                Money.of(limitProperties.unregisteredDevicePerTx()), Money.of(limitProperties.unregisteredDeviceDaily()), Money.of(limitProperties.defaultDailyIndividual()),
+                Money.of(limitProperties.defaultDailyBusiness()));
     }
 
     @Bean
@@ -359,8 +359,8 @@ public class UseCaseConfig {
     @Bean
     ManageLimitUseCase manageLimitUseCase(LimitPersistencePortOut limits, FindAccountUseCase accounts, IdGeneratorPortOut ids, Clock clock,
                                           LimitPolicy.Config defaults, PixPolicyProperties policy, PlatformTransactionManager transactionManager) {
-        var l = policy.limits();
-        var ceilings = new ManageLimitService.Ceilings(Money.of(l.ceilingIndividual()), Money.of(l.ceilingBusiness()), l.increaseDelayMin());
+        var limitProperties = policy.limits();
+        var ceilings = new ManageLimitService.Ceilings(Money.of(limitProperties.ceilingIndividual()), Money.of(limitProperties.ceilingBusiness()), limitProperties.increaseDelayMin());
         return TransactionalUseCases.wrap(ManageLimitUseCase.class, new ManageLimitService(limits, accounts, ids, clock, defaults, ceilings), transactionManager);
     }
 
@@ -393,10 +393,10 @@ public class UseCaseConfig {
     CreatePaymentOrderUseCase createPaymentOrderUseCase(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup,
                                                         ConsumeLimitUseCase limits, RequestReservationUseCase reservations,
                                                         PaymentOrderPersistencePortOut persistence, TrustedDevicePortOut devices,
-                                                        DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut e2eIds,
+                                                        DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut endToEndIdGenerator,
                                                         IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
                                                         org.springframework.beans.factory.ObjectProvider<br.com.pixmanager.core.port.out.DynamicQrPayloadPortOut> dynamicQr) {
-        return new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, transactionRunner, clock,
+        return new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, endToEndIdGenerator, ids, transactionRunner, clock,
                 dynamicQr.getIfAvailable());
     }
 

@@ -31,35 +31,35 @@ class PaymentDestinationResolver {
 
     record Resolved(PaymentDestination destination, Money amount, String qrTxid) {}
 
-    Resolved resolve(Caller caller, CreatePaymentOrderCommand cmd) {
-        return switch (cmd.method()) {
-            case KEY -> byKey(caller, cmd, cmd.pixKeyType(), cmd.pixKey(), cmd.amount(), null);
+    Resolved resolve(Caller caller, CreatePaymentOrderCommand command) {
+        return switch (command.method()) {
+            case KEY -> byKey(caller, command, command.pixKeyType(), command.pixKey(), command.amount(), null);
             case QR_STATIC -> {
-                BrCode brCode = BrCode.parse(cmd.qrPayload());
+                BrCode brCode = BrCode.parse(command.qrPayload());
                 if (brCode.isDynamic() || brCode.pixKey().isEmpty()) {
                     throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O BR Code informado não é um QR estático com chave.");
                 }
                 PixKeyValue key = PixKeyValue.infer(brCode.pixKey().get())
                         .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_PIX_KEY, "A chave do BR Code é inválida."));
-                Money amount = amountFor(cmd.amount(), brCode.amount());
-                yield byKey(caller, cmd, key.type(), key.value(), amount, brCode.txid().orElse(null));
+                Money amount = amountFor(command.amount(), brCode.amount());
+                yield byKey(caller, command, key.type(), key.value(), amount, brCode.txid().orElse(null));
             }
-            case QR_DYNAMIC -> dynamic(caller, cmd);
-            case MANUAL -> manual(cmd);
+            case QR_DYNAMIC -> dynamic(caller, command);
+            case MANUAL -> manual(command);
         };
     }
 
-    private Resolved byKey(Caller caller, CreatePaymentOrderCommand cmd, PixKeyType type, String rawKey, Money amount, String qrTxid) {
+    private Resolved byKey(Caller caller, CreatePaymentOrderCommand command, PixKeyType type, String rawKey, Money amount, String qrTxid) {
         if (type == null || rawKey == null || rawKey.isBlank()) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "O pagamento por chave exige tipo e valor da chave.");
         }
         if (amount == null) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "O valor do pagamento é obrigatório.");
         }
-        var entry = lookup.lookup(caller, cmd.payerAccountId(), type, rawKey)
+        var entry = lookup.lookup(caller, command.payerAccountId(), type, rawKey)
                 .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_PIX_KEY, "Chave Pix não encontrada."));
-        if (cmd.documentHint() != null && !cmd.documentHint().isBlank()) {
-            Document expected = Document.of(cmd.documentHint());                          // BR-DOC: dígito verificador
+        if (command.documentHint() != null && !command.documentHint().isBlank()) {
+            Document expected = Document.of(command.documentHint());                          // BR-DOC: dígito verificador
             if (!expected.value().equals(entry.ownerDocument().value())) {
                 throw new BusinessException(ErrorCodes.DESTINATION_MISMATCH, "O documento do favorecido não confere com o da chave.");
             }
@@ -69,8 +69,8 @@ class PaymentDestinationResolver {
     }
 
     /** QR dinâmico: o valor e a chave vêm do payload ASSINADO do recebedor, não do que o cliente digitou. */
-    private Resolved dynamic(Caller caller, CreatePaymentOrderCommand cmd) {
-        BrCode brCode = BrCode.parse(cmd.qrPayload());
+    private Resolved dynamic(Caller caller, CreatePaymentOrderCommand command) {
+        BrCode brCode = BrCode.parse(command.qrPayload());
         if (!brCode.isDynamic()) {
             throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O BR Code informado não é um QR dinâmico.");
         }
@@ -81,22 +81,22 @@ class PaymentDestinationResolver {
         if (payload.expiresAt() != null && !clock.instant().isBefore(payload.expiresAt())) {
             throw new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A cobrança do QR está vencida.");
         }
-        if (cmd.amount() != null && !cmd.amount().equals(payload.amount())) {
+        if (command.amount() != null && !command.amount().equals(payload.amount())) {
             throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O valor informado difere do valor da cobrança.");
         }
         PixKeyValue key = PixKeyValue.infer(payload.pixKey())
                 .orElseThrow(() -> new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A chave da cobrança é inválida."));
-        return byKey(caller, cmd, key.type(), key.value(), payload.amount(), payload.txid());
+        return byKey(caller, command, key.type(), key.value(), payload.amount(), payload.txid());
     }
 
-    private Resolved manual(CreatePaymentOrderCommand cmd) {
-        if (cmd.ispb() == null || !cmd.ispb().matches("\\d{8}") || cmd.branch() == null || cmd.account() == null || cmd.accountType() == null
-                || cmd.name() == null || cmd.amount() == null) {
+    private Resolved manual(CreatePaymentOrderCommand command) {
+        if (command.ispb() == null || !command.ispb().matches("\\d{8}") || command.branch() == null || command.account() == null || command.accountType() == null
+                || command.name() == null || command.amount() == null) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "Pagamento manual exige ispb, agência, conta, tipo, nome e valor.");
         }
-        Document document = cmd.document() == null ? null : Document.of(cmd.document());   // CPF/CNPJ com dígito verificador
-        return new Resolved(new PaymentDestination(null, null, document, cmd.name(), cmd.ispb(), cmd.branch(), cmd.account(), cmd.accountType()),
-                cmd.amount(), null);
+        Document document = command.document() == null ? null : Document.of(command.document());   // CPF/CNPJ com dígito verificador
+        return new Resolved(new PaymentDestination(null, null, document, command.name(), command.ispb(), command.branch(), command.account(), command.accountType()),
+                command.amount(), null);
     }
 
     /** QR com valor fixo: o valor informado, se houver, precisa ser igual; sem valor no QR, o informado é obrigatório. */

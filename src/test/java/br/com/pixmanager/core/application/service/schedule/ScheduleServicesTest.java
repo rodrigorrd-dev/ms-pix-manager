@@ -82,7 +82,7 @@ class ScheduleServicesTest {
 
     final UUID payerId = SequentialIds.id(100);
     final Caller caller = Caller.forAccounts("cli", payerId);
-    final ScheduleProperties props = new ScheduleProperties(null, null, null, null, null, null, null);
+    final ScheduleProperties scheduleProperties = new ScheduleProperties(null, null, null, null, null, null, null);
     FixedClock clock;
     ManageScheduledPaymentService manage;
     ExecuteScheduledPaymentsService worker;
@@ -90,8 +90,8 @@ class ScheduleServicesTest {
     @BeforeEach
     void setUp() {
         clock = FixedClock.at("2026-10-15T15:00:00Z");
-        manage = new ManageScheduledPaymentService(schedules, accounts, events, new SequentialIds(), clock, props);
-        worker = new ExecuteScheduledPaymentsService(schedules, orders, createOrder, events, TX, clock, props, ScheduleRetryPolicy.standard(props.zone()), () -> 0.5);
+        manage = new ManageScheduledPaymentService(schedules, accounts, events, new SequentialIds(), clock, scheduleProperties);
+        worker = new ExecuteScheduledPaymentsService(schedules, orders, createOrder, events, TX, clock, scheduleProperties, ScheduleRetryPolicy.standard(scheduleProperties.zone()), () -> 0.5);
         when(accounts.findById(payerId)).thenReturn(Optional.of(account(AccountStatus.ACTIVE)));
         when(schedules.save(any(ScheduledPayment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -123,9 +123,9 @@ class ScheduleServicesTest {
         ScheduledPayment created = manage.create(caller, cmd(Recurrence.WEEKLY, LocalDate.parse("2026-10-20"), 3));
 
         assertThat(created.status()).isEqualTo(ScheduleStatus.ACTIVE);
-        @SuppressWarnings("unchecked") ArgumentCaptor<List<ScheduledOccurrence>> occ = ArgumentCaptor.forClass(List.class);
-        verify(schedules).insert(eq(created), occ.capture());
-        assertThat(occ.getValue()).extracting(ScheduledOccurrence::dueDate).containsExactly(LocalDate.parse("2026-10-20"), LocalDate.parse("2026-10-27"), LocalDate.parse("2026-11-03"));
+        @SuppressWarnings("unchecked") ArgumentCaptor<List<ScheduledOccurrence>> occurrencesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(schedules).insert(eq(created), occurrencesCaptor.capture());
+        assertThat(occurrencesCaptor.getValue()).extracting(ScheduledOccurrence::dueDate).containsExactly(LocalDate.parse("2026-10-20"), LocalDate.parse("2026-10-27"), LocalDate.parse("2026-11-03"));
         ArgumentCaptor<DomainEvent> domainEventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(events).publish(domainEventCaptor.capture());
         assertThat(domainEventCaptor.getValue().eventType()).isEqualTo("ScheduledPaymentCreated");
@@ -195,9 +195,9 @@ class ScheduleServicesTest {
         when(schedules.countOpen(any())).thenReturn(1L);
     }
 
-    PaymentOrder order(String e2e) {
+    PaymentOrder order(String endToEndId) {
         return PaymentOrder.create(SequentialIds.id(70), payerId, PaymentMethod.KEY, PaymentOrigin.SCHEDULED, null, Money.of("10.00"), null, null,
-                new br.com.pixmanager.core.domain.entity.EndToEndId(e2e), true, NOON);
+                new br.com.pixmanager.core.domain.entity.EndToEndId(endToEndId), true, NOON);
     }
 
     String lastStatus() {
@@ -214,9 +214,9 @@ class ScheduleServicesTest {
         when(createOrder.prepare(any(), any())).thenThrow(new BusinessException("PIX-422-012", "Chave não encontrada"));
         when(schedules.countOpen(any())).thenReturn(0L);
 
-        var r = worker.runCycle();
+        var cycleResult = worker.runCycle();
 
-        assertThat(r.failed()).isEqualTo(1);
+        assertThat(cycleResult.failed()).isEqualTo(1);
         assertThat(lastStatus()).isEqualTo("FAILED:PIX-422-012");
         verify(createOrder, never()).submit(any());
     }
@@ -267,9 +267,9 @@ class ScheduleServicesTest {
         assertThat(lastStatus()).isEqualTo("FAILED:PIX-422-050");
     }
 
-    PaymentOrder progressed(String how) {
+    PaymentOrder progressed(String progression) {
         PaymentOrder paymentOrder = order("E12345678202610151403abcdefghij0").validated(SequentialIds.id(80)).reserved();
-        return switch (how) {
+        return switch (progression) {
             case "SENT" -> paymentOrder.sentToSpi(NOON);
             case "AM04" -> paymentOrder.rejected("AM04", "sem saldo");
             case "AC03" -> paymentOrder.rejected("AC03", "conta inválida");

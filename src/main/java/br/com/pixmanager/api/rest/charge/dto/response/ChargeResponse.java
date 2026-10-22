@@ -12,7 +12,7 @@ public record ChargeResponse(
         @JsonProperty("calendario") Calendar calendar,
         @JsonProperty("txid") String txid,
         @JsonProperty("revisao") int revision,
-        @JsonProperty("loc") Location loc,
+        @JsonProperty("loc") Location locationInfo,
         @JsonProperty("location") String location,
         @JsonProperty("status") ChargeStatus status,
         @JsonProperty("devedor") Debtor debtor,

@@ -74,9 +74,9 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean existsLive(String e2e, MedRole role, int layer) {
+    public boolean existsLive(String endToEndId, MedRole role, int layer) {
         return jdbc.sql("SELECT count(*) FROM med_case WHERE end_to_end_id = :e AND role = :r AND layer = :l AND status IN ('OPEN', 'ACCEPTED', 'REFUNDING')")
-                .param("e", e2e).param("r", role.name()).param("l", layer).query(Long.class).single() > 0;
+                .param("e", endToEndId).param("r", role.name()).param("l", layer).query(Long.class).single() > 0;
     }
 
     @Override

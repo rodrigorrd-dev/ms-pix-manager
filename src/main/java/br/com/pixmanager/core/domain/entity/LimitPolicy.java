@@ -39,28 +39,28 @@ public final class LimitPolicy {
     private LimitPolicy() {}
 
     /** {@code [nightStart, nightEnd)} atravessando a meia-noite (20h–6h). */
-    public static boolean isNight(Instant at, Config cfg) {
-        LocalTime time = at.atZone(cfg.zone()).toLocalTime();
-        boolean crossesMidnight = cfg.nightStart().isAfter(cfg.nightEnd());
+    public static boolean isNight(Instant at, Config config) {
+        LocalTime time = at.atZone(config.zone()).toLocalTime();
+        boolean crossesMidnight = config.nightStart().isAfter(config.nightEnd());
         return crossesMidnight
-                ? !time.isBefore(cfg.nightStart()) || time.isBefore(cfg.nightEnd())
-                : !time.isBefore(cfg.nightStart()) && time.isBefore(cfg.nightEnd());
+                ? !time.isBefore(config.nightStart()) || time.isBefore(config.nightEnd())
+                : !time.isBefore(config.nightStart()) && time.isBefore(config.nightEnd());
     }
 
     public static PerTransactionDecision checkPerTransaction(HolderType holder, Money amount, Instant at, boolean deviceRegistered,
-                                                             Map<LimitScope, Money> configured, Config cfg) {
-        Money perTx = configured.get(LimitScope.PER_TRANSACTION);
-        if (perTx != null && amount.isGreaterThan(perTx)) {
-            return new PerTransactionDecision.Rejected(LimitScope.PER_TRANSACTION, perTx);
+                                                             Map<LimitScope, Money> configured, Config config) {
+        Money perTransactionLimit = configured.get(LimitScope.PER_TRANSACTION);
+        if (perTransactionLimit != null && amount.isGreaterThan(perTransactionLimit)) {
+            return new PerTransactionDecision.Rejected(LimitScope.PER_TRANSACTION, perTransactionLimit);
         }
-        if (holder == HolderType.INDIVIDUAL && isNight(at, cfg)) {
-            Money night = configuredOr(cfg.nightIndividual(), configured.get(LimitScope.NIGHTLY));
+        if (holder == HolderType.INDIVIDUAL && isNight(at, config)) {
+            Money night = configuredOr(config.nightIndividual(), configured.get(LimitScope.NIGHTLY));
             if (amount.isGreaterThan(night)) {
                 return new PerTransactionDecision.Rejected(LimitScope.NIGHTLY, night);
             }
         }
         if (!deviceRegistered) {
-            Money device = configuredOr(cfg.unregisteredDevicePerTx(), configured.get(LimitScope.DEVICE_UNREGISTERED_PER_TX));
+            Money device = configuredOr(config.unregisteredDevicePerTx(), configured.get(LimitScope.DEVICE_UNREGISTERED_PER_TX));
             if (amount.isGreaterThan(device)) {
                 return new PerTransactionDecision.Rejected(LimitScope.DEVICE_UNREGISTERED_PER_TX, device);
             }
@@ -69,12 +69,12 @@ public final class LimitPolicy {
     }
 
     public static DailyChecks dailyChecks(HolderType holder, Instant at, boolean deviceRegistered, Map<LimitScope, Money> configured,
-                                          Config cfg) {
+                                          Config config) {
         Money daily = configured.getOrDefault(LimitScope.DAILY,
-                holder == HolderType.INDIVIDUAL ? cfg.defaultDailyIndividual() : cfg.defaultDailyBusiness());
+                holder == HolderType.INDIVIDUAL ? config.defaultDailyIndividual() : config.defaultDailyBusiness());
         Optional<Money> device = deviceRegistered ? Optional.empty()
-                : Optional.of(configuredOr(cfg.unregisteredDeviceDaily(), configured.get(LimitScope.DEVICE_UNREGISTERED_DAILY)));
-        ZonedDateTime local = at.atZone(cfg.zone());
+                : Optional.of(configuredOr(config.unregisteredDeviceDaily(), configured.get(LimitScope.DEVICE_UNREGISTERED_DAILY)));
+        ZonedDateTime local = at.atZone(config.zone());
         return new DailyChecks(local.toLocalDate(), daily, device);
     }
 

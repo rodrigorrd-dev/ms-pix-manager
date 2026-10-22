@@ -106,10 +106,10 @@ class MedCaseServiceTest {
                 null, "m", List.of(), 0, settledAt);
     }
 
-    int seq = 0;
+    int sequence = 0;
 
     MedCase medCase(MedRole role, MedStatus status, String blocked, UUID refund) {
-        MedCase open = MedCase.open(SequentialIds.id(1000 + ++seq), role == MedRole.REPORTER ? "FR-1" : null, E2E, SequentialIds.id(300), null, accountId, MedCaseType.FRAUD, role, 1, "golpe",
+        MedCase open = MedCase.open(SequentialIds.id(1000 + ++sequence), role == MedRole.REPORTER ? "FR-1" : null, E2E, SequentialIds.id(300), null, accountId, MedCaseType.FRAUD, role, 1, "golpe",
                 Instant.parse("2026-10-15T15:00:00Z"), Instant.parse("2026-10-22T15:00:00Z"), Money.of("100.00"));
         MedCase medCase = new MedCase(open.id(), open.dictFundsRecoveryId(), E2E, open.receivedId(), null, accountId, MedCaseType.FRAUD, role, status, 1, "golpe", open.reportedAt(),
                 open.analysisDeadlineAt(), Money.of("100.00"), Money.of(blocked), refund, 0);

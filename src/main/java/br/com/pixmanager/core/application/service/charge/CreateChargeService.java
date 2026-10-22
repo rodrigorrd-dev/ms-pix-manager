@@ -45,33 +45,33 @@ public class CreateChargeService implements CreateChargeUseCase {
     }
 
     @Override
-    public CreateChargeResult create(Caller caller, CreateChargeCommand cmd) {
-        ActiveKey key = keys.findActiveKey(cmd.pixKey())
+    public CreateChargeResult create(Caller caller, CreateChargeCommand command) {
+        ActiveKey key = keys.findActiveKey(command.pixKey())
                 .filter(pixKey -> caller.canAccess(pixKey.accountId()))      // chave de outro recebedor é indistinguível de inexistente
                 .orElseThrow(() -> new BusinessException(ErrorCodes.KEY_NOT_ACTIVE, "A chave informada não está ativa para este recebedor."));
-        TxId txid = new TxId(cmd.txid() != null ? cmd.txid() : ids.newId().toString().replace("-", ""));
+        TxId txid = new TxId(command.txid() != null ? command.txid() : ids.newId().toString().replace("-", ""));
 
-        Charge candidate = build(cmd, key, txid);
+        Charge candidate = build(command, key, txid);
         Optional<Charge> existing = persistence.findByReceiverHashAndTxid(key.holderDocumentHash(), txid);
         if (existing.isPresent()) {
             return existing.get().sameRequestAs(candidate)
-                    ? new CreateChargeResult.AlreadyExists(details(existing.get(), cmd.pixKey()))
+                    ? new CreateChargeResult.AlreadyExists(details(existing.get(), command.pixKey()))
                     : new CreateChargeResult.TxIdConflict();
         }
-        Charge saved = persistence.save(candidate.withLocation(locations.create(cmd.type())));
+        Charge saved = persistence.save(candidate.withLocation(locations.create(command.type())));
         events.publish(new ChargeEvent("ChargeCreated", saved));
-        return new CreateChargeResult.Created(details(saved, cmd.pixKey()));
+        return new CreateChargeResult.Created(details(saved, command.pixKey()));
     }
 
-    private Charge build(CreateChargeCommand cmd, ActiveKey key, TxId txid) {
+    private Charge build(CreateChargeCommand command, ActiveKey key, TxId txid) {
         var now = clock.instant();
-        return cmd.type() == ChargeType.IMMEDIATE
-                ? Charge.createImmediate(ids.newId(), txid, key.accountId(), key.holderDocumentHash(), key.keyId(), cmd.amount(),
-                        cmd.expirationSeconds() != null ? cmd.expirationSeconds() : defaultExpirationSeconds,
-                        cmd.debtor(), cmd.payerRequest(), cmd.additionalInfo(), null, now)
-                : Charge.createDue(ids.newId(), txid, key.accountId(), key.holderDocumentHash(), key.keyId(), cmd.amount(),
-                        cmd.dueDate(), cmd.validityAfterDueDays() != null ? cmd.validityAfterDueDays() : 30, cmd.debtor(),
-                        cmd.payerRequest(), cmd.additionalInfo(), null, now);
+        return command.type() == ChargeType.IMMEDIATE
+                ? Charge.createImmediate(ids.newId(), txid, key.accountId(), key.holderDocumentHash(), key.keyId(), command.amount(),
+                        command.expirationSeconds() != null ? command.expirationSeconds() : defaultExpirationSeconds,
+                        command.debtor(), command.payerRequest(), command.additionalInfo(), null, now)
+                : Charge.createDue(ids.newId(), txid, key.accountId(), key.holderDocumentHash(), key.keyId(), command.amount(),
+                        command.dueDate(), command.validityAfterDueDays() != null ? command.validityAfterDueDays() : 30, command.debtor(),
+                        command.payerRequest(), command.additionalInfo(), null, now);
     }
 
     private static ChargeDetails details(Charge charge, String rawKey) {

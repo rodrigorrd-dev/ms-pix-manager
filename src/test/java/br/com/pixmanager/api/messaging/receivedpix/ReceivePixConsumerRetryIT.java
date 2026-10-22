@@ -30,7 +30,7 @@ class ReceivePixConsumerRetryIT extends AbstractKafkaIT {
         reset(receivePix);
     }
 
-    String e2e() {
+    String newEndToEndId() {
         return "E12345678202610151403" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     }
 
@@ -38,32 +38,32 @@ class ReceivePixConsumerRetryIT extends AbstractKafkaIT {
     @DisplayName("2 falhas técnicas e depois sucesso ⇒ 3 tentativas e NADA na DLT")
     void shouldRetryTechnicalFailureUntilItSucceeds() {
         AtomicInteger attempts = new AtomicInteger();
-        when(receivePix.receive(any())).thenAnswer(inv -> {
+        when(receivePix.receive(any())).thenAnswer(invocation -> {
             if (attempts.incrementAndGet() < 3) {
                 throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "banco indisponível", null);
             }
             return new ReceivePixResult.Duplicate();
         });
-        String e2eId = e2e();
-        publishAvro(ReceivePixConsumer.TOPIC, e2eId, settled("tech-" + UUID.randomUUID(), e2eId, null, "5.00", "100001"));
+        String endToEndId = newEndToEndId();
+        publishAvro(ReceivePixConsumer.TOPIC, endToEndId, settled("tech-" + UUID.randomUUID(), endToEndId, null, "5.00", "100001"));
 
         await().atMost(Duration.ofSeconds(40)).untilAsserted(() -> assertThat(attempts.get()).isGreaterThanOrEqualTo(3));
-        assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).noneMatch(record -> e2eId.equals(record.key()));
+        assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).noneMatch(record -> endToEndId.equals(record.key()));
     }
 
     @Test
     @DisplayName("Falha técnica PERSISTENTE ⇒ esgota as tentativas configuradas e vai para a DLT")
     void shouldGoToDltAfterExhaustingAttempts() {
         AtomicInteger attempts = new AtomicInteger();
-        when(receivePix.receive(any())).thenAnswer(inv -> {
+        when(receivePix.receive(any())).thenAnswer(invocation -> {
             attempts.incrementAndGet();
             throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "sempre falha", null);
         });
-        String e2eId = e2e();
-        publishAvro(ReceivePixConsumer.TOPIC, e2eId, settled("tech-dlt-" + UUID.randomUUID(), e2eId, null, "5.00", "100001"));
+        String endToEndId = newEndToEndId();
+        publishAvro(ReceivePixConsumer.TOPIC, endToEndId, settled("tech-dlt-" + UUID.randomUUID(), endToEndId, null, "5.00", "100001"));
 
         await().atMost(Duration.ofSeconds(60)).untilAsserted(() ->
-                assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).anyMatch(record -> e2eId.equals(record.key())));
+                assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).anyMatch(record -> endToEndId.equals(record.key())));
         assertThat(attempts.get()).as("pix.kafka.retry.attempts=3 no perfil de teste").isEqualTo(3);
     }
 }

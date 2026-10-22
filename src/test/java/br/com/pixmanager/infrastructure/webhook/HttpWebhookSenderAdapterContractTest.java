@@ -61,15 +61,15 @@ class HttpWebhookSenderAdapterContractTest {
 
         assertThat(sendResult.success()).isTrue();
         assertThat(sendResult.httpStatus()).isEqualTo(200);
-        LoggedRequest req = wireMock.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).get(0);
-        assertThat(req.getBodyAsString()).isEqualTo(BODY);
-        String timestamp = req.getHeader("x-pix-timestamp");
+        LoggedRequest loggedRequest = wireMock.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).get(0);
+        assertThat(loggedRequest.getBodyAsString()).isEqualTo(BODY);
+        String timestamp = loggedRequest.getHeader("x-pix-timestamp");
         assertThat(timestamp).isEqualTo(String.valueOf(clock.instant().getEpochSecond()));
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.getDecoder().decode(KEY_B64), "HmacSHA256"));
         String expected = HexFormat.of().formatHex(mac.doFinal((timestamp + "." + BODY).getBytes(StandardCharsets.UTF_8)));
-        assertThat(req.getHeader("x-pix-signature")).isEqualTo("v1=" + expected);
-        assertThat(req.getHeader("Content-Type")).contains("application/json");
+        assertThat(loggedRequest.getHeader("x-pix-signature")).isEqualTo("v1=" + expected);
+        assertThat(loggedRequest.getHeader("Content-Type")).contains("application/json");
     }
 
     @Test
@@ -152,8 +152,8 @@ class HttpWebhookSenderAdapterContractTest {
         assertThat(strict.httpStatus()).isNull();
         assertThat(strict.error()).isNotBlank();
 
-        HttpWebhookSenderAdapter dev = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofSeconds(3), Duration.ofSeconds(3), "src/test/resources/tls/test-server.crt", clock);
-        SendResult lenient = dev.send(https, BODY);
+        HttpWebhookSenderAdapter devAdapter = new HttpWebhookSenderAdapter(KEY_B64, Duration.ofSeconds(3), Duration.ofSeconds(3), "src/test/resources/tls/test-server.crt", clock);
+        SendResult lenient = devAdapter.send(https, BODY);
         assertThat(lenient.error()).as("erro confiando no certificado de teste").isNull();
         assertThat(lenient.success()).isTrue();
     }

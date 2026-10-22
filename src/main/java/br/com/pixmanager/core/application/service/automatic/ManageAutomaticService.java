@@ -47,20 +47,20 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     private final AutomaticGatewayPortOut gateway;
     private final DomainEventPublisherPortOut events;
     private final IdGeneratorPortOut ids;
-    private final EndToEndIdGeneratorPortOut e2eIds;
+    private final EndToEndIdGeneratorPortOut endToEndIdGenerator;
     private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final AutomaticProperties properties;
 
     public ManageAutomaticService(AutomaticPersistencePortOut persistence, FindAccountUseCase accounts, AutomaticGatewayPortOut gateway,
-                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut e2eIds,
+                                  DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut endToEndIdGenerator,
                                   TransactionRunnerPortOut transactionRunner, Clock clock, AutomaticProperties properties) {
         this.persistence = persistence;
         this.accounts = accounts;
         this.gateway = gateway;
         this.events = events;
         this.ids = ids;
-        this.e2eIds = e2eIds;
+        this.endToEndIdGenerator = endToEndIdGenerator;
         this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.properties = properties;
@@ -170,7 +170,7 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
         }
         AutomaticCharge charge = new AutomaticCharge(ids.newId(), authorization.id(), command.txid(), command.dueDate(), command.amount(), command.receiverIspb(), command.receiverBranch(),
                 command.receiverAccount(), command.receiverAccountType(), "ATIVA", 0);
-        AutomaticAttempt first = new AutomaticAttempt(ids.newId(), charge.id(), "AGND", "AGENDADA", e2eIds.nextEndToEndId(), command.dueDate(), null, null, 0);
+        AutomaticAttempt first = new AutomaticAttempt(ids.newId(), charge.id(), "AGND", "AGENDADA", endToEndIdGenerator.nextEndToEndId(), command.dueDate(), null, null, 0);
         transactionRunner.inTransaction(() -> persistence.insertCharge(charge, first));
         return charge;
     }

@@ -65,7 +65,7 @@ class RequestRefundServiceTest {
     @Mock RefundPersistencePortOut refunds;
     @Mock RequestReservationUseCase reservations;
     @Mock DomainEventPublisherPortOut events;
-    @Mock EndToEndIdGeneratorPortOut e2eIds;
+    @Mock EndToEndIdGeneratorPortOut endToEndIdGenerator;
 
     final UUID receiverAccount = SequentialIds.id(10);
     final Caller caller = Caller.forAccounts("client", receiverAccount);
@@ -74,16 +74,16 @@ class RequestRefundServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RequestRefundService(receivedPix, refunds, reservations, events, e2eIds, new SequentialIds(), clock, WINDOW);
+        service = new RequestRefundService(receivedPix, refunds, reservations, events, endToEndIdGenerator, new SequentialIds(), clock, WINDOW);
     }
 
     @Test
     void shouldCreateRefundReserveRefundableAmountAndRequestLedgerReservation() {
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix()));
         when(refunds.findByEndToEndIdAndClientId(E2E, CLIENT_ID)).thenReturn(Optional.empty());
-        when(e2eIds.nextReturnId()).thenReturn(RTR);
+        when(endToEndIdGenerator.nextReturnId()).thenReturn(RTR);
         when(receivedPix.reserveRefundable(any(UUID.class), eq(Money.of("40.00")))).thenReturn(true);
-        when(refunds.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(refunds.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         RequestRefundResult result = service.request(caller, command("40.00", RefundNature.ORIGINAL, "devolução"));
 
@@ -133,7 +133,7 @@ class RequestRefundServiceTest {
     void shouldRejectWhenAmountExceedsRefundableAndPersistNothing() {
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix()));
         when(refunds.findByEndToEndIdAndClientId(E2E, CLIENT_ID)).thenReturn(Optional.empty());
-        when(e2eIds.nextReturnId()).thenReturn(RTR);
+        when(endToEndIdGenerator.nextReturnId()).thenReturn(RTR);
         when(receivedPix.reserveRefundable(any(UUID.class), any(Money.class))).thenReturn(false);
 
         assertThatThrownBy(() -> service.request(caller, command("500.00", RefundNature.ORIGINAL, null)))
@@ -149,9 +149,9 @@ class RequestRefundServiceTest {
     void shouldHonorTheRefundWindowBoundary() {
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix()));
         when(refunds.findByEndToEndIdAndClientId(anyString(), anyString())).thenReturn(Optional.empty());
-        when(e2eIds.nextReturnId()).thenReturn(RTR);
+        when(endToEndIdGenerator.nextReturnId()).thenReturn(RTR);
         when(receivedPix.reserveRefundable(any(UUID.class), any(Money.class))).thenReturn(true);
-        when(refunds.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(refunds.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         clock.set(SETTLED.plus(WINDOW));
         assertThat(service.request(caller, command("10.00", RefundNature.ORIGINAL, null)))

@@ -97,11 +97,11 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         return TestJwt.client("cli", List.of(payer.id()), scopes);
     }
 
-    String byKey(String amount, String hint, String device) {
+    String byKey(String amount, String keyHint, String device) {
         return """
                 {"payerAccountId":"%s","method":"KEY","amount":"%s","payerMessage":"aluguel",
                  "destination":{"pixKeyType":"EMAIL","pixKey":"alguem@exemplo.com.br"%s}%s}
-                """.formatted(payer.id(), amount, hint == null ? "" : ",\"documentHint\":\"" + hint + "\"",
+                """.formatted(payer.id(), amount, keyHint == null ? "" : ",\"documentHint\":\"" + keyHint + "\"",
                 device == null ? "" : ",\"deviceId\":\"" + device + "\"");
     }
 
@@ -112,8 +112,8 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
-    UUID reservationOf(String e2e) {
-        return jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key = :k").param("k", e2e).query(UUID.class).single();
+    UUID reservationOf(String endToEndId) {
+        return jdbc.sql("SELECT id FROM ledger_reservation WHERE idempotency_key = :k").param("k", endToEndId).query(UUID.class).single();
     }
 
     String orderStatus(String id) {
@@ -125,28 +125,28 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
     void shouldRunTheWholePaymentFlow() throws Exception {
         int created = fixtures.outboxCount("PaymentOrderCreated");
         JsonNode order = create(byKey("250.00", ownerCpf, "device-ok"));
-        String e2e = order.get("endToEndId").asText();
+        String endToEndId = order.get("endToEndId").asText();
 
         assertThat(order.get("status").asText()).isEqualTo("VALIDATED");
-        assertThat(e2e).hasSize(32).startsWith("E12345678");
+        assertThat(endToEndId).hasSize(32).startsWith("E12345678");
         assertThat(order.get("destinationName").asText()).isEqualTo("Joao Favorecido");
         assertThat(order.get("destinationDocumentMasked").asText()).startsWith("***.").doesNotContain(ownerCpf);
         assertThat(fixtures.outboxCount("PaymentOrderCreated")).isEqualTo(created + 1);
         assertThat(fixtures.dailyUsage(payer.id(), "DAILY")).isEqualByComparingTo("250.00");
-        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", e2e).query(String.class).single()).isEqualTo("PENDING");
+        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", endToEndId).query(String.class).single()).isEqualTo("PENDING");
         verify(ledger, never()).reserve(any());                      // a chamada ao core NÃO acontece dentro da transação do pedido
 
         int reservedEvents = fixtures.outboxCount("PaymentReserved");
-        processReservation.process(reservationOf(e2e));              // sweeper: reservar no core
+        processReservation.process(reservationOf(endToEndId));              // sweeper: reservar no core
         assertThat(orderStatus(order.get("id").asText())).isEqualTo("RESERVED");
         assertThat(fixtures.outboxCount("PaymentReserved")).isEqualTo(reservedEvents + 1);
 
-        applyStatus.apply("it", "s1", "pix.spi.payment-status.v1", 0, 1, e2e, SpiStatus.SENT, null, Instant.now());
+        applyStatus.apply("it", "s1", "pix.spi.payment-status.v1", 0, 1, endToEndId, SpiStatus.SENT, null, Instant.now());
         assertThat(orderStatus(order.get("id").asText())).isEqualTo("SENT_TO_SPI");
-        applyStatus.apply("it", "s2", "pix.spi.payment-status.v1", 0, 2, e2e, SpiStatus.SETTLED, null, Instant.now());
-        applyStatus.apply("it", "s2", "pix.spi.payment-status.v1", 0, 2, e2e, SpiStatus.SETTLED, null, Instant.now());   // duplicata
+        applyStatus.apply("it", "s2", "pix.spi.payment-status.v1", 0, 2, endToEndId, SpiStatus.SETTLED, null, Instant.now());
+        applyStatus.apply("it", "s2", "pix.spi.payment-status.v1", 0, 2, endToEndId, SpiStatus.SETTLED, null, Instant.now());   // duplicata
         assertThat(orderStatus(order.get("id").asText())).isEqualTo("SETTLED");
-        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", e2e).query(String.class).single()).isEqualTo("CONFIRMED");
+        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", endToEndId).query(String.class).single()).isEqualTo("CONFIRMED");
         assertThat(fixtures.dailyUsage(payer.id(), "DAILY")).as("pagamento liquidado mantém o consumo").isEqualByComparingTo("250.00");
 
         mvc.perform(get("/v1/payment-orders/{id}", order.get("id").asText()).with(jwt("payment.read")))
@@ -226,10 +226,10 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
     @DisplayName("BR-REF-07 análogo: o core recusa por saldo ⇒ ordem REJECTED com AM04 e o LIMITE consumido é devolvido")
     void shouldCompensateLimitWhenTheCoreRefuses() throws Exception {
         JsonNode order = create(byKey("900.00", null, "device-ok"));
-        String e2e = order.get("endToEndId").asText();
+        String endToEndId = order.get("endToEndId").asText();
         when(ledger.reserve(any())).thenReturn(new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo"));
 
-        processReservation.process(reservationOf(e2e));
+        processReservation.process(reservationOf(endToEndId));
 
         assertThat(orderStatus(order.get("id").asText())).isEqualTo("REJECTED");
         assertThat(jdbc.sql("SELECT reject_reason_code FROM payment_order WHERE id = :id").param("id", UUID.fromString(order.get("id").asText())).query(String.class).single()).isEqualTo("AM04");
@@ -240,13 +240,13 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
     @DisplayName("SPI rejeita (pacs.002 AB03): cancela a reserva no core, REJECTED com o código ISO e limite devolvido")
     void shouldRejectOnSpiAndGiveEverythingBack() throws Exception {
         JsonNode order = create(byKey("500.00", null, "device-ok"));
-        String e2e = order.get("endToEndId").asText();
-        processReservation.process(reservationOf(e2e));
-        applyStatus.apply("it", "r1", "pix.spi.payment-status.v1", 0, 5, e2e, SpiStatus.REJECTED, "AB03", Instant.now());
+        String endToEndId = order.get("endToEndId").asText();
+        processReservation.process(reservationOf(endToEndId));
+        applyStatus.apply("it", "r1", "pix.spi.payment-status.v1", 0, 5, endToEndId, SpiStatus.REJECTED, "AB03", Instant.now());
 
         assertThat(orderStatus(order.get("id").asText())).isEqualTo("REJECTED");
         assertThat(jdbc.sql("SELECT reject_reason_code FROM payment_order WHERE id = :id").param("id", UUID.fromString(order.get("id").asText())).query(String.class).single()).isEqualTo("AB03");
-        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", e2e).query(String.class).single()).isEqualTo("CANCELLED");
+        assertThat(jdbc.sql("SELECT status FROM ledger_reservation WHERE idempotency_key = :k").param("k", endToEndId).query(String.class).single()).isEqualTo("CANCELLED");
         assertThat(fixtures.dailyUsage(payer.id(), "DAILY")).isEqualByComparingTo("0");
         verify(ledger, times(1)).cancel(any());
     }
@@ -340,10 +340,10 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         assertThat(order.get("amount").asText()).isEqualTo("31.00");
         assertThat(order.get("method").asText()).isEqualTo("QR_DYNAMIC");
 
-        for (var c : java.util.List.of(java.util.Map.entry("/qr/v2/paga", ""), java.util.Map.entry("/qr/v2/nao", ""),
+        for (var entry : java.util.List.of(java.util.Map.entry("/qr/v2/paga", ""), java.util.Map.entry("/qr/v2/nao", ""),
                 java.util.Map.entry("/qr/v2/ok", ",\"amount\":\"1.00\""))) {
             mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "qd-" + UUID.randomUUID())
-                    .contentType(MediaType.APPLICATION_JSON).content(pay.apply(c.getKey(), c.getValue())))
+                    .contentType(MediaType.APPLICATION_JSON).content(pay.apply(entry.getKey(), entry.getValue())))
                     .andExpect(status().isUnprocessableEntity());
         }
         mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "qd-" + UUID.randomUUID())

@@ -176,19 +176,19 @@ class PixKeyApiIT extends AbstractApplicationIT {
     void shouldLookupKeyWithMaskedOwnerDocument() throws Exception {
         String ownerCpf = TestDocuments.randomCpf();
         DictGatewayStub.lookupFound(ownerCpf);
-        String req = "{\"payerAccountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"alguem@exemplo.com.br\"}".formatted(account.id());
-        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read")).contentType(MediaType.APPLICATION_JSON).content(req))
+        String requestBody = "{\"payerAccountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"alguem@exemplo.com.br\"}".formatted(account.id());
+        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read")).contentType(MediaType.APPLICATION_JSON).content(requestBody))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ownerName").value("Joao Favorecido"))
                 .andExpect(jsonPath("$.ownerDocument").value(org.hamcrest.Matchers.startsWith("***.")));
-        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read", "pii.document.read")).contentType(MediaType.APPLICATION_JSON).content(req))
+        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read", "pii.document.read")).contentType(MediaType.APPLICATION_JSON).content(requestBody))
                 .andExpect(jsonPath("$.ownerDocument").value(ownerCpf));
         DictGatewayStub.reset();
         DictGatewayStub.lookupNotFound();
-        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read")).contentType(MediaType.APPLICATION_JSON).content(req))
+        mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read")).contentType(MediaType.APPLICATION_JSON).content(requestBody))
                 .andExpect(status().isNotFound());
         // conta que não é do chamador ⇒ 404 (sem vazar existência)
         mvc.perform(post("/v1/pix-keys/lookups").with(TestJwt.client("outro", List.of(UUID.randomUUID()), "pixkey.read"))
-                .contentType(MediaType.APPLICATION_JSON).content(req)).andExpect(status().isNotFound());
+                .contentType(MediaType.APPLICATION_JSON).content(requestBody)).andExpect(status().isNotFound());
     }
 
     @Test

@@ -38,18 +38,18 @@ public class CryptoService {
     private final SecureRandom random = new SecureRandom();
 
     public CryptoService(CryptoProperties properties) {
-        byte[] aes = decode(properties.aesKeyBase64(), "pix.crypto.aes-key-base64");
+        byte[] aesKeyBytes = decode(properties.aesKeyBase64(), "pix.crypto.aes-key-base64");
         byte[] hmac = decode(properties.hmacKeyBase64(), "pix.crypto.hmac-key-base64");
-        if (aes.length != 32) {
+        if (aesKeyBytes.length != 32) {
             throw new IllegalStateException("pix.crypto.aes-key-base64 deve ter 32 bytes (AES-256)");
         }
         if (hmac.length < 32) {
             throw new IllegalStateException("pix.crypto.hmac-key-base64 deve ter ao menos 32 bytes");
         }
-        if (MessageDigest.isEqual(aes, hmac)) {
+        if (MessageDigest.isEqual(aesKeyBytes, hmac)) {
             throw new IllegalStateException("As chaves AES e HMAC devem ser distintas");
         }
-        this.aesKey = new SecretKeySpec(aes, "AES");
+        this.aesKey = new SecretKeySpec(aesKeyBytes, "AES");
         this.hmacKey = new SecretKeySpec(hmac, HMAC);
         this.version = properties.keyVersion();
         this.aesByVersion.put(version, aesKey);
@@ -61,7 +61,7 @@ public class CryptoService {
             if (old.length != 32) {
                 throw new IllegalStateException("pix.crypto.previous-aes-keys." + v + " deve ter 32 bytes (AES-256)");
             }
-            if (MessageDigest.isEqual(old, aes) || MessageDigest.isEqual(old, hmac)) {
+            if (MessageDigest.isEqual(old, aesKeyBytes) || MessageDigest.isEqual(old, hmac)) {
                 throw new IllegalStateException("A chave antiga " + v + " não pode ser igual à AES atual nem à HMAC");
             }
             aesByVersion.put(v, new SecretKeySpec(old, "AES"));
@@ -101,12 +101,12 @@ public class CryptoService {
             return null;
         }
         try {
-            int sep = encrypted.indexOf(':');
-            SecretKeySpec key = sep < 0 ? null : aesByVersion.get(encrypted.substring(0, sep));
+            int separatorIndex = encrypted.indexOf(':');
+            SecretKeySpec key = separatorIndex < 0 ? null : aesByVersion.get(encrypted.substring(0, separatorIndex));
             if (key == null) {
                 throw new CryptoException("Versão de chave desconhecida para o dado cifrado");
             }
-            byte[] data = Base64.getDecoder().decode(encrypted.substring(sep + 1));
+            byte[] data = Base64.getDecoder().decode(encrypted.substring(separatorIndex + 1));
             Cipher cipher = Cipher.getInstance(AES_GCM);
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, data, 0, IV_SIZE));
             return new String(cipher.doFinal(data, IV_SIZE, data.length - IV_SIZE), StandardCharsets.UTF_8);

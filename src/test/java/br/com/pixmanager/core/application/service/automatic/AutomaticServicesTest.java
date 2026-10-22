@@ -79,11 +79,11 @@ class AutomaticServicesTest {
     @Mock AutomaticGatewayPortOut gateway;
     @Mock CreatePaymentOrderUseCase createOrder;
     @Mock DomainEventPublisherPortOut events;
-    @Mock EndToEndIdGeneratorPortOut e2eIds;
+    @Mock EndToEndIdGeneratorPortOut endToEndIdGenerator;
 
     final UUID payerId = SequentialIds.id(100);
     final Caller caller = Caller.forAccounts("psp", payerId);
-    final AutomaticProperties props = new AutomaticProperties(null, null, null, null, null, null, null, null);
+    final AutomaticProperties automaticProperties = new AutomaticProperties(null, null, null, null, null, null, null, null);
     FixedClock clock;
     ManageAutomaticService manage;
     ExecuteAutomaticService worker;
@@ -91,9 +91,9 @@ class AutomaticServicesTest {
     @BeforeEach
     void setUp() {
         clock = FixedClock.at("2026-10-15T15:00:00Z");
-        manage = new ManageAutomaticService(persistence, accounts, gateway, events, new SequentialIds(), e2eIds, TX, clock, props);
-        worker = new ExecuteAutomaticService(persistence, orders, createOrder, events, e2eIds, new SequentialIds(), TX, clock, props);
-        when(e2eIds.nextEndToEndId()).thenReturn(E2E);
+        manage = new ManageAutomaticService(persistence, accounts, gateway, events, new SequentialIds(), endToEndIdGenerator, TX, clock, automaticProperties);
+        worker = new ExecuteAutomaticService(persistence, orders, createOrder, events, endToEndIdGenerator, new SequentialIds(), TX, clock, automaticProperties);
+        when(endToEndIdGenerator.nextEndToEndId()).thenReturn(E2E);
         when(accounts.findById(payerId)).thenReturn(Optional.of(account(AccountStatus.ACTIVE)));
         when(persistence.saveAuthorization(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));

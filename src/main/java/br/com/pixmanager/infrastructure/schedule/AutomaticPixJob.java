@@ -22,9 +22,9 @@ public class AutomaticPixJob {
     @Scheduled(initialDelayString = "${pix.automatic.dispatch-delay:PT30S}", fixedDelayString = "${pix.automatic.dispatch-delay:PT30S}")   // 1ª execução também só depois do atraso: não corre junto com o início dos ITs
     @SchedulerLock(name = "automatic-pix", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1S")
     void run() {
-        var r = execute.runCycle();
-        if (r.expired() + r.started() + r.paid() + r.retried() + r.failed() + r.released() > 0) {
-            log.info("Pix automático: expiradas={} disparadas={} pagas={} novas tentativas={} falhas={} liberadas={}", r.expired(), r.started(), r.paid(), r.retried(), r.failed(), r.released());
+        var cycleResult = execute.runCycle();
+        if (cycleResult.expired() + cycleResult.started() + cycleResult.paid() + cycleResult.retried() + cycleResult.failed() + cycleResult.released() > 0) {
+            log.info("Pix automático: expiradas={} disparadas={} pagas={} novas tentativas={} falhas={} liberadas={}", cycleResult.expired(), cycleResult.started(), cycleResult.paid(), cycleResult.retried(), cycleResult.failed(), cycleResult.released());
         }
     }
 }

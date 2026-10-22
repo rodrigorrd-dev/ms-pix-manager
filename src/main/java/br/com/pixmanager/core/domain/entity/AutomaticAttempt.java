@@ -14,7 +14,7 @@ public record AutomaticAttempt(UUID id, UUID chargeId, String type, String statu
         return new AutomaticAttempt(id, chargeId, type, newStatus, endToEndId, settlementDate, paymentOrderId, error, version);
     }
 
-    public AutomaticAttempt linkedTo(UUID orderId, String e2e) {
-        return new AutomaticAttempt(id, chargeId, type, "SOLICITADA", e2e, settlementDate, orderId, lastErrorCode, version);
+    public AutomaticAttempt linkedTo(UUID orderId, String endToEndId) {
+        return new AutomaticAttempt(id, chargeId, type, "SOLICITADA", endToEndId, settlementDate, orderId, lastErrorCode, version);
     }
 }

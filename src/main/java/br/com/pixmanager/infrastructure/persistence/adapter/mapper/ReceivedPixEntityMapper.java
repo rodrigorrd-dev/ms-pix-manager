@@ -28,8 +28,8 @@ public class ReceivedPixEntityMapper {
     }
 
     public ReceivedPix toDomain(ReceivedPixEntity entity, List<ValueComponent> components) {
-        Document doc = entity.getPayerDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getPayerDocumentEnc()));
-        PixPayer payer = new PixPayer(doc, entity.getPayerName(), entity.getPayerIspb(), entity.getPayerBranch(), entity.getPayerAccount(),
+        Document document = entity.getPayerDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getPayerDocumentEnc()));
+        PixPayer payer = new PixPayer(document, entity.getPayerName(), entity.getPayerIspb(), entity.getPayerBranch(), entity.getPayerAccount(),
                 entity.getPayerAccountType());
         return new ReceivedPix(entity.getId(), new EndToEndId(entity.getEndToEndId()), entity.getTxid(), entity.getChargeId(), entity.getReceiverAccountId(),
                 Money.of(entity.getAmount()), Money.of(entity.getRefundableAmount()), Money.of(entity.getRefundedTotal()), payer, entity.getPayerInfo(),

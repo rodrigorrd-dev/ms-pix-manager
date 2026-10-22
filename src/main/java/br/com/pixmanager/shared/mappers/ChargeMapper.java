@@ -85,13 +85,13 @@ public class ChargeMapper {
     // ---------------------------------------------------------------- domínio → response
     public ChargeResponse toResponse(ChargeDetails details, boolean fullDocument) {
         Charge charge = details.charge();
-        PixLocation loc = charge.location();
+        PixLocation location = charge.location();
         ChargeResponse.Calendar calendar = charge.type() == ChargeType.IMMEDIATE
                 ? new ChargeResponse.Calendar(charge.createdAt(), charge.expirationSeconds(), null, null)
                 : new ChargeResponse.Calendar(charge.createdAt(), null, charge.dueDate(), charge.validityAfterDueDays());
-        String locationUrl = loc == null ? null : locationBase + loc.urlPath();
+        String locationUrl = location == null ? null : locationBase + location.urlPath();
         return new ChargeResponse(calendar, charge.txid().value(), charge.revision(),
-                loc == null ? null : new ChargeResponse.Location(loc.locationId(), locationUrl,
+                location == null ? null : new ChargeResponse.Location(location.locationId(), locationUrl,
                         charge.type() == ChargeType.IMMEDIATE ? "cob" : "cobv", charge.createdAt()),
                 locationUrl, charge.status(), toDebtorResponse(charge.debtor(), fullDocument),
                 new ChargeResponse.Value(charge.originalAmount().toBcb()), details.pixKey(), charge.payerRequest(),

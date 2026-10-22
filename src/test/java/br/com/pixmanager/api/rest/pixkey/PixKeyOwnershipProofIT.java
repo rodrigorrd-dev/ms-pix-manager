@@ -195,8 +195,8 @@ class PixKeyOwnershipProofIT extends AbstractApplicationIT {
 
         MvcResult cpfKey = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountId\":\"%s\",\"pixKeyType\":\"EVP\"}".formatted(account.id()))).andExpect(status().isCreated()).andReturn();
-        String evp = json.readTree(cpfKey.getResponse().getContentAsString()).get("id").asText();
-        mvc.perform(post("/v1/pix-keys/" + evp + "/ownership-proof/challenges").with(jwt("pixkey.write")))
+        String evpKeyId = json.readTree(cpfKey.getResponse().getContentAsString()).get("id").asText();
+        mvc.perform(post("/v1/pix-keys/" + evpKeyId + "/ownership-proof/challenges").with(jwt("pixkey.write")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(content().string(containsString("não está aguardando")));
     }
 }

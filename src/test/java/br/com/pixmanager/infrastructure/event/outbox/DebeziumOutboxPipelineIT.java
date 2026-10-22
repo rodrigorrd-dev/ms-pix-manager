@@ -73,9 +73,9 @@ class DebeziumOutboxPipelineIT {
 
     @AfterAll
     static void stop() {
-        for (var c : new org.testcontainers.lifecycle.Startable[]{connect, kafka, postgres}) {
-            if (c != null) {
-                c.stop();
+        for (var container : new org.testcontainers.lifecycle.Startable[]{connect, kafka, postgres}) {
+            if (container != null) {
+                container.stop();
             }
         }
         NET.close();
@@ -108,7 +108,7 @@ class DebeziumOutboxPipelineIT {
             statement.executeUpdate();
         }
 
-        ConsumerRecord<String, byte[]> got = null;
+        ConsumerRecord<String, byte[]> found = null;
         try (KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<>(Map.<String, Object>of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(), ConsumerConfig.GROUP_ID_CONFIG, "it-" + UUID.randomUUID(),
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest", ConsumerConfig.METADATA_MAX_AGE_CONFIG, 1000,   // assinatura por regex só vê tópico novo após o refresh
@@ -116,18 +116,18 @@ class DebeziumOutboxPipelineIT {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class))) {
             consumer.subscribe(java.util.regex.Pattern.compile("pix\\..*\\.v1"));
             long deadline = System.currentTimeMillis() + 90_000;
-            while (got == null && System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, byte[]> rec : consumer.poll(Duration.ofSeconds(2))) {
-                    if (aggregateId.equals(rec.key())) {
-                        got = rec;
+            while (found == null && System.currentTimeMillis() < deadline) {
+                for (ConsumerRecord<String, byte[]> consumerRecord : consumer.poll(Duration.ofSeconds(2))) {
+                    if (aggregateId.equals(consumerRecord.key())) {
+                        found = consumerRecord;
                     }
                 }
             }
         }
-        assertThat(got).as("mensagem roteada pelo Debezium\n" + diagnostics()).isNotNull();
-        assertThat(got.topic()).isEqualTo("pix.payment.v1");
-        assertThat(got.value()).as("bytes Avro intactos (ByteArrayConverter)").isEqualTo(payload);
-        assertThat(headers(got)).containsEntry("eventType", "PaymentOrderCreated").containsEntry("eventVersion", "1")
+        assertThat(found).as("mensagem roteada pelo Debezium\n" + diagnostics()).isNotNull();
+        assertThat(found.topic()).isEqualTo("pix.payment.v1");
+        assertThat(found.value()).as("bytes Avro intactos (ByteArrayConverter)").isEqualTo(payload);
+        assertThat(headers(found)).containsEntry("eventType", "PaymentOrderCreated").containsEntry("eventVersion", "1")
                 .containsKey("traceparent").containsKey("id");
     }
 
@@ -135,10 +135,10 @@ class DebeziumOutboxPipelineIT {
         long deadline = System.currentTimeMillis() + 60_000;
         try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
             while (System.currentTimeMillis() < deadline) {
-                try (var st = connection.createStatement(); var rs = st.executeQuery(
+                try (var statement = connection.createStatement(); var resultSet = statement.executeQuery(
                         "SELECT count(*) FROM pg_replication_slots WHERE slot_name = 'pix_outbox_slot' AND active")) {
-                    rs.next();
-                    if (rs.getInt(1) == 1) {
+                    resultSet.next();
+                    if (resultSet.getInt(1) == 1) {
                         return;
                     }
                 }
@@ -161,9 +161,9 @@ class DebeziumOutboxPipelineIT {
         return "status=" + status + "\ntopics=" + topics + "\n" + stream + "\n" + errs;
     }
 
-    private static Map<String, String> headers(ConsumerRecord<String, byte[]> rec) {
+    private static Map<String, String> headers(ConsumerRecord<String, byte[]> consumerRecord) {
         var map = new java.util.HashMap<String, String>();
-        rec.headers().forEach(header -> map.put(header.key(), new String(header.value())));
+        consumerRecord.headers().forEach(header -> map.put(header.key(), new String(header.value())));
         return map;
     }
 }

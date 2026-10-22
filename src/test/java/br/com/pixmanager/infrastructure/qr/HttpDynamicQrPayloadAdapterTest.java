@@ -47,7 +47,7 @@ class HttpDynamicQrPayloadAdapterTest {
     private static final String COB = "{\"txid\":\"abc123\",\"status\":\"ATIVA\",\"chave\":\"123e4567-e89b-42d3-a456-426655440000\","
             + "\"calendario\":{\"criacao\":\"2026-10-16T12:00:00Z\",\"expiracao\":3600},\"valor\":{\"original\":\"25.00\"}}";
 
-    @TempDir Path tmp;
+    @TempDir Path tempDirectory;
     WireMockServer server;
     Path trustStore;
     KeyStore leaf;
@@ -65,7 +65,7 @@ class HttpDynamicQrPayloadAdapterTest {
         try (InputStream in = getClass().getResourceAsStream("/qr/ca.crt")) {
             keyStore.setCertificateEntry("ca", CertificateFactory.getInstance("X.509").generateCertificate(in));
         }
-        trustStore = tmp.resolve("trust.p12");
+        trustStore = tempDirectory.resolve("trust.p12");
         try (var out = new FileOutputStream(trustStore.toFile())) {
             keyStore.store(out, PW);
         }
@@ -154,14 +154,14 @@ class HttpDynamicQrPayloadAdapterTest {
         server.stubFor(get(urlEqualTo("/qr/v2/redir")).willReturn(aResponse().withStatus(302).withHeader("Location", "https://169.254.169.254/")));
         server.stubFor(get(urlEqualTo("/qr/v2/grande")).willReturn(aResponse().withStatus(200).withBody("x".repeat(70_000))));
         server.stubFor(get(urlEqualTo("/qr/v2/lento")).willReturn(aResponse().withStatus(200).withFixedDelay(2500).withBody("x")));
-        var a = adapter(true, false);
+        var adapter = adapter(true, false);
 
-        assertThat(a.fetch(url).txid()).isEqualTo("abc123");
-        assertInvalid(() -> a.fetch("localhost:" + server.httpsPort() + "/qr/v2/nao"), "não encontrada");
-        assertThatThrownBy(() -> a.fetch("localhost:" + server.httpsPort() + "/qr/v2/erro")).isInstanceOf(DependencyUnavailableException.class);
-        assertInvalid(() -> a.fetch("localhost:" + server.httpsPort() + "/qr/v2/redir"), "recusou");
-        assertInvalid(() -> a.fetch("localhost:" + server.httpsPort() + "/qr/v2/grande"), "tamanho");
-        assertThatThrownBy(() -> a.fetch("localhost:" + server.httpsPort() + "/qr/v2/lento")).isInstanceOf(DependencyUnavailableException.class);
+        assertThat(adapter.fetch(url).txid()).isEqualTo("abc123");
+        assertInvalid(() -> adapter.fetch("localhost:" + server.httpsPort() + "/qr/v2/nao"), "não encontrada");
+        assertThatThrownBy(() -> adapter.fetch("localhost:" + server.httpsPort() + "/qr/v2/erro")).isInstanceOf(DependencyUnavailableException.class);
+        assertInvalid(() -> adapter.fetch("localhost:" + server.httpsPort() + "/qr/v2/redir"), "recusou");
+        assertInvalid(() -> adapter.fetch("localhost:" + server.httpsPort() + "/qr/v2/grande"), "tamanho");
+        assertThatThrownBy(() -> adapter.fetch("localhost:" + server.httpsPort() + "/qr/v2/lento")).isInstanceOf(DependencyUnavailableException.class);
     }
 
     @Test
@@ -182,12 +182,12 @@ class HttpDynamicQrPayloadAdapterTest {
                 withTrustStore ? trustStore.toString() : "", withTrustStore ? "changeit" : "", "PKCS12", allowUnverified, "src/test/resources/tls/test-server.crt");
     }
 
-    private static String sign(KeyStore store, JWSAlgorithm alg, String json) throws Exception {
+    private static String sign(KeyStore store, JWSAlgorithm algorithm, String json) throws Exception {
         List<Base64> chain = new ArrayList<>();
         for (Certificate certificate : store.getCertificateChain(store.aliases().nextElement())) {
             chain.add(Base64.encode(((X509Certificate) certificate).getEncoded()));
         }
-        JWSObject jws = new JWSObject(new JWSHeader.Builder(alg).x509CertChain(chain).build(), new Payload(json));
+        JWSObject jws = new JWSObject(new JWSHeader.Builder(algorithm).x509CertChain(chain).build(), new Payload(json));
         jws.sign(new RSASSASigner((PrivateKey) store.getKey(store.aliases().nextElement(), PW)));
         return jws.serialize();
     }

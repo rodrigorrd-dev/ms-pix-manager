@@ -24,9 +24,9 @@ public class PaymentOrderEntityMapper {
     }
 
     public PaymentOrder toDomain(PaymentOrderEntity entity) {
-        Document doc = entity.getDestDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getDestDocumentEnc()));
+        Document document = entity.getDestDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getDestDocumentEnc()));
         PaymentDestination destination = new PaymentDestination(entity.getDestinationKeyType() == null ? null : PixKeyType.valueOf(entity.getDestinationKeyType()),
-                null, doc, entity.getDestName(), entity.getDestIspb(), entity.getDestBranch(), entity.getDestAccount(), entity.getDestAccountType());
+                null, document, entity.getDestName(), entity.getDestIspb(), entity.getDestBranch(), entity.getDestAccount(), entity.getDestAccountType());
         return new PaymentOrder(entity.getId(), entity.getPayerAccountId(), PaymentMethod.valueOf(entity.getPaymentMethod()), PaymentOrigin.valueOf(entity.getOrigin()),
                 destination, Money.of(entity.getAmount()), entity.getQrTxid(), entity.getPayerMessage(), new EndToEndId(entity.getEndToEndId()),
                 PaymentStatus.valueOf(entity.getStatus()), entity.getRejectReasonCode(), entity.getRejectReasonDetail(), entity.getLedgerReservationId(),
@@ -39,20 +39,20 @@ public class PaymentOrderEntityMapper {
             entity.setPaymentMethod(paymentOrder.method().name());
             entity.setOrigin(paymentOrder.origin().name());
             entity.setDeviceRegistered(paymentOrder.deviceRegistered());
-            PaymentDestination dest = paymentOrder.destination();
-            entity.setDestinationKeyType(dest.keyType() == null ? null : dest.keyType().name());
-            entity.setDestinationKeyHash(dest.pixKey() == null ? null : crypto.blindIndex(dest.pixKey()));
-            if (dest.document() != null) {
-                entity.setDestDocumentType(dest.document().type());
-                entity.setDestDocumentEnc(crypto.encrypt(dest.document().value()));
-                entity.setDestDocumentHash(crypto.blindIndex(dest.document().value()));
-                entity.setDestDocumentMasked(dest.document().masked());
+            PaymentDestination destination = paymentOrder.destination();
+            entity.setDestinationKeyType(destination.keyType() == null ? null : destination.keyType().name());
+            entity.setDestinationKeyHash(destination.pixKey() == null ? null : crypto.blindIndex(destination.pixKey()));
+            if (destination.document() != null) {
+                entity.setDestDocumentType(destination.document().type());
+                entity.setDestDocumentEnc(crypto.encrypt(destination.document().value()));
+                entity.setDestDocumentHash(crypto.blindIndex(destination.document().value()));
+                entity.setDestDocumentMasked(destination.document().masked());
             }
-            entity.setDestName(dest.name());
-            entity.setDestIspb(dest.ispb());
-            entity.setDestBranch(dest.branch());
-            entity.setDestAccount(dest.account());
-            entity.setDestAccountType(dest.accountType());
+            entity.setDestName(destination.name());
+            entity.setDestIspb(destination.ispb());
+            entity.setDestBranch(destination.branch());
+            entity.setDestAccount(destination.account());
+            entity.setDestAccountType(destination.accountType());
             entity.setAmount(paymentOrder.amount().value());
             entity.setQrTxid(paymentOrder.qrTxid());
             entity.setPayerMessage(paymentOrder.payerMessage());

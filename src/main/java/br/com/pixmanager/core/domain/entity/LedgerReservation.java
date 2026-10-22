@@ -60,7 +60,7 @@ public record LedgerReservation(UUID id, String idempotencyKey, UUID accountId, 
                 ledgerRef, attempts + 1, next, error, version);
     }
 
-    private LedgerReservation moveTo(LedgerStatus target, String ref, Instant next, String error) {
+    private LedgerReservation moveTo(LedgerStatus target, String ledgerReference, Instant next, String error) {
         if (status == target) {
             return this;                         // idempotente: repetir a mesma transição é no-op
         }
@@ -69,6 +69,6 @@ public record LedgerReservation(UUID id, String idempotencyKey, UUID accountId, 
                     "Transição de reserva inválida: " + status + " -> " + target);
         }
         return new LedgerReservation(id, idempotencyKey, accountId, purpose, referenceType, referenceId, amount, target,
-                ref, attempts, next, error, version);
+                ledgerReference, attempts, next, error, version);
     }
 }

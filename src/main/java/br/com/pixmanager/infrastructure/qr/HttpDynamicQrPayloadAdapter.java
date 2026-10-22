@@ -160,8 +160,8 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
         try {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             var chain = new java.util.ArrayList<X509Certificate>();
-            for (Base64 der : x5c) {
-                chain.add((X509Certificate) factory.generateCertificate(new ByteArrayInputStream(der.decode())));
+            for (Base64 encodedCertificate : x5c) {
+                chain.add((X509Certificate) factory.generateCertificate(new ByteArrayInputStream(encodedCertificate.decode())));
             }
             chain.get(0).checkValidity();
             return chain;
@@ -224,14 +224,14 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
     }
 
     /** cob: criação + expiração (s, padrão 86400). cobv: vale até o fim do dia (Brasília) de vencimento + validadeAposVencimento. */
-    private static Instant expiry(JsonNode cal) {
-        if (cal.hasNonNull("dataDeVencimento")) {
-            LocalDate due = LocalDate.parse(cal.get("dataDeVencimento").asText());
-            long grace = cal.path("validadeAposVencimento").asLong(0);
+    private static Instant expiry(JsonNode calendar) {
+        if (calendar.hasNonNull("dataDeVencimento")) {
+            LocalDate due = LocalDate.parse(calendar.get("dataDeVencimento").asText());
+            long grace = calendar.path("validadeAposVencimento").asLong(0);
             return due.plusDays(grace + 1).atStartOfDay(BRASILIA).toInstant();
         }
-        if (cal.hasNonNull("criacao")) {
-            return Instant.parse(cal.get("criacao").asText()).plusSeconds(cal.path("expiracao").asLong(86_400));
+        if (calendar.hasNonNull("criacao")) {
+            return Instant.parse(calendar.get("criacao").asText()).plusSeconds(calendar.path("expiracao").asLong(86_400));
         }
         return null;
     }

@@ -175,9 +175,9 @@ class ExecuteReservationServiceTest {
     static final class ExecuteReservationServiceBackoff {
         static Duration of(int attempts) {
             try {
-                var m = ExecuteReservationService.class.getDeclaredMethod("backoff", int.class);
-                m.setAccessible(true);
-                return (Duration) m.invoke(null, attempts);
+                var backoffMethod = ExecuteReservationService.class.getDeclaredMethod("backoff", int.class);
+                backoffMethod.setAccessible(true);
+                return (Duration) backoffMethod.invoke(null, attempts);
             } catch (ReflectiveOperationException exception) {
                 throw new IllegalStateException(exception);
             }

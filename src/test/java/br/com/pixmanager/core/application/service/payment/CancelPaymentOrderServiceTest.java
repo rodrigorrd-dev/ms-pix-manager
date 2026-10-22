@@ -81,7 +81,7 @@ class CancelPaymentOrderServiceTest {
     @DisplayName("Cancela no core, grava CANCELLED, devolve o limite do dia (SP) e publica PaymentCancelled")
     void shouldCancelBeforeTheSpiAndReleaseTheLimit(PaymentStatus status) {
         when(persistence.findById(orderId)).thenReturn(Optional.of(order(status, 3, false)));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PaymentOrder result = service.cancel(caller, orderId, new ExpectedVersion.Exact(3));
 
@@ -102,7 +102,7 @@ class CancelPaymentOrderServiceTest {
     @DisplayName("If-Match '*' aceita qualquer versão")
     void shouldAcceptAnyVersionWhenIfMatchIsWildcard() {
         when(persistence.findById(orderId)).thenReturn(Optional.of(order(PaymentStatus.RESERVED, 9, true)));
-        when(persistence.save(any(PaymentOrder.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PaymentOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(service.cancel(caller, orderId, new ExpectedVersion.Any()).status()).isEqualTo(PaymentStatus.CANCELLED);
     }

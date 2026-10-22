@@ -30,8 +30,8 @@ public record PaymentOrder(UUID id, UUID payerAccountId, PaymentMethod method, P
 
     public static PaymentOrder create(UUID id, UUID payerAccountId, PaymentMethod method, PaymentOrigin origin,
                                       PaymentDestination destination, Money amount, String qrTxid, String payerMessage,
-                                      EndToEndId e2e, boolean deviceRegistered, Instant now) {
-        return new PaymentOrder(id, payerAccountId, method, origin, destination, amount, qrTxid, payerMessage, e2e,
+                                      EndToEndId endToEndId, boolean deviceRegistered, Instant now) {
+        return new PaymentOrder(id, payerAccountId, method, origin, destination, amount, qrTxid, payerMessage, endToEndId,
                 PaymentStatus.CREATED, null, null, null, deviceRegistered, now, null, null, 0);
     }
 

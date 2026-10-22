@@ -42,9 +42,9 @@ public class DictGatewayHttpAdapter implements DictGatewayPortOut {
     private final ObjectMapper mapper;
     private final FindAccountUseCase accounts;
 
-    DictGatewayHttpAdapter(DictGatewayProperties props, CircuitBreakerRegistry registry, ObjectMapper mapper,
+    DictGatewayHttpAdapter(DictGatewayProperties gatewayProperties, CircuitBreakerRegistry registry, ObjectMapper mapper,
                            FindAccountUseCase accounts) {
-        this.http = GatewayHttp.client(props.baseUrl(), props.connectTimeout(), props.readTimeout());
+        this.http = GatewayHttp.client(gatewayProperties.baseUrl(), gatewayProperties.connectTimeout(), gatewayProperties.readTimeout());
         this.breaker = registry.circuitBreaker(DEPENDENCY);
         this.mapper = mapper;
         this.accounts = accounts;

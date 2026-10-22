@@ -93,19 +93,19 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
     }
 
     JsonNode receive(String idRec, String extra) throws Exception {
-        var r = mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
+        var cycleResult = mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"idRec":"%s","payerAccountId":"%s","payerDocument":"%s","receiverDocument":"%s","receiverName":"Academia Forma","contract":"CONTRATO-77",
                          "objectDescription":"mensalidade","periodicity":"MENSAL","startDate":"2026-10-01"%s}""".formatted(idRec, payer.id(), payerCpf, TestDocuments.randomCnpj(), extra))).andReturn();
-        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(r.getResponse().getContentAsString());
+        assertThat(cycleResult.getResponse().getStatus()).as(cycleResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(cycleResult.getResponse().getContentAsString());
     }
 
     JsonNode approved(String idRec, String extra) throws Exception {
         String id = receive(idRec, extra).get("id").asText();
-        var r = mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andReturn();
-        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString()).isEqualTo(200);
-        return json.readTree(r.getResponse().getContentAsString());
+        var cycleResult = mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andReturn();
+        assertThat(cycleResult.getResponse().getStatus()).as(cycleResult.getResponse().getContentAsString()).isEqualTo(200);
+        return json.readTree(cycleResult.getResponse().getContentAsString());
     }
 
     org.springframework.test.web.servlet.ResultActions charge(String authId, String txid, String due, String amount) throws Exception {
@@ -138,8 +138,8 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
     @Test
     @DisplayName("Autorização: recebe (idRec valida, allow_retry derivado), recusa documento ≠ titular e idRec repetido; aprova com teto e avisa o recebedor; rejeita; cancela; ajusta o limite")
     void shouldManageAuthorizations() throws Exception {
-        String rec = idRec("R");
-        JsonNode authorization = receive(rec, ",\"fixedAmount\":\"50.00\"");
+        String recurrenceId = idRec("R");
+        JsonNode authorization = receive(recurrenceId, ",\"fixedAmount\":\"50.00\"");
         assertThat(authorization.get("allowRetry").asBoolean()).isTrue();
         assertThat(authorization.get("status").asText()).isEqualTo("CRIADA");
         assertThat(authorization.get("receiverDocumentMasked").asText()).contains("*");
@@ -150,7 +150,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
                         .formatted(idRec("R"), payer.id(), TestDocuments.randomCpf(), TestDocuments.randomCnpj()))).andExpect(status().isUnprocessableEntity());
         mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"idRec\":\"%s\",\"payerAccountId\":\"%s\",\"payerDocument\":\"%s\",\"receiverDocument\":\"%s\",\"receiverName\":\"X\",\"contract\":\"C\",\"periodicity\":\"MENSAL\",\"startDate\":\"2026-10-01\"}"
-                        .formatted(rec, payer.id(), payerCpf, TestDocuments.randomCnpj()))).andExpect(status().isConflict());
+                        .formatted(recurrenceId, payer.id(), payerCpf, TestDocuments.randomCnpj()))).andExpect(status().isConflict());
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", authorization.get("id").asText()).with(jwt("automatic.read"))).andExpect(status().isForbidden());
 
         String id = authorization.get("id").asText();
@@ -158,7 +158,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
                 .andExpect(status().isUnprocessableEntity());                                           // teto abaixo do valor fixo
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"payerMaxAmount\":\"80.00\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APROVADA")).andExpect(jsonPath("$.requestStatus").value("ACEITA")).andExpect(jsonPath("$.payerMaxAmount").value("80.00"));
-        verify(gateway).approve(eq(rec), any());
+        verify(gateway).approve(eq(recurrenceId), any());
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andExpect(status().isUnprocessableEntity());   // já decidida
         mvc.perform(put("/v1/automatic-authorizations/{id}/limit", id).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"payerMaxAmount\":\"60.00\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.payerMaxAmount").value("60.00"));
@@ -171,7 +171,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
 
         mvc.perform(post("/v1/automatic-authorizations/{id}/cancellation", id).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"cancelledBy\":\"PAYER\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELADA")).andExpect(jsonPath("$.cancelledBy").value("PAYER"));
-        verify(gateway).cancel(rec, "PAYER");
+        verify(gateway).cancel(recurrenceId, "PAYER");
         mvc.perform(get("/v1/automatic-authorizations/{id}", id).with(TestJwt.client("outro", List.of(UUID.randomUUID()), "automatic.read"))).andExpect(status().isNotFound());
         assertThat(fixtures.outboxCount("AutomaticAuthorizationApproved")).isPositive();
     }
@@ -214,11 +214,11 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         assertThat(worker.runCycle().started()).isEqualTo(1);
         assertThat(worker.runCycle().started()).isZero();
         assertThat(attemptStatuses(chargeId)).containsExactly("AGND:SOLICITADA");
-        String e2e = e2eOfOpenAttempt(chargeId);
-        assertThat(jdbc.sql("SELECT origin FROM payment_order WHERE end_to_end_id = :e").param("e", e2e).query(String.class).single()).isEqualTo("AUTOMATIC");
+        String endToEndId = e2eOfOpenAttempt(chargeId);
+        assertThat(jdbc.sql("SELECT origin FROM payment_order WHERE end_to_end_id = :e").param("e", endToEndId).query(String.class).single()).isEqualTo("AUTOMATIC");
 
         processReservation.process(reservationOfOrder(chargeId));
-        applyStatus.apply("it", "a1", "pix.spi.payment-status.v1", 0, 1, e2e, SpiStatus.SENT, null, Instant.now());
+        applyStatus.apply("it", "a1", "pix.spi.payment-status.v1", 0, 1, endToEndId, SpiStatus.SENT, null, Instant.now());
         assertThat(worker.runCycle().paid()).isEqualTo(1);
 
         assertThat(chargeStatus(chargeId)).isEqualTo("CONCLUIDA");
@@ -238,9 +238,9 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         assertThat(worker.runCycle().started()).isEqualTo(2);
         processReservation.process(reservationOfOrder(withRetry));
         processReservation.process(reservationOfOrder(noRetry));
-        var r = worker.runCycle();
+        var cycleResult = worker.runCycle();
 
-        assertThat(r.retried()).isEqualTo(1);
+        assertThat(cycleResult.retried()).isEqualTo(1);
         assertThat(attemptStatuses(withRetry)).containsExactly("AGND:REJEITADA", "NTAG:AGENDADA");
         assertThat(chargeStatus(withRetry)).isEqualTo("ATIVA");
         assertThat(chargeStatus(noRetry)).isEqualTo("REJEITADA");
@@ -250,10 +250,10 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         assertThat(attemptStatuses(withRetry)).containsExactly("AGND:REJEITADA", "NTAG:SOLICITADA");
 
         when(ledger.reserve(any())).thenReturn(new GatewayResult.Done("L-2"));                            // cancelar a autorização barra o débito de uma cobrança AGENDADA
-        String auth = approved(idRec("R"), "").get("id").asText();
+        String authorization = approved(idRec("R"), "").get("id").asText();
         clock.set(Instant.parse(TODAY));
-        String cancelled = json.readTree(charge(auth, txid(), DUE, "50.00").andReturn().getResponse().getContentAsString()).get("id").asText();
-        mvc.perform(post("/v1/automatic-authorizations/{id}/cancellation", auth).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"cancelledBy\":\"RECEIVER\"}")).andExpect(status().isOk());
+        String cancelled = json.readTree(charge(authorization, txid(), DUE, "50.00").andReturn().getResponse().getContentAsString()).get("id").asText();
+        mvc.perform(post("/v1/automatic-authorizations/{id}/cancellation", authorization).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"cancelledBy\":\"RECEIVER\"}")).andExpect(status().isOk());
         assertThat(chargeStatus(cancelled)).isEqualTo("CANCELADA");
         assertThat(attemptStatuses(cancelled)).containsExactly("AGND:CANCELADA");
 

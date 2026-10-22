@@ -15,8 +15,8 @@ public final class FixedClock extends Clock {
         this.now = start;
     }
 
-    public static FixedClock at(String iso) {
-        return new FixedClock(Instant.parse(iso));
+    public static FixedClock at(String isoInstant) {
+        return new FixedClock(Instant.parse(isoInstant));
     }
 
     public void advance(Duration duration) {

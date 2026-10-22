@@ -43,20 +43,20 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
     private final PaymentOrderPersistencePortOut orders;
     private final CreatePaymentOrderUseCase createOrder;
     private final DomainEventPublisherPortOut events;
-    private final EndToEndIdGeneratorPortOut e2eIds;
+    private final EndToEndIdGeneratorPortOut endToEndIdGenerator;
     private final IdGeneratorPortOut ids;
     private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final AutomaticProperties properties;
 
     public ExecuteAutomaticService(AutomaticPersistencePortOut persistence, PaymentOrderPersistencePortOut orders, CreatePaymentOrderUseCase createOrder,
-                                   DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids,
+                                   DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids,
                                    TransactionRunnerPortOut transactionRunner, Clock clock, AutomaticProperties properties) {
         this.persistence = persistence;
         this.orders = orders;
         this.createOrder = createOrder;
         this.events = events;
-        this.e2eIds = e2eIds;
+        this.endToEndIdGenerator = endToEndIdGenerator;
         this.ids = ids;
         this.transactionRunner = transactionRunner;
         this.clock = clock;
@@ -94,9 +94,9 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
 
     private void start(AutomaticAttempt attempt, LocalDate today, int[] counters) {
         AutomaticCharge charge = persistence.findCharge(attempt.chargeId()).orElseThrow();
-        AutomaticAuthorization auth = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
-        if (!auth.isApproved() || !charge.isLive()) {
-            log.error("Débito automático sem autorização aprovada recusado [{}]: cobrança {} autorização {} ({})", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED, charge.id(), auth.id(), auth.status());
+        AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
+        if (!authorization.isApproved() || !charge.isLive()) {
+            log.error("Débito automático sem autorização aprovada recusado [{}]: cobrança {} autorização {} ({})", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED, charge.id(), authorization.id(), authorization.status());
             transactionRunner.inTransaction(() -> persistence.saveAttempt(attempt.with("CANCELADA", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED)));
             return;
         }
@@ -104,15 +104,15 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
             finish(attempt, charge, "EXPIRADA", "EXPIRADA", "MISSED", counters);
             return;
         }
-        if (auth.payerMaxAmount() != null && charge.amount().compareTo(auth.payerMaxAmount()) > 0) {
+        if (authorization.payerMaxAmount() != null && charge.amount().compareTo(authorization.payerMaxAmount()) > 0) {
             finish(attempt, charge, "REJEITADA", "REJEITADA", "LIMIT", counters);                  // o pagador baixou o teto depois da cobrança
             return;
         }
         CreatePaymentOrderUseCase.PreparedPaymentOrder prepared;
         try {
-            prepared = createOrder.prepare(Caller.system("automatic"), new CreatePaymentOrderCommand(auth.payerAccountId(), PaymentMethod.MANUAL,
+            prepared = createOrder.prepare(Caller.system("automatic"), new CreatePaymentOrderCommand(authorization.payerAccountId(), PaymentMethod.MANUAL,
                     PaymentOrigin.AUTOMATIC, charge.amount(), null, null, null, charge.receiverIspb(), charge.receiverBranch(), charge.receiverAccount(),
-                    charge.receiverAccountType(), auth.receiverName(), auth.receiverDocument(), null, auth.contract(), null, true));
+                    charge.receiverAccountType(), authorization.receiverName(), authorization.receiverDocument(), null, authorization.contract(), null, true));
         } catch (BusinessException | BadRequestException exception) {
             finish(attempt, charge, "REJEITADA", "REJEITADA", exception instanceof BusinessException b ? b.getCode() : "BAD_REQUEST", counters);
             return;
@@ -142,12 +142,12 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
                 counters[2]++;
             }
             case REJECTED -> {
-                AutomaticAuthorization auth = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
+                AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
                 int made = persistence.attemptsOf(charge.id()).size();
-                if ("AM04".equals(order.rejectReasonCode()) && auth.allowRetry() && auth.isApproved() && made <= properties.retryDays()) {
+                if ("AM04".equals(order.rejectReasonCode()) && authorization.allowRetry() && authorization.isApproved() && made <= properties.retryDays()) {
                     transactionRunner.inTransaction(() -> {
                         persistence.saveAttempt(attempt.with("REJEITADA", "AM04"));
-                        persistence.insertAttempt(new AutomaticAttempt(ids.newId(), charge.id(), "NTAG", "AGENDADA", e2eIds.nextEndToEndId(),
+                        persistence.insertAttempt(new AutomaticAttempt(ids.newId(), charge.id(), "NTAG", "AGENDADA", endToEndIdGenerator.nextEndToEndId(),
                                 today.plusDays(1), null, null, 0));
                     });
                     counters[3]++;

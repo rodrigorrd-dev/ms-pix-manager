@@ -26,9 +26,9 @@ public final class DictGatewayStub {
         SERVER.resetAll();
     }
 
-    public static void registerOk(String cid) {
+    public static void registerOk(String dictCid) {
         SERVER.stubFor(post(urlEqualTo("/dict/v1/entries")).willReturn(aResponse().withStatus(201)
-                .withHeader("Content-Type", "application/json").withBody("{\"cid\":\"" + cid + "\",\"registeredAt\":\"2026-10-15T12:00:00Z\"}")));
+                .withHeader("Content-Type", "application/json").withBody("{\"cid\":\"" + dictCid + "\",\"registeredAt\":\"2026-10-15T12:00:00Z\"}")));
     }
 
     public static void registerStatus(int status) {

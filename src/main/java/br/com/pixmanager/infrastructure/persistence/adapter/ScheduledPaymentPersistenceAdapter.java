@@ -46,7 +46,7 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Override
     @Transactional
     public void insert(ScheduledPayment scheduledPayment, List<ScheduledOccurrence> occurrences) {
-        Document doc = scheduledPayment.document() == null || scheduledPayment.document().isBlank() ? null : Document.of(scheduledPayment.document());
+        Document document = scheduledPayment.document() == null || scheduledPayment.document().isBlank() ? null : Document.of(scheduledPayment.document());
         jdbc.sql("""
                 INSERT INTO scheduled_payment (id, payer_account_id, recurrence, payment_method, destination_key_type, destination_key_hash,
                     destination_key_enc, dest_document_type, dest_document_enc, dest_document_hash, dest_document_masked, dest_name, dest_ispb,
@@ -58,8 +58,8 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                 .param("method", scheduledPayment.method().name()).param("keyType", scheduledPayment.pixKeyType() == null ? null : scheduledPayment.pixKeyType().name())
                 .param("keyHash", scheduledPayment.pixKey() == null ? null : crypto.blindIndex(scheduledPayment.pixKey()))
                 .param("keyEnc", scheduledPayment.pixKey() == null ? null : crypto.encrypt(scheduledPayment.pixKey()))
-                .param("docType", doc == null ? null : doc.type()).param("docEnc", doc == null ? null : crypto.encrypt(doc.value()))
-                .param("docHash", doc == null ? null : crypto.blindIndex(doc.value())).param("docMasked", doc == null ? null : doc.masked())
+                .param("docType", document == null ? null : document.type()).param("docEnc", document == null ? null : crypto.encrypt(document.value()))
+                .param("docHash", document == null ? null : crypto.blindIndex(document.value())).param("docMasked", document == null ? null : document.masked())
                 .param("name", scheduledPayment.name()).param("ispb", scheduledPayment.ispb()).param("branch", scheduledPayment.branch()).param("account", scheduledPayment.account())
                 .param("accountType", scheduledPayment.accountType()).param("amount", scheduledPayment.amount().value()).param("message", scheduledPayment.payerMessage())
                 .param("first", scheduledPayment.firstDate()).param("end", scheduledPayment.endDate()).param("total", scheduledPayment.occurrencesTotal())

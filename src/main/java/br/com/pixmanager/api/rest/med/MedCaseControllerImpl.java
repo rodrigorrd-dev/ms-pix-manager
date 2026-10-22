@@ -23,11 +23,11 @@ import java.util.UUID;
 @RestController
 public class MedCaseControllerImpl implements MedCaseController {
 
-    private final ManageMedCaseUseCase med;
+    private final ManageMedCaseUseCase medCaseUseCase;
     private final IdempotentExecutor idempotency;
 
-    public MedCaseControllerImpl(ManageMedCaseUseCase med, IdempotentExecutor idempotency) {
-        this.med = med;
+    public MedCaseControllerImpl(ManageMedCaseUseCase medCaseUseCase, IdempotentExecutor idempotency) {
+        this.medCaseUseCase = medCaseUseCase;
         this.idempotency = idempotency;
     }
 
@@ -36,7 +36,7 @@ public class MedCaseControllerImpl implements MedCaseController {
         var caller = CallerContext.current();
         var result = idempotency.execute(caller.clientId(), "POST /v1/med-cases", idempotencyKey, open,
                 () -> new IdempotentExecutor.Response(HttpStatus.CREATED.value(),
-                        toResponse(med.open(caller, new OpenMedCaseCommand(open.role(), open.endToEndId(), open.caseType(), open.description(), open.layer())))));
+                        toResponse(medCaseUseCase.open(caller, new OpenMedCaseCommand(open.role(), open.endToEndId(), open.caseType(), open.description(), open.layer())))));
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(result.status()).cacheControl(CacheControl.noStore());
         if (result.replayed()) {
             builder.header("Idempotent-Replayed", "true");
@@ -47,54 +47,54 @@ public class MedCaseControllerImpl implements MedCaseController {
 
     @Override
     public ResponseEntity<MedResponses.Case> get(UUID id) {
-        return ok(med.get(CallerContext.current(), id));
+        return ok(medCaseUseCase.get(CallerContext.current(), id));
     }
 
     @Override
     public ResponseEntity<PageResult<MedResponses.Case>> list(MedStatus status, int page, int size) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(med.list(CallerContext.current(), status, PageQuery.of(page, size)).map(this::toResponse));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(medCaseUseCase.list(CallerContext.current(), status, PageQuery.of(page, size)).map(this::toResponse));
     }
 
     @Override
     public ResponseEntity<List<MedResponses.History>> history(UUID id) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(med.history(CallerContext.current(), id).stream()
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(medCaseUseCase.history(CallerContext.current(), id).stream()
                 .map(historyEntry -> new MedResponses.History(historyEntry.from(), historyEntry.to(), historyEntry.actor(), historyEntry.note(), historyEntry.occurredAt())).toList());
     }
 
     @Override
     public ResponseEntity<MedResponses.Case> accept(UUID id, MedRequests.Note body) {
-        return ok(med.accept(CallerContext.current(), id, note(body)));
+        return ok(medCaseUseCase.accept(CallerContext.current(), id, note(body)));
     }
 
     @Override
     public ResponseEntity<MedResponses.Case> refuse(UUID id, MedRequests.Note body) {
-        return ok(med.refuse(CallerContext.current(), id, note(body)));
+        return ok(medCaseUseCase.refuse(CallerContext.current(), id, note(body)));
     }
 
     @Override
     public ResponseEntity<MedResponses.Case> cancel(UUID id, MedRequests.Note body) {
-        return ok(med.cancel(CallerContext.current(), id, note(body)));
+        return ok(medCaseUseCase.cancel(CallerContext.current(), id, note(body)));
     }
 
     @Override
     public ResponseEntity<MedResponses.Case> refund(UUID id) {
-        return ok(med.startRefund(CallerContext.current(), id));
+        return ok(medCaseUseCase.startRefund(CallerContext.current(), id));
     }
 
     @Override
     public ResponseEntity<MedResponses.Case> close(UUID id, MedRequests.Note body) {
-        return ok(med.close(CallerContext.current(), id, note(body)));
+        return ok(medCaseUseCase.close(CallerContext.current(), id, note(body)));
     }
 
     @Override
     public ResponseEntity<MedResponses.Contestation> contest(UUID id, MedRequests.Contestation body) {
-        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(toResponse(med.contest(CallerContext.current(), id, body.reason())));
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(toResponse(medCaseUseCase.contest(CallerContext.current(), id, body.reason())));
     }
 
     @Override
     public ResponseEntity<MedResponses.Contestation> decide(UUID contestationId, MedRequests.Decision body) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(toResponse(med.decideContestation(CallerContext.current(), contestationId, body.accepted(), body.note())));
+                .body(toResponse(medCaseUseCase.decideContestation(CallerContext.current(), contestationId, body.accepted(), body.note())));
     }
 
     private ResponseEntity<MedResponses.Case> ok(MedCase medCase) {

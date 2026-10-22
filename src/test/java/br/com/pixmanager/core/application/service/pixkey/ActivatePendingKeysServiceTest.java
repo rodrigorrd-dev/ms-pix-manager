@@ -65,7 +65,7 @@ class ActivatePendingKeysServiceTest {
         PixKey pending = pending(1);
         when(persistence.findPendingDict(NOW.minus(MIN_AGE), 10)).thenReturn(List.of(pending));
         when(dict.register(pending)).thenReturn(new DictRegistration("cid-1", NOW));
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 
@@ -83,7 +83,7 @@ class ActivatePendingKeysServiceTest {
         PixKey pending = pending(1);
         when(persistence.findPendingDict(any(), eq(10))).thenReturn(List.of(pending));
         when(dict.register(pending)).thenThrow(new BusinessException("PIX-422-012", "chave inválida no DICT"));
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 
@@ -118,7 +118,7 @@ class ActivatePendingKeysServiceTest {
         when(dict.register(healthy)).thenReturn(new DictRegistration("cid-2", NOW));
         when(persistence.save(any(PixKey.class)))
                 .thenThrow(new IllegalStateException("banco caiu"))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 

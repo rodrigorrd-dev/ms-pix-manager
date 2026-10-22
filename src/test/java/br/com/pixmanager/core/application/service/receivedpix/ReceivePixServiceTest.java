@@ -114,7 +114,7 @@ class ReceivePixServiceTest {
         firstDelivery();
         knownReceiver();
         when(charges.settle(eq(receiverId), eq(TXID), any(UUID.class), eq(Money.of("100.00")), eq(SETTLED))).thenReturn(settlement);
-        when(persistence.save(any(ReceivedPix.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(ReceivedPix.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ReceivedPix pix = ((ReceivePixResult.Received) service.receive(command(TXID, "100.00", "52998224725", List.of()))).pix();
 
@@ -137,7 +137,7 @@ class ReceivePixServiceTest {
     void shouldNotTryToSettleAChargeWhenThePixHasNoTxid() {
         firstDelivery();
         knownReceiver();
-        when(persistence.save(any(ReceivedPix.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(ReceivedPix.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ReceivedPix pix = ((ReceivePixResult.Received) service.receive(command(null, "100.00", "52998224725", List.of()))).pix();
 
@@ -150,7 +150,7 @@ class ReceivePixServiceTest {
     void shouldKeepThePixWithoutPayerDocumentWhenItIsInvalid() {
         firstDelivery();
         knownReceiver();
-        when(persistence.save(any(ReceivedPix.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(ReceivedPix.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ReceivedPix pix = ((ReceivePixResult.Received) service.receive(command(null, "100.00", "***.982.247-**", List.of()))).pix();
 
@@ -163,7 +163,7 @@ class ReceivePixServiceTest {
     void shouldStillCreditThePixWhenComponentsDoNotAddUpToTheAmount() {
         firstDelivery();
         knownReceiver();
-        when(persistence.save(any(ReceivedPix.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(ReceivedPix.class))).thenAnswer(invocation -> invocation.getArgument(0));
         var divergent = List.of(new ValueComponent(ComponentType.ORIGINAL, Money.of("90.00"), null, null));
 
         ReceivedPix pix = ((ReceivePixResult.Received) service.receive(command(null, "100.00", "52998224725", divergent))).pix();

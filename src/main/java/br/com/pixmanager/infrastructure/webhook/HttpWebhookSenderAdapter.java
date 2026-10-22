@@ -75,9 +75,9 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
 
     /** {@code <webhookUrl>/pix}: o "/pix" entra no CAMINHO (antes da query, se houver) e barras finais não geram "//pix". */
     static URI pixEndpoint(String webhookUrl) {
-        URI uRI = URI.create(webhookUrl.trim());
-        String path = (uRI.getRawPath() == null ? "" : uRI.getRawPath()).replaceAll("/+$", "") + "/pix";
-        return URI.create(uRI.getScheme() + "://" + uRI.getRawAuthority() + path + (uRI.getRawQuery() == null ? "" : "?" + uRI.getRawQuery()));
+        URI webhookUri = URI.create(webhookUrl.trim());
+        String path = (webhookUri.getRawPath() == null ? "" : webhookUri.getRawPath()).replaceAll("/+$", "") + "/pix";
+        return URI.create(webhookUri.getScheme() + "://" + webhookUri.getRawAuthority() + path + (webhookUri.getRawQuery() == null ? "" : "?" + webhookUri.getRawQuery()));
     }
 
 

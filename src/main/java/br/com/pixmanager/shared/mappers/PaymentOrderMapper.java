@@ -14,18 +14,18 @@ import org.springframework.stereotype.Component;
 public class PaymentOrderMapper {
 
     public CreatePaymentOrderCommand toCommand(CreatePaymentOrderRequest request) {
-        var d = request.destination();
+        var destination = request.destination();
         return new CreatePaymentOrderCommand(request.payerAccountId(), request.method(), null, request.amount() == null ? null : Money.parseBcb(request.amount()),
-                d == null ? null : d.pixKeyType(), d == null ? null : d.pixKey(), d == null ? null : d.documentHint(),
-                d == null ? null : d.ispb(), d == null ? null : d.branch(), d == null ? null : d.account(),
-                d == null ? null : d.accountType(), d == null ? null : d.name(), d == null ? null : d.document(), request.qrPayload(),
+                destination == null ? null : destination.pixKeyType(), destination == null ? null : destination.pixKey(), destination == null ? null : destination.documentHint(),
+                destination == null ? null : destination.ispb(), destination == null ? null : destination.branch(), destination == null ? null : destination.account(),
+                destination == null ? null : destination.accountType(), destination == null ? null : destination.name(), destination == null ? null : destination.document(), request.qrPayload(),
                 request.payerMessage(), request.deviceId(), false);
     }
 
     public PaymentOrderResponse toResponse(PaymentOrder paymentOrder) {
-        var dest = paymentOrder.destination();
+        var destination = paymentOrder.destination();
         return new PaymentOrderResponse(paymentOrder.id(), paymentOrder.payerAccountId(), paymentOrder.method(), paymentOrder.origin(), paymentOrder.status(), paymentOrder.amount().toBcb(),
-                paymentOrder.endToEndId().value(), paymentOrder.rejectReasonCode(), dest.name(), dest.document() == null ? null : dest.document().masked(),
+                paymentOrder.endToEndId().value(), paymentOrder.rejectReasonCode(), destination.name(), destination.document() == null ? null : destination.document().masked(),
                 paymentOrder.requestedAt(), paymentOrder.settledAt());
     }
 

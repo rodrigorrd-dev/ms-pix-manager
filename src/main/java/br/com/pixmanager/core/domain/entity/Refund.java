@@ -33,9 +33,9 @@ public record Refund(UUID id, String clientRefundId, UUID receivedId, EndToEndId
         }
     }
 
-    public static Refund request(UUID id, String clientRefundId, UUID receivedId, EndToEndId e2e, String rtrId, Money amount,
+    public static Refund request(UUID id, String clientRefundId, UUID receivedId, EndToEndId endToEndId, String rtrId, Money amount,
                                  RefundNature nature, String description, Instant now) {
-        return new Refund(id, clientRefundId, receivedId, e2e, rtrId, amount, nature == null ? RefundNature.ORIGINAL : nature,
+        return new Refund(id, clientRefundId, receivedId, endToEndId, rtrId, amount, nature == null ? RefundNature.ORIGINAL : nature,
                 description, RefundStatus.EM_PROCESSAMENTO, null, now, null, 0);
     }
 

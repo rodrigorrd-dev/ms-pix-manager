@@ -71,7 +71,7 @@ public class ActivatePendingKeysService implements ActivatePendingKeysUseCase {
             log.warn("DICT indisponível [{}] para a chave {}; tentará de novo: {}", exception.getCode(), key.id(), exception.getMessage());
             return false;
         }
-        persistAndPublish(key.activated(registration.cid(), registration.registeredAt()), "PixKeyActivated");
+        persistAndPublish(key.activated(registration.dictCid(), registration.registeredAt()), "PixKeyActivated");
         return true;
     }
 

@@ -72,33 +72,33 @@ class MedCaseApiIT extends AbstractApplicationIT {
         return TestJwt.client("backoffice", List.of(account.id()), scopes);
     }
 
-    String e2e() {
+    String newEndToEndId() {
         return "E12345678202610151403" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     }
 
     String receive(String amount, Instant settledAt) {
-        String endToEndId = e2e();
+        String endToEndId = newEndToEndId();
         receivePix.receive(new ReceivePixCommand("it-group", UUID.randomUUID().toString(), "pix.spi.payment-settled.v1", 0, 1, endToEndId, null, Money.of(amount), settledAt,
                 "12345678", "0001", account.number(), "CACC", "11144477735", "Maria Pagadora", "87654321", "0002", "99887", "CACC", "x",
                 List.of(new ValueComponent(ComponentType.ORIGINAL, Money.of(amount), null, null))));
         return endToEndId;
     }
 
-    String openBody(String role, String e2e) {
-        return "{\"role\":\"%s\",\"endToEndId\":\"%s\",\"caseType\":\"FRAUD\",\"description\":\"golpe do falso suporte\",\"layer\":1}".formatted(role, e2e);
+    String openBody(String role, String endToEndId) {
+        return "{\"role\":\"%s\",\"endToEndId\":\"%s\",\"caseType\":\"FRAUD\",\"description\":\"golpe do falso suporte\",\"layer\":1}".formatted(role, endToEndId);
     }
 
-    JsonNode open(String role, String e2e) throws Exception {
-        var r = mvc.perform(post("/v1/med-cases").with(admin("med.write")).header("Idempotency-Key", UUID.randomUUID().toString())
-                .contentType(MediaType.APPLICATION_JSON).content(openBody(role, e2e))).andReturn();
-        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(r.getResponse().getContentAsString());
+    JsonNode open(String role, String endToEndId) throws Exception {
+        var mvcResult = mvc.perform(post("/v1/med-cases").with(admin("med.write")).header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content(openBody(role, endToEndId))).andReturn();
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     JsonNode act(String id, String verb) throws Exception {
-        var r = mvc.perform(post("/v1/med-cases/{id}/{verb}", id, verb).with(admin("med.write"))).andReturn();
-        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString()).isEqualTo(200);
-        return json.readTree(r.getResponse().getContentAsString());
+        var mvcResult = mvc.perform(post("/v1/med-cases/{id}/{verb}", id, verb).with(admin("med.write"))).andReturn();
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(200);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     UUID reservationOf(String key) {
@@ -127,22 +127,22 @@ class MedCaseApiIT extends AbstractApplicationIT {
         JsonNode refunding = act(id, "refund");
         assertThat(refunding.get("status").asText()).isEqualTo("REFUNDING");
         verify(ledger).cancel(org.mockito.ArgumentMatchers.argThat(request -> request.idempotencyKey().equals("med-" + id + "-1")));
-        String rtr = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE id = :id").param("id", UUID.fromString(refunding.get("refundId").asText())).query(String.class).single();
-        assertThat(jdbc.sql("SELECT nature FROM pix_refund WHERE rtr_id = :r").param("r", rtr).query(String.class).single()).isEqualTo("MED_FRAUDE");
+        String returnId = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE id = :id").param("id", UUID.fromString(refunding.get("refundId").asText())).query(String.class).single();
+        assertThat(jdbc.sql("SELECT nature FROM pix_refund WHERE rtr_id = :r").param("r", returnId).query(String.class).single()).isEqualTo("MED_FRAUDE");
         assertThat(jdbc.sql("SELECT status FROM med_block WHERE case_id = :c").param("c", UUID.fromString(id)).query(String.class).single()).isEqualTo("RELEASED");
 
         assertThat(follow.runCycle()).as("devolução ainda em processamento").isZero();
-        processReservation.process(reservationOf(rtr));
-        settleRefund.apply("it-med", "s-" + id, "pix.spi.refund-status.v1", 0, 1, rtr, true, null, Instant.now());
+        processReservation.process(reservationOf(returnId));
+        settleRefund.apply("it-med", "s-" + id, "pix.spi.refund-status.v1", 0, 1, returnId, true, null, Instant.now());
         assertThat(follow.runCycle()).isEqualTo(1);
         mvc.perform(get("/v1/med-cases/{id}", id).with(admin("med.read"))).andExpect(jsonPath("$.status").value("CLOSED"));
 
         var contest = mvc.perform(post("/v1/med-cases/{id}/contestations", id).with(admin("med.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"o valor era legítimo\"}")).andExpect(status().isCreated()).andReturn();
-        String cid = json.readTree(contest.getResponse().getContentAsString()).get("id").asText();
+        String contestationId = json.readTree(contest.getResponse().getContentAsString()).get("id").asText();
         mvc.perform(post("/v1/med-cases/{id}/contestations", id).with(admin("med.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"de novo\"}")).andExpect(status().isConflict());
-        mvc.perform(post("/v1/med-cases/contestations/{c}/decision", cid).with(admin("med.write")).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/v1/med-cases/contestations/{c}/decision", contestationId).with(admin("med.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"accepted\":true,\"note\":\"procede\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ACCEPTED"));
         mvc.perform(get("/v1/med-cases/{id}", id).with(admin("med.read"))).andExpect(jsonPath("$.status").value("CONTESTED"));
 
@@ -162,7 +162,7 @@ class MedCaseApiIT extends AbstractApplicationIT {
                 .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTED", old)))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("PIX-422-071"));
         mvc.perform(post("/v1/med-cases").with(admin("med.write")).header("Idempotency-Key", UUID.randomUUID().toString())
-                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTED", e2e()))).andExpect(status().isNotFound());
+                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTED", newEndToEndId()))).andExpect(status().isNotFound());
 
         String refused = open("REPORTED", receive("30.00", Instant.now())).get("id").asText();
         assertThat(act(refused, "refusal").get("status").asText()).isEqualTo("REFUSED");
