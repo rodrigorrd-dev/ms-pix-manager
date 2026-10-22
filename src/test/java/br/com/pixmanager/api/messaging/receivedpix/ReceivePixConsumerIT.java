@@ -59,9 +59,9 @@ class ReceivePixConsumerIT extends AbstractKafkaIT {
         publishAvro(TOPIC, e2eId, settled("biz-" + UUID.randomUUID(), e2eId, null, "1.00", "000000"));
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(r -> e2eId.equals(r.key())));
+                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(record -> e2eId.equals(record.key())));
         assertThat(rows(e2eId)).isZero();
-        assertThat(readAll(TOPIC + "-retry-0", Duration.ofSeconds(2))).noneMatch(r -> e2eId.equals(r.key()));
+        assertThat(readAll(TOPIC + "-retry-0", Duration.ofSeconds(2))).noneMatch(record -> e2eId.equals(record.key()));
     }
 
     @Test
@@ -72,7 +72,7 @@ class ReceivePixConsumerIT extends AbstractKafkaIT {
         publishRaw(TOPIC, badKey, garbage);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(r -> badKey.equals(r.key()) && java.util.Arrays.equals(garbage, r.value())));
+                assertThat(readAll(DLT, Duration.ofSeconds(2))).anyMatch(record -> badKey.equals(record.key()) && java.util.Arrays.equals(garbage, record.value())));
 
         // depois da poison pill, uma mensagem boa ainda é processada
         String e2eId = e2e();

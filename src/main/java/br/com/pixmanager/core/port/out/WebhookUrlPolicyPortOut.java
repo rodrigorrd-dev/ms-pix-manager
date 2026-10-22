@@ -20,9 +20,9 @@ public interface WebhookUrlPolicyPortOut {
 
         default String describe() {
             return switch (this) {
-                case Allowed a -> "ok";
-                case Forbidden f -> f.reason();
-                case Unresolvable u -> "o nome " + u.host() + " não resolve em DNS";
+                case Allowed allowed -> "ok";
+                case Forbidden forbidden -> forbidden.reason();
+                case Unresolvable unresolvable -> "o nome " + unresolvable.host() + " não resolve em DNS";
             };
         }
     }

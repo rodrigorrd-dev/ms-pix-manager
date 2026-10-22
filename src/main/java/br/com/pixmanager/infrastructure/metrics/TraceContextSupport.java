@@ -17,11 +17,11 @@ public class TraceContextSupport {
 
     /** {@code 00-<traceId>-<spanId>-01} ou {@code null} sem span ativo. */
     public String currentTraceParent() {
-        Tracer t = tracer.getIfAvailable();
-        if (t == null) {
+        Tracer currentTracer = tracer.getIfAvailable();
+        if (currentTracer == null) {
             return null;
         }
-        Span span = t.currentSpan();
+        Span span = currentTracer.currentSpan();
         if (span == null) {
             return null;
         }
@@ -31,8 +31,8 @@ public class TraceContextSupport {
     }
 
     public String currentTraceId() {
-        Tracer t = tracer.getIfAvailable();
-        Span span = t == null ? null : t.currentSpan();
+        Tracer currentTracer = tracer.getIfAvailable();
+        Span span = currentTracer == null ? null : currentTracer.currentSpan();
         return span == null ? null : span.context().traceId();
     }
 }

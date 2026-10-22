@@ -75,7 +75,7 @@ public class OutboxEventPublisherAdapter implements DomainEventPublisherPortOut 
                 .setTraceId(trace.currentTraceId())
                 .build();
         SpecificRecord record = converters.stream()
-                .filter(c -> c.supports(event))
+                .filter(converter -> converter.supports(event))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Sem EventAvroConverter para " + event.getClass().getName()))
                 .toAvro(event, envelope);

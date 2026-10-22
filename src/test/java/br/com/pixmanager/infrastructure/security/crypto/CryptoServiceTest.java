@@ -27,10 +27,10 @@ class CryptoServiceTest {
 
     @Test
     void sameInputShouldProduceDifferentCiphertextButSameBlindIndex() {
-        CryptoService s = service();
-        assertThat(s.encrypt("52998224725")).isNotEqualTo(s.encrypt("52998224725"));
-        assertThat(s.blindIndex("52998224725")).hasSize(64).isEqualTo(s.blindIndex("52998224725"));
-        assertThat(s.blindIndex("52998224725")).isNotEqualTo(s.blindIndex("52998224726"));
+        CryptoService cryptoService = service();
+        assertThat(cryptoService.encrypt("52998224725")).isNotEqualTo(cryptoService.encrypt("52998224725"));
+        assertThat(cryptoService.blindIndex("52998224725")).hasSize(64).isEqualTo(cryptoService.blindIndex("52998224725"));
+        assertThat(cryptoService.blindIndex("52998224725")).isNotEqualTo(cryptoService.blindIndex("52998224726"));
     }
 
     @Test
@@ -82,9 +82,9 @@ class CryptoServiceTest {
 
     @Test
     void dataFromAVersionWithoutAKeyShouldFailClearlyInsteadOfReturningGarbage() {
-        String v1 = service().encrypt("x");
+        String oldVersionCiphertext = service().encrypt("x");
         CryptoService semAntiga = new CryptoService(new CryptoProperties(AES_V2, HMAC, "v2"));   // esqueceu previous-aes-keys
-        assertThatThrownBy(() -> semAntiga.decrypt(v1)).hasMessageContaining("Versão de chave desconhecida");
+        assertThatThrownBy(() -> semAntiga.decrypt(oldVersionCiphertext)).hasMessageContaining("Versão de chave desconhecida");
         assertThatThrownBy(() -> semAntiga.decrypt("v9:AAAA")).hasMessageContaining("Versão de chave desconhecida");
         assertThatThrownBy(() -> semAntiga.decrypt("sem-prefixo")).hasMessageContaining("Versão de chave desconhecida");
     }

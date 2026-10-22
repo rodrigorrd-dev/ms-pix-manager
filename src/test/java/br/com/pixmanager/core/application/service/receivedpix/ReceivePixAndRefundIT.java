@@ -122,27 +122,27 @@ class ReceivePixAndRefundIT extends AbstractApplicationIT {
     @Test
     @DisplayName("BR-PIX-03: valor diferente ⇒ MISMATCH; depois de expirar ⇒ MATCHED_AFTER_EXPIRATION; sem cobrança ⇒ NO_CHARGE (o Pix nunca é rejeitado)")
     void shouldNeverRejectALiquidatedPix() throws Exception {
-        String t1 = createCharge("50.00", 3600);
-        String e1 = e2e();
-        receivePix.receive(command("mm-1", e1, t1, "49.00", Instant.now()));
-        assertThat(reconciliation(e1)).isEqualTo("MISMATCH");
-        assertThat(chargeStatus(t1)).isEqualTo("ATIVA");
+        String firstTxid = createCharge("50.00", 3600);
+        String firstEndToEndId = e2e();
+        receivePix.receive(command("mm-1", firstEndToEndId, firstTxid, "49.00", Instant.now()));
+        assertThat(reconciliation(firstEndToEndId)).isEqualTo("MISMATCH");
+        assertThat(chargeStatus(firstTxid)).isEqualTo("ATIVA");
 
-        String t2 = createCharge("50.00", 60);
-        String e2 = e2e();
-        receivePix.receive(command("exp-1", e2, t2, "50.00", Instant.now().plusSeconds(86_400)));
-        assertThat(reconciliation(e2)).isEqualTo("MATCHED_AFTER_EXPIRATION");
-        assertThat(chargeStatus(t2)).isEqualTo("ATIVA");
+        String secondTxid = createCharge("50.00", 60);
+        String secondEndToEndId = e2e();
+        receivePix.receive(command("exp-1", secondEndToEndId, secondTxid, "50.00", Instant.now().plusSeconds(86_400)));
+        assertThat(reconciliation(secondEndToEndId)).isEqualTo("MATCHED_AFTER_EXPIRATION");
+        assertThat(chargeStatus(secondTxid)).isEqualTo("ATIVA");
 
-        String e3 = e2e();
-        receivePix.receive(command("nc-1", e3, null, "10.00", Instant.now()));
-        assertThat(reconciliation(e3)).isEqualTo("NO_CHARGE");
+        String thirdEndToEndId = e2e();
+        receivePix.receive(command("nc-1", thirdEndToEndId, null, "10.00", Instant.now()));
+        assertThat(reconciliation(thirdEndToEndId)).isEqualTo("NO_CHARGE");
 
         // BR-COB-10: segundo Pix para cobrança já concluída vira "sem cobrança vinculada"
-        String t4 = createCharge("5.00", 3600);
-        receivePix.receive(command("p4a", e2e(), t4, "5.00", Instant.now()));
+        String fourthTxid = createCharge("5.00", 3600);
+        receivePix.receive(command("p4a", e2e(), fourthTxid, "5.00", Instant.now()));
         String e4b = e2e();
-        receivePix.receive(command("p4b", e4b, t4, "5.00", Instant.now()));
+        receivePix.receive(command("p4b", e4b, fourthTxid, "5.00", Instant.now()));
         assertThat(reconciliation(e4b)).isEqualTo("NO_CHARGE");
     }
 

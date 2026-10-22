@@ -41,18 +41,18 @@ public class OwnershipProofService implements OwnershipProofUseCase {
     private final OtpCodePortOut codes;
     private final OtpSenderPortOut sender;
     private final IdGeneratorPortOut ids;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final PixPolicyProperties.Otp policy;
 
     public OwnershipProofService(PixKeyPersistencePortOut keys, OtpChallengePortOut challenges, OtpCodePortOut codes, OtpSenderPortOut sender,
-                                 IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock, PixPolicyProperties.Otp policy) {
+                                 IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock, PixPolicyProperties.Otp policy) {
         this.keys = keys;
         this.challenges = challenges;
         this.codes = codes;
         this.sender = sender;
         this.ids = ids;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.policy = policy;
     }
@@ -78,7 +78,7 @@ public class OwnershipProofService implements OwnershipProofUseCase {
         String code = codes.generate();
         OtpChannel channel = OtpChannel.forKeyType(key.value().type());
         OtpChallenge challenge = OtpChallenge.issue(ids.newId(), keyId, channel, codes.hash(keyId, code), now, policy.ttl());
-        tx.inTransaction(() -> challenges.save(challenge));
+        transactionRunner.inTransaction(() -> challenges.save(challenge));
         // fora de transação: se o envio falhar (502), o desafio fica sem uso e vence; o cliente pede outro depois da espera
         sender.send(channel, key.value().value(), code, policy.ttl());
         return new Issued(challenge.id(), channel, key.value().masked(), challenge.expiresAt());
@@ -89,7 +89,7 @@ public class OwnershipProofService implements OwnershipProofUseCase {
         PixKey key = awaitingProof(caller, keyId);
         Instant now = clock.instant();
 
-        OtpChallenge challenge = challenges.findLatest(keyId).filter(c -> !c.isVerified())
+        OtpChallenge challenge = challenges.findLatest(keyId).filter(otpChallenge -> !otpChallenge.isVerified())
                 .orElseThrow(() -> new BusinessException(ErrorCodes.OTP_INVALID, "Nenhum código pendente: peça um novo código."));
         if (challenge.isExpired(now)) {
             throw new BusinessException(ErrorCodes.OTP_EXPIRED, "O código venceu: peça um novo código.");
@@ -99,20 +99,20 @@ public class OwnershipProofService implements OwnershipProofUseCase {
         }
         if (!matches(codes.hash(keyId, code), challenge.codeHash())) {
             OtpChallenge failed = challenge.failedAttempt();
-            tx.inTransaction(() -> challenges.save(failed));        // a tentativa é contada MESMO falhando
+            transactionRunner.inTransaction(() -> challenges.save(failed));        // a tentativa é contada MESMO falhando
             int left = policy.maxAttempts() - failed.attempts();
             throw new BusinessException(ErrorCodes.OTP_INVALID, left > 0
                     ? "Código incorreto. Restam " + left + " tentativa(s)."
                     : "Código incorreto. Tentativas esgotadas: peça um novo código.");
         }
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             challenges.save(challenge.verified(now));
             return keys.save(key.ownershipProven());                // PENDING_OWNERSHIP_PROOF → PENDING_DICT (o job registra no DICT)
         });
     }
 
     private PixKey awaitingProof(Caller caller, UUID keyId) {
-        PixKey key = keys.findById(keyId).filter(k -> caller.canAccess(k.accountId()))
+        PixKey key = keys.findById(keyId).filter(pixKey -> caller.canAccess(pixKey.accountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Chave não encontrada."));
         if (key.status() != PixKeyStatus.PENDING_OWNERSHIP_PROOF) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "A chave não está aguardando prova de posse (status " + key.status() + ").");
@@ -121,7 +121,7 @@ public class OwnershipProofService implements OwnershipProofUseCase {
     }
 
     /** Comparação em tempo constante (não vaza, pelo tempo, quantos caracteres do hash batem). */
-    private static boolean matches(String a, String b) {
-        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    private static boolean matches(String left, String right) {
+        return MessageDigest.isEqual(left.getBytes(StandardCharsets.UTF_8), right.getBytes(StandardCharsets.UTF_8));
     }
 }

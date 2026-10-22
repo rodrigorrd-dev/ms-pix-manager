@@ -62,7 +62,7 @@ public class SecurityConfig {
                     .requestMatchers(openPaths.paths()).permitAll()
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .anyRequest().authenticated())
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
+            .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
             .oauth2ResourceServer(oauth -> oauth
                     .authenticationEntryPoint(entryPoint)
                     .accessDeniedHandler(accessDeniedHandler)

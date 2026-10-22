@@ -37,8 +37,8 @@ public class KafkaTlsGuard {
         String value;
         try {
             value = env.getRequiredProperty(property);          // resolve ${...} de forma estrita: lança se a variável não existe
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " não foi definida", e);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " não foi definida", exception);
         }
         if (value.isBlank()) {
             throw new IllegalStateException("Profile de TLS do Kafka ativo, mas a variável " + variable + " está em branco");

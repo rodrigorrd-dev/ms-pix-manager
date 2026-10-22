@@ -64,109 +64,109 @@ public class GlobalExceptionHandler {
             TooManyRequestsException.class, BusinessException.class, IntegrationException.class,
             org.springframework.security.access.AccessDeniedException.class,
             IllegalArgumentException.class, IllegalStateException.class})
-    ResponseEntity<ProblemDetail> handleDomain(Exception ex) {
-        return respond(ex, titleKeyFor(ex));
+    ResponseEntity<ProblemDetail> handleDomain(Exception exception) {
+        return respond(exception, titleKeyFor(exception));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
-        List<ProblemField> errors = ex.getBindingResult().getFieldErrors().stream()
-                .map(f -> new ProblemField(f.getField(), f.getCode(), f.getDefaultMessage()))
+    ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
+        List<ProblemField> errors = exception.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> new ProblemField(fieldError.getField(), fieldError.getCode(), fieldError.getDefaultMessage()))
                 .sorted(java.util.Comparator.comparing(ProblemField::field))
                 .toList();
-        ProblemDetail pd = ProblemDetails.of(errorProperties, HttpStatus.BAD_REQUEST, msg("error.invalidPayload.title"),
+        ProblemDetail problemDetail = ProblemDetails.of(errorProperties, HttpStatus.BAD_REQUEST, msg("error.invalidPayload.title"),
                 msg("error.validation.fields.detail"), ErrorCodes.INVALID_PAYLOAD);
-        pd.setProperty("errors", errors);
-        return pd;
+        problemDetail.setProperty("errors", errors);
+        return problemDetail;
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    ProblemDetail handleConstraint(ConstraintViolationException ex) {
-        List<ProblemField> errors = ex.getConstraintViolations().stream()
-                .map(v -> new ProblemField(v.getPropertyPath().toString(), null, v.getMessage()))
+    ProblemDetail handleConstraint(ConstraintViolationException exception) {
+        List<ProblemField> errors = exception.getConstraintViolations().stream()
+                .map(violation -> new ProblemField(violation.getPropertyPath().toString(), null, violation.getMessage()))
                 .sorted(java.util.Comparator.comparing(ProblemField::field))
                 .toList();
-        ProblemDetail pd = ProblemDetails.of(errorProperties, HttpStatus.BAD_REQUEST, msg("error.invalidPayload.title"),
+        ProblemDetail problemDetail = ProblemDetails.of(errorProperties, HttpStatus.BAD_REQUEST, msg("error.invalidPayload.title"),
                 msg("error.validation.params.detail"), ErrorCodes.INVALID_PAYLOAD);
-        pd.setProperty("errors", errors);
-        return pd;
+        problemDetail.setProperty("errors", errors);
+        return problemDetail;
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class, MissingRequestHeaderException.class,
             MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class})
-    ProblemDetail handleBadRequest(Exception ex) {
-        log.warn("Requisição malformada: {}", ex.getClass().getSimpleName());
+    ProblemDetail handleBadRequest(Exception exception) {
+        log.warn("Requisição malformada: {}", exception.getClass().getSimpleName());
         return ProblemDetails.of(errorProperties, HttpStatus.BAD_REQUEST, msg("error.invalidRequest.title"),
                 msg("error.invalidRequest.detail"), ErrorCodes.INVALID_PAYLOAD);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    ResponseEntity<ProblemDetail> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
-        ProblemDetail pd = ProblemDetails.of(errorProperties, HttpStatus.METHOD_NOT_ALLOWED, msg("error.methodNotAllowed.title"),
+    ResponseEntity<ProblemDetail> handleMethodNotAllowed(HttpRequestMethodNotSupportedException exception) {
+        ProblemDetail problemDetail = ProblemDetails.of(errorProperties, HttpStatus.METHOD_NOT_ALLOWED, msg("error.methodNotAllowed.title"),
                 msg("error.methodNotAllowed.detail"), ErrorCodes.METHOD_NOT_ALLOWED);
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
-        if (ex.getSupportedHttpMethods() != null) {
-            builder.allow(ex.getSupportedHttpMethods().toArray(new org.springframework.http.HttpMethod[0]));
+        if (exception.getSupportedHttpMethods() != null) {
+            builder.allow(exception.getSupportedHttpMethods().toArray(new org.springframework.http.HttpMethod[0]));
         }
-        return builder.body(pd);
+        return builder.body(problemDetail);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    ProblemDetail handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+    ProblemDetail handleUnsupportedMediaType(HttpMediaTypeNotSupportedException exception) {
         return ProblemDetails.of(errorProperties, HttpStatus.UNSUPPORTED_MEDIA_TYPE, msg("error.unsupportedMediaType.title"),
                 msg("error.unsupportedMediaType.detail"), ErrorCodes.UNSUPPORTED_MEDIA_TYPE);
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
-    ResponseEntity<ProblemDetail> handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
-        ProblemDetail pd = ProblemDetails.of(errorProperties, HttpStatus.NOT_ACCEPTABLE, msg("error.notAcceptable.title"),
+    ResponseEntity<ProblemDetail> handleNotAcceptable(HttpMediaTypeNotAcceptableException exception) {
+        ProblemDetail problemDetail = ProblemDetails.of(errorProperties, HttpStatus.NOT_ACCEPTABLE, msg("error.notAcceptable.title"),
                 msg("error.notAcceptable.detail"), ErrorCodes.NOT_ACCEPTABLE);
         // sem Content-Type negociável: devolve JSON simples
         return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .body(pd);
+                .body(problemDetail);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    ProblemDetail handleNoResource(NoResourceFoundException ex) {
+    ProblemDetail handleNoResource(NoResourceFoundException exception) {
         return ProblemDetails.of(errorProperties, HttpStatus.NOT_FOUND, msg("error.notFound.title"),
                 msg("error.notFound.detail"), ErrorCodes.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<ProblemDetail> handleGeneric(Exception ex) {
-        return respond(ex, ExceptionClassifier.isDatabaseUnavailable(ex) ? "error.unavailable.title" : "error.internal.title");
+    ResponseEntity<ProblemDetail> handleGeneric(Exception exception) {
+        return respond(exception, ExceptionClassifier.isDatabaseUnavailable(exception) ? "error.unavailable.title" : "error.internal.title");
     }
 
-    private ResponseEntity<ProblemDetail> respond(Throwable ex, String titleKey) {
-        ClassifiedError error = classifier.classify(ex);
+    private ResponseEntity<ProblemDetail> respond(Throwable exception, String titleKey) {
+        ClassifiedError error = classifier.classify(exception);
         error.logTo(log, null);
-        ProblemDetail pd = ProblemDetails.of(errorProperties, HttpStatus.valueOf(error.category().httpStatus()),
+        ProblemDetail problemDetail = ProblemDetails.of(errorProperties, HttpStatus.valueOf(error.category().httpStatus()),
                 msg(titleKey), error.message(), error.code());
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(error.category().httpStatus());
         if (error.category() == ErrorCategory.SERVICE_UNAVAILABLE || error.category() == ErrorCategory.TOO_MANY_REQUESTS) {
-            long seconds = ex instanceof TooManyRequestsException tooMany ? Math.max(1, tooMany.getRetryAfter().toSeconds()) : 5;
+            long seconds = exception instanceof TooManyRequestsException tooMany ? Math.max(1, tooMany.getRetryAfter().toSeconds()) : 5;
             builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
         }
-        return builder.body(pd);
+        return builder.body(problemDetail);
     }
 
-    private static String titleKeyFor(Throwable ex) {
-        return switch (ex) {
-            case BadRequestException e -> "error.invalidRequest.title";
-            case NotFoundException e -> "error.notFound.title";
-            case PreconditionFailedException e -> "error.preconditionFailed.title";
-            case PreconditionRequiredException e -> "error.preconditionRequired.title";
-            case TooManyRequestsException e -> "error.tooManyRequests.title";
-            case ConflictException e -> "error.conflict.title";
-            case ForbiddenException e -> "error.accessDenied.title";
-            case org.springframework.security.access.AccessDeniedException e -> "error.accessDenied.title";
-            case InvalidTransitionException e -> "error.invalidTransition.title";
-            case DependencyUnavailableException e -> "error.unavailable.title";
-            case IntegrationException e -> "error.integration.title";
-            case BusinessException e -> "error.business.title";
-            case IllegalArgumentException e -> "error.invalidRequest.title";
-            case br.com.pixmanager.shared.exception.CryptoException e -> "error.internal.title";
-            case IllegalStateException e -> "error.inconsistentState.title";
+    private static String titleKeyFor(Throwable error) {
+        return switch (error) {
+            case BadRequestException exception -> "error.invalidRequest.title";
+            case NotFoundException exception -> "error.notFound.title";
+            case PreconditionFailedException exception -> "error.preconditionFailed.title";
+            case PreconditionRequiredException exception -> "error.preconditionRequired.title";
+            case TooManyRequestsException exception -> "error.tooManyRequests.title";
+            case ConflictException exception -> "error.conflict.title";
+            case ForbiddenException exception -> "error.accessDenied.title";
+            case org.springframework.security.access.AccessDeniedException exception -> "error.accessDenied.title";
+            case InvalidTransitionException exception -> "error.invalidTransition.title";
+            case DependencyUnavailableException exception -> "error.unavailable.title";
+            case IntegrationException exception -> "error.integration.title";
+            case BusinessException exception -> "error.business.title";
+            case IllegalArgumentException exception -> "error.invalidRequest.title";
+            case br.com.pixmanager.shared.exception.CryptoException exception -> "error.internal.title";
+            case IllegalStateException exception -> "error.inconsistentState.title";
             default -> "error.internal.title";
         };
     }

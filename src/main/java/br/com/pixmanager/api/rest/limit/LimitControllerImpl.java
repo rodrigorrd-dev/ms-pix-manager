@@ -31,8 +31,8 @@ public class LimitControllerImpl implements LimitController {
     @Override
     public ResponseEntity<LimitsResponse> list(UUID accountId) {
         var views = manage.list(CallerContext.current(), accountId).stream()
-                .map(v -> new LimitResponse(v.scope(), v.effective().toBcb(), v.ceiling() == null ? null : v.ceiling().toBcb(),
-                        v.pendingAmount() == null ? null : v.pendingAmount().toBcb(), v.pendingEffectiveAt(), v.isDefault()))
+                .map(limitView -> new LimitResponse(limitView.scope(), limitView.effective().toBcb(), limitView.ceiling() == null ? null : limitView.ceiling().toBcb(),
+                        limitView.pendingAmount() == null ? null : limitView.pendingAmount().toBcb(), limitView.pendingEffectiveAt(), limitView.isDefault()))
                 .toList();
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new LimitsResponse(accountId, views));
     }

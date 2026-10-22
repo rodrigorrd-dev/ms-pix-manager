@@ -51,19 +51,19 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
         mapper.apply(pix, entity);
         try {
             repository.saveAndFlush(entity);
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException exception) {
             // corrida entre dois consumidores com o mesmo endToEndId: o índice único decide (BR-PIX-01)
             throw new ConflictException(ErrorCodes.CONFLICT, "Pix já registrado para este endToEndId.");
         }
-        for (ValueComponent c : pix.components()) {
+        for (ValueComponent valueComponent : pix.components()) {
             jdbc.sql("""
                     INSERT INTO pix_received_component (received_id, component_type, amount, agent_modality, withdrawal_provider_ispb)
                     VALUES (:id, :type, :amount, :modality, :provider)
                     """)
-                    .param("id", pix.id()).param("type", c.type().name()).param("amount", c.amount().value())
-                    .param("modality", c.agentModality()).param("provider", c.withdrawalProviderIspb()).update();
+                    .param("id", pix.id()).param("type", valueComponent.type().name()).param("amount", valueComponent.amount().value())
+                    .param("modality", valueComponent.agentModality()).param("provider", valueComponent.withdrawalProviderIspb()).update();
         }
-        return repository.findById(pix.id()).map(e -> mapper.toDomain(e, pix.components())).orElseThrow();
+        return repository.findById(pix.id()).map(savedEntity -> mapper.toDomain(savedEntity, pix.components())).orElseThrow();
     }
 
     @Override
@@ -85,7 +85,7 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
     @Override
     @Transactional(readOnly = true)
     public Optional<ReceivedPix> findByEndToEndId(String endToEndId) {
-        return repository.findByEndToEndId(endToEndId).map(e -> mapper.toDomain(e, components(e.getId())));
+        return repository.findByEndToEndId(endToEndId).map(entity -> mapper.toDomain(entity, components(entity.getId())));
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
                 PageRequest.of(page.page(), page.size(), Sort.by(Sort.Direction.DESC, "settledAt")));
         Map<UUID, List<ValueComponent>> componentsById = components(result.getContent().stream().map(ReceivedPixEntity::getId).toList());
         return new PageResult<>(result.getContent().stream()
-                .map(e -> mapper.toDomain(e, componentsById.getOrDefault(e.getId(), List.of()))).toList(),
+                .map(entity -> mapper.toDomain(entity, componentsById.getOrDefault(entity.getId(), List.of()))).toList(),
                 page.page(), page.size(), result.getTotalElements());
     }
 
@@ -112,11 +112,11 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
         }
         jdbc.sql("SELECT received_id, component_type, amount, agent_modality, withdrawal_provider_ispb FROM pix_received_component WHERE received_id IN (:ids)")
                 .param("ids", receivedIds)
-                .query((rs, n) -> {
-                    byId.computeIfAbsent(rs.getObject("received_id", UUID.class), k -> new ArrayList<>())
-                            .add(new ValueComponent(ComponentType.valueOf(rs.getString("component_type")),
-                                    br.com.pixmanager.core.domain.entity.Money.of(rs.getBigDecimal("amount")), rs.getString("agent_modality"),
-                                    rs.getString("withdrawal_provider_ispb")));
+                .query((resultSet, rowNumber) -> {
+                    byId.computeIfAbsent(resultSet.getObject("received_id", UUID.class), receivedId -> new ArrayList<>())
+                            .add(new ValueComponent(ComponentType.valueOf(resultSet.getString("component_type")),
+                                    br.com.pixmanager.core.domain.entity.Money.of(resultSet.getBigDecimal("amount")), resultSet.getString("agent_modality"),
+                                    resultSet.getString("withdrawal_provider_ispb")));
                     return null;
                 }).list();
         return byId;
@@ -125,8 +125,8 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
     private List<ValueComponent> components(UUID receivedId) {
         return jdbc.sql("SELECT component_type, amount, agent_modality, withdrawal_provider_ispb FROM pix_received_component WHERE received_id = :id")
                 .param("id", receivedId)
-                .query((rs, n) -> new ValueComponent(ComponentType.valueOf(rs.getString("component_type")),
-                        br.com.pixmanager.core.domain.entity.Money.of(rs.getBigDecimal("amount")), rs.getString("agent_modality"),
-                        rs.getString("withdrawal_provider_ispb"))).list();
+                .query((resultSet, rowNumber) -> new ValueComponent(ComponentType.valueOf(resultSet.getString("component_type")),
+                        br.com.pixmanager.core.domain.entity.Money.of(resultSet.getBigDecimal("amount")), resultSet.getString("agent_modality"),
+                        resultSet.getString("withdrawal_provider_ispb"))).list();
     }
 }

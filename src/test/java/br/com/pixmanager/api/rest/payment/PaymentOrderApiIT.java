@@ -106,10 +106,10 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
     }
 
     JsonNode create(String body) throws Exception {
-        MvcResult r = mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", UUID.randomUUID().toString())
+        MvcResult mvcResult = mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn();
-        assertThat(r.getResponse().getStatus()).as("corpo da resposta: %s", r.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(r.getResponse().getContentAsString());
+        assertThat(mvcResult.getResponse().getStatus()).as("corpo da resposta: %s", mvcResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     UUID reservationOf(String e2e) {
@@ -267,8 +267,8 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         JsonNode sent = create(byKey("30.00", null, "device-ok"));
         processReservation.process(reservationOf(sent.get("endToEndId").asText()));
         applyStatus.apply("it", "c1", "pix.spi.payment-status.v1", 0, 9, sent.get("endToEndId").asText(), SpiStatus.SENT, null, Instant.now());
-        long v2 = jdbc.sql("SELECT version FROM payment_order WHERE id = :id").param("id", UUID.fromString(sent.get("id").asText())).query(Long.class).single();
-        mvc.perform(post("/v1/payment-orders/{id}/cancellation", sent.get("id").asText()).with(jwt("payment.write")).header("If-Match", "\"" + v2 + "\""))
+        long currentVersion = jdbc.sql("SELECT version FROM payment_order WHERE id = :id").param("id", UUID.fromString(sent.get("id").asText())).query(Long.class).single();
+        mvc.perform(post("/v1/payment-orders/{id}/cancellation", sent.get("id").asText()).with(jwt("payment.write")).header("If-Match", "\"" + currentVersion + "\""))
                 .andExpect(status().isUnprocessableEntity());
     }
 
@@ -301,27 +301,27 @@ class PaymentOrderApiIT extends AbstractApplicationIT {
         mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "mn2-" + UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON).content(ok.replace("87654321", "123")))
                 .andExpect(status().isBadRequest());
-        String pj = ok.replaceAll("\"document\":\"\\d+\"", "\"document\":\"" + TestDocuments.randomCnpj() + "\"");
-        create(pj);
+        String legalEntityBody = ok.replaceAll("\"document\":\"\\d+\"", "\"document\":\"" + TestDocuments.randomCnpj() + "\"");
+        create(legalEntityBody);
     }
 
     @Test
     @DisplayName("QR estático: decodifica (CRC), paga com o valor do QR; CRC inválido e QR dinâmico fica em outro teste")
     void shouldPayAndDecodeStaticQr() throws Exception {
-        String qr = BrCodeFactory.staticQr("alguem@exemplo.com.br", "75.90", "Loja do Joao", "SAO PAULO", "PED123");
+        String staticQr = BrCodeFactory.staticQr("alguem@exemplo.com.br", "75.90", "Loja do Joao", "SAO PAULO", "PED123");
         mvc.perform(post("/v1/payment-orders/decodings").with(jwt("payment.read")).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"payload\":\"" + qr + "\"}"))
+                        .content("{\"payload\":\"" + staticQr + "\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.amount").value("75.90")).andExpect(jsonPath("$.dynamic").value(false))
                 .andExpect(jsonPath("$.pixKeyMasked").value(not(containsString("alguem@"))));
-        JsonNode order = create("{\"payerAccountId\":\"%s\",\"method\":\"QR_STATIC\",\"qrPayload\":\"%s\",\"deviceId\":\"device-ok\"}".formatted(payer.id(), qr));
+        JsonNode order = create("{\"payerAccountId\":\"%s\",\"method\":\"QR_STATIC\",\"qrPayload\":\"%s\",\"deviceId\":\"device-ok\"}".formatted(payer.id(), staticQr));
         assertThat(order.get("amount").asText()).isEqualTo("75.90");
         // valor informado diferente do QR
         mvc.perform(post("/v1/payment-orders").with(jwt("payment.write")).header("Idempotency-Key", "q1-" + UUID.randomUUID())
-                .contentType(MediaType.APPLICATION_JSON).content("{\"payerAccountId\":\"%s\",\"method\":\"QR_STATIC\",\"amount\":\"10.00\",\"qrPayload\":\"%s\",\"deviceId\":\"device-ok\"}".formatted(payer.id(), qr)))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"payerAccountId\":\"%s\",\"method\":\"QR_STATIC\",\"amount\":\"10.00\",\"qrPayload\":\"%s\",\"deviceId\":\"device-ok\"}".formatted(payer.id(), staticQr)))
                 .andExpect(status().isUnprocessableEntity());
         // CRC adulterado
         mvc.perform(post("/v1/payment-orders/decodings").with(jwt("payment.read")).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"payload\":\"" + qr.replace("75.90", "99.90") + "\"}")).andExpect(status().isUnprocessableEntity());
+                .content("{\"payload\":\"" + staticQr.replace("75.90", "99.90") + "\"}")).andExpect(status().isUnprocessableEntity());
     }
 
     @Test

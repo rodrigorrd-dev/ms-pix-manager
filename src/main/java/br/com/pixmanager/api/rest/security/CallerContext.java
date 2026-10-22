@@ -43,9 +43,9 @@ public final class CallerContext {
                     return new Caller(client, Set.of(), true, full);
                 }
                 Set<UUID> ids = new HashSet<>();
-                for (String c : claim) {
+                for (String accountId : claim) {
                     try {
-                        ids.add(UUID.fromString(c));
+                        ids.add(UUID.fromString(accountId));
                     } catch (IllegalArgumentException ignored) {
                         // valor inválido no claim: ignorado (nega acesso, nunca amplia)
                     }

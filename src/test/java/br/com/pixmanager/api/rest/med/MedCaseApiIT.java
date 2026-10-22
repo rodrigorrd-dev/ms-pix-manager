@@ -77,11 +77,11 @@ class MedCaseApiIT extends AbstractApplicationIT {
     }
 
     String receive(String amount, Instant settledAt) {
-        String e = e2e();
-        receivePix.receive(new ReceivePixCommand("it-group", UUID.randomUUID().toString(), "pix.spi.payment-settled.v1", 0, 1, e, null, Money.of(amount), settledAt,
+        String endToEndId = e2e();
+        receivePix.receive(new ReceivePixCommand("it-group", UUID.randomUUID().toString(), "pix.spi.payment-settled.v1", 0, 1, endToEndId, null, Money.of(amount), settledAt,
                 "12345678", "0001", account.number(), "CACC", "11144477735", "Maria Pagadora", "87654321", "0002", "99887", "CACC", "x",
                 List.of(new ValueComponent(ComponentType.ORIGINAL, Money.of(amount), null, null))));
-        return e;
+        return endToEndId;
     }
 
     String openBody(String role, String e2e) {
@@ -108,16 +108,16 @@ class MedCaseApiIT extends AbstractApplicationIT {
     @Test
     @DisplayName("REPORTED: aceita ⇒ bloqueio no core ⇒ devolução MED_FRAUDE ⇒ liquidada ⇒ CLOSED ⇒ contestação aceita ⇒ CONTESTED; histórico e eventos completos")
     void shouldRunTheWholeReportedFlow() throws Exception {
-        String e = receive("100.00", Instant.now());
+        String endToEndId = receive("100.00", Instant.now());
         int opened = fixtures.outboxCount("MedCaseOpened");
 
-        JsonNode c = open("REPORTED", e);
-        String id = c.get("id").asText();
-        assertThat(c.get("status").asText()).isEqualTo("OPEN");
-        assertThat(c.get("trackedAmount").asText()).isEqualTo("100.00");
+        JsonNode medCase = open("REPORTED", endToEndId);
+        String id = medCase.get("id").asText();
+        assertThat(medCase.get("status").asText()).isEqualTo("OPEN");
+        assertThat(medCase.get("trackedAmount").asText()).isEqualTo("100.00");
         assertThat(fixtures.outboxCount("MedCaseOpened")).isEqualTo(opened + 1);
         mvc.perform(post("/v1/med-cases").with(admin("med.write")).header("Idempotency-Key", UUID.randomUUID().toString())
-                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTED", e))).andExpect(status().isConflict());
+                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTED", endToEndId))).andExpect(status().isConflict());
 
         assertThat(act(id, "acceptance").get("status").asText()).isEqualTo("ACCEPTED");
         processReservation.process(reservationOf("med-" + id + "-1"));
@@ -126,7 +126,7 @@ class MedCaseApiIT extends AbstractApplicationIT {
 
         JsonNode refunding = act(id, "refund");
         assertThat(refunding.get("status").asText()).isEqualTo("REFUNDING");
-        verify(ledger).cancel(org.mockito.ArgumentMatchers.argThat(r -> r.idempotencyKey().equals("med-" + id + "-1")));
+        verify(ledger).cancel(org.mockito.ArgumentMatchers.argThat(request -> request.idempotencyKey().equals("med-" + id + "-1")));
         String rtr = jdbc.sql("SELECT rtr_id FROM pix_refund WHERE id = :id").param("id", UUID.fromString(refunding.get("refundId").asText())).query(String.class).single();
         assertThat(jdbc.sql("SELECT nature FROM pix_refund WHERE rtr_id = :r").param("r", rtr).query(String.class).single()).isEqualTo("MED_FRAUDE");
         assertThat(jdbc.sql("SELECT status FROM med_block WHERE case_id = :c").param("c", UUID.fromString(id)).query(String.class).single()).isEqualTo("RELEASED");
@@ -147,10 +147,10 @@ class MedCaseApiIT extends AbstractApplicationIT {
         mvc.perform(get("/v1/med-cases/{id}", id).with(admin("med.read"))).andExpect(jsonPath("$.status").value("CONTESTED"));
 
         var history = mvc.perform(get("/v1/med-cases/{id}/history", id).with(admin("med.read"))).andExpect(status().isOk()).andReturn();
-        JsonNode h = json.readTree(history.getResponse().getContentAsString());
-        assertThat(h).hasSizeGreaterThanOrEqualTo(7);
-        assertThat(h.get(0).get("to").asText()).isEqualTo("OPEN");
-        assertThat(h.get(h.size() - 1).get("to").asText()).isEqualTo("CONTESTED");
+        JsonNode historyJson = json.readTree(history.getResponse().getContentAsString());
+        assertThat(historyJson).hasSizeGreaterThanOrEqualTo(7);
+        assertThat(historyJson.get(0).get("to").asText()).isEqualTo("OPEN");
+        assertThat(historyJson.get(historyJson.size() - 1).get("to").asText()).isEqualTo("CONTESTED");
         assertThat(fixtures.outboxCount("MedCaseRefundSettled")).isPositive();
     }
 
@@ -174,7 +174,7 @@ class MedCaseApiIT extends AbstractApplicationIT {
         JsonNode result = act(cancelled, "cancellation");
         assertThat(result.get("status").asText()).isEqualTo("CANCELLED");
         assertThat(result.get("blockedAmount").asText()).isEqualTo("0.00");
-        verify(ledger).cancel(org.mockito.ArgumentMatchers.argThat(r -> r.idempotencyKey().equals("med-" + cancelled + "-1")));
+        verify(ledger).cancel(org.mockito.ArgumentMatchers.argThat(request -> request.idempotencyKey().equals("med-" + cancelled + "-1")));
 
         String wrongRole = open("REPORTED", receive("20.00", Instant.now())).get("id").asText();
         mvc.perform(post("/v1/med-cases/{id}/closure", wrongRole).with(admin("med.write"))).andExpect(status().isUnprocessableEntity());
@@ -209,22 +209,22 @@ class MedCaseApiIT extends AbstractApplicationIT {
                 .contentType(MediaType.APPLICATION_JSON).content("{\"payerAccountId\":\"%s\",\"method\":\"KEY\",\"amount\":\"10.00\",\"deviceId\":\"dev-1\",\"destination\":{\"pixKeyType\":\"EMAIL\",\"pixKey\":\"alguem@exemplo.com.br\"}}".formatted(account.id())))
                 .andExpect(status().isCreated()).andReturn();
         JsonNode order = json.readTree(created.getResponse().getContentAsString());
-        String e = order.get("endToEndId").asText();
+        String endToEndId = order.get("endToEndId").asText();
 
         mvc.perform(post("/v1/med-cases").with(admin("med.write")).header("Idempotency-Key", UUID.randomUUID().toString())
-                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTER", e))).andExpect(status().isUnprocessableEntity());   // ainda não liquidado
+                .contentType(MediaType.APPLICATION_JSON).content(openBody("REPORTER", endToEndId))).andExpect(status().isUnprocessableEntity());   // ainda não liquidado
 
-        processReservation.process(reservationOf(e));
-        applyStatus.apply("it", "m1", "pix.spi.payment-status.v1", 0, 1, e, SpiStatus.SENT, null, Instant.now());
-        applyStatus.apply("it", "m2", "pix.spi.payment-status.v1", 0, 2, e, SpiStatus.SETTLED, null, Instant.now());
+        processReservation.process(reservationOf(endToEndId));
+        applyStatus.apply("it", "m1", "pix.spi.payment-status.v1", 0, 1, endToEndId, SpiStatus.SENT, null, Instant.now());
+        applyStatus.apply("it", "m2", "pix.spi.payment-status.v1", 0, 2, endToEndId, SpiStatus.SETTLED, null, Instant.now());
 
-        JsonNode c = open("REPORTER", e);
-        assertThat(c.get("dictFundsRecoveryId").asText()).isEqualTo("FR-123");
-        String id = c.get("id").asText();
+        JsonNode medCase = open("REPORTER", endToEndId);
+        assertThat(medCase.get("dictFundsRecoveryId").asText()).isEqualTo("FR-123");
+        String id = medCase.get("id").asText();
         mvc.perform(post("/v1/med-cases/{id}/acceptance", id).with(admin("med.write"))).andExpect(status().isUnprocessableEntity());   // aceite é do REPORTED
         assertThat(act(id, "closure").get("status").asText()).isEqualTo("CLOSED");
 
-        String second = e;
+        String second = endToEndId;
         JsonNode again = open("REPORTER", second);       // o anterior terminou: pode reabrir (outro id do DICT)
         assertThat(act(again.get("id").asText(), "cancellation").get("status").asText()).isEqualTo("CANCELLED");
         verify(gateway).cancel("FR-124");

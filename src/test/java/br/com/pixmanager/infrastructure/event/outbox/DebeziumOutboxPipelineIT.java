@@ -55,10 +55,10 @@ class DebeziumOutboxPipelineIT {
         kafka = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.6.1").withNetwork(NET).withNetworkAliases("kafka");
         postgres.start();
         kafka.start();
-        try (Connection c = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-             Liquibase lb = new Liquibase("db/changelog/db.changelog-master.yaml", new ClassLoaderResourceAccessor(),
-                     DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(c)))) {
-            lb.update("");
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             Liquibase liquibase = new Liquibase("db/changelog/db.changelog-master.yaml", new ClassLoaderResourceAccessor(),
+                     DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)))) {
+            liquibase.update("");
         }
         connect = new GenericContainer<>("quay.io/debezium/connect:3.0").withNetwork(NET).withExposedPorts(8083)
                 .withEnv(Map.of("BOOTSTRAP_SERVERS", "kafka:9093", "GROUP_ID", "it-connect", "CONFIG_STORAGE_TOPIC", "_cfg",
@@ -84,10 +84,10 @@ class DebeziumOutboxPipelineIT {
     /** Registra o conector DO REPOSITÓRIO (só a senha de teste é ajustada, não a estrutura). */
     static void register() throws Exception {
         String json = Files.readString(Path.of("docker/debezium/outbox-connector.json"));
-        HttpResponse<String> r = HttpClient.newHttpClient().send(HttpRequest.newBuilder(
+        HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(
                         URI.create("http://" + connect.getHost() + ":" + connect.getMappedPort(8083) + "/connectors"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(json)).build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(r.statusCode()).as("registro do conector: " + r.body()).isIn(200, 201);
+        assertThat(response.statusCode()).as("registro do conector: " + response.body()).isIn(200, 201);
     }
 
     @Test
@@ -97,15 +97,15 @@ class DebeziumOutboxPipelineIT {
         UUID eventId = UUID.randomUUID();
         String aggregateId = UUID.randomUUID().toString();
         byte[] payload = {0x00, 0x00, 0x00, 0x00, 0x07, (byte) 0xFF, 0x10, 0x20, (byte) 0x80, 0x7F};   // wire format Confluent, inclui bytes não-UTF8
-        try (Connection c = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-             PreparedStatement ps = c.prepareStatement("""
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO outbox_event (id, aggregate_type, aggregate_id, event_type, event_version, payload, trace_parent)
                      VALUES (?, 'payment', ?, 'PaymentOrderCreated', 1, ?, '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01')
                      """)) {
-            ps.setObject(1, eventId);
-            ps.setString(2, aggregateId);
-            ps.setBytes(3, payload);
-            ps.executeUpdate();
+            statement.setObject(1, eventId);
+            statement.setString(2, aggregateId);
+            statement.setBytes(3, payload);
+            statement.executeUpdate();
         }
 
         ConsumerRecord<String, byte[]> got = null;
@@ -133,9 +133,9 @@ class DebeziumOutboxPipelineIT {
 
     private static void awaitActiveSlot() throws Exception {
         long deadline = System.currentTimeMillis() + 60_000;
-        try (Connection c = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
             while (System.currentTimeMillis() < deadline) {
-                try (var st = c.createStatement(); var rs = st.executeQuery(
+                try (var st = connection.createStatement(); var rs = st.executeQuery(
                         "SELECT count(*) FROM pg_replication_slots WHERE slot_name = 'pix_outbox_slot' AND active")) {
                     rs.next();
                     if (rs.getInt(1) == 1) {
@@ -152,18 +152,18 @@ class DebeziumOutboxPipelineIT {
         String status = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://" + connect.getHost() + ":"
                 + connect.getMappedPort(8083) + "/connectors/pix-outbox-connector/status")).build(), HttpResponse.BodyHandlers.ofString()).body();
         String logs = connect.getLogs();
-        String errs = String.join("\n", logs.lines().filter(l -> l.contains("ERROR") || l.contains("Caused by") || l.contains("WARN")).limit(15).toList());
+        String errs = String.join("\n", logs.lines().filter(logLine -> logLine.contains("ERROR") || logLine.contains("Caused by") || logLine.contains("WARN")).limit(15).toList());
         String topics;
         try (var admin = org.apache.kafka.clients.admin.AdminClient.create(Map.<String, Object>of("bootstrap.servers", kafka.getBootstrapServers()))) {
             topics = admin.listTopics().names().get().toString();
         }
-        String stream = String.join("\n", logs.lines().filter(l -> l.contains("io.debezium") && !l.contains("TypeRegistry") && !l.contains("Added ")).skip(0).limit(40).toList());
+        String stream = String.join("\n", logs.lines().filter(logLine -> logLine.contains("io.debezium") && !logLine.contains("TypeRegistry") && !logLine.contains("Added ")).skip(0).limit(40).toList());
         return "status=" + status + "\ntopics=" + topics + "\n" + stream + "\n" + errs;
     }
 
     private static Map<String, String> headers(ConsumerRecord<String, byte[]> rec) {
         var map = new java.util.HashMap<String, String>();
-        rec.headers().forEach(h -> map.put(h.key(), new String(h.value())));
+        rec.headers().forEach(header -> map.put(header.key(), new String(header.value())));
         return map;
     }
 }

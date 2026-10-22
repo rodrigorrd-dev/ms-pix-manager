@@ -61,21 +61,21 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
     private final DomainEventPublisherPortOut events;
     private final EndToEndIdGeneratorPortOut e2eIds;
     private final IdGeneratorPortOut ids;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
 
     public CreatePaymentOrderService(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup, ConsumeLimitUseCase limits,
                                      RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
                                      TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
-                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock) {
-        this(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, tx, clock, null);
+                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock) {
+        this(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds, ids, transactionRunner, clock, null);
     }
 
     /** {@code dynamicQr} nulo ⇒ QR dinâmico indisponível (422). */
     public CreatePaymentOrderService(FindAccountUseCase accounts, LookupExternalKeyUseCase lookup, ConsumeLimitUseCase limits,
                                      RequestReservationUseCase reservations, PaymentOrderPersistencePortOut persistence,
                                      TrustedDevicePortOut devices, DomainEventPublisherPortOut events,
-                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock,
+                                     EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock,
                                      DynamicQrPayloadPortOut dynamicQr) {
         this.accounts = accounts;
         this.destinations = new PaymentDestinationResolver(lookup, dynamicQr == null ? UNSUPPORTED : dynamicQr, clock);
@@ -86,7 +86,7 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
         this.events = events;
         this.e2eIds = e2eIds;
         this.ids = ids;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
     }
 
@@ -116,7 +116,7 @@ public class CreatePaymentOrderService implements CreatePaymentOrderUseCase {
         PaymentOrder order = prepared.order();
         UUID payerId = order.payerAccountId();
         boolean deviceRegistered = order.deviceRegistered();
-        PaymentOrderResult result = tx.inTransaction(() -> {                             // (2) atômico: limite + reserva + ordem + evento
+        PaymentOrderResult result = transactionRunner.inTransaction(() -> {                             // (2) atômico: limite + reserva + ordem + evento
             LimitDecision decision = limits.consume(payerId, order.amount(), order.requestedAt(), deviceRegistered);
             if (decision instanceof LimitDecision.Rejected rejected) {
                 PaymentOrder refused = persistence.save(order.rejected("AM02", "Limite excedido: " + rejected.scope()));

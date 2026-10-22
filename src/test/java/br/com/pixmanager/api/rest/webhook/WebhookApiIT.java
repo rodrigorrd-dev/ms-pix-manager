@@ -116,8 +116,8 @@ class WebhookApiIT extends AbstractApplicationIT {
     JsonNode onlyDelivery(String e2eId) {
         var rows = jdbc.sql("SELECT d.id, d.status, d.attempts, d.last_http_status, d.last_error, d.payload::text AS payload FROM webhook_delivery d "
                 + "JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e").param("e", e2eId)
-                .query((rs, i) -> json.createObjectNode().put("id", rs.getString("id")).put("status", rs.getString("status")).put("attempts", rs.getInt("attempts"))
-                        .put("lastHttp", rs.getInt("last_http_status")).put("lastError", rs.getString("last_error")).put("payload", rs.getString("payload"))).list();
+                .query((resultSet, rowNumber) -> json.createObjectNode().put("id", resultSet.getString("id")).put("status", resultSet.getString("status")).put("attempts", resultSet.getInt("attempts"))
+                        .put("lastHttp", resultSet.getInt("last_http_status")).put("lastError", resultSet.getString("last_error")).put("payload", resultSet.getString("payload"))).list();
         assertThat(rows).hasSize(1);
         return rows.get(0);
     }
@@ -175,7 +175,7 @@ class WebhookApiIT extends AbstractApplicationIT {
         assertThat(dispatch.dispatchDue(50)).isGreaterThanOrEqualTo(1);
 
         LoggedRequest req = receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream()
-                .filter(r -> r.getBodyAsString().contains(e2eId)).findFirst().orElseThrow();
+                .filter(request -> request.getBodyAsString().contains(e2eId)).findFirst().orElseThrow();
         JsonNode body = json.readTree(req.getBodyAsString());
         JsonNode item = body.get("pix").get(0);
         assertThat(item.get("endToEndId").asText()).isEqualTo(e2eId);
@@ -186,8 +186,8 @@ class WebhookApiIT extends AbstractApplicationIT {
         assertThat(req.getBodyAsString()).doesNotContain("Maria Pagadora").doesNotContain("11144477735");
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(Base64.getDecoder().decode(signingKey), "HmacSHA256"));
-        String ts = req.getHeader("x-pix-timestamp");
-        assertThat(req.getHeader("x-pix-signature")).isEqualTo("v1=" + HexFormat.of().formatHex(mac.doFinal((ts + "." + req.getBodyAsString()).getBytes(StandardCharsets.UTF_8))));
+        String timestamp = req.getHeader("x-pix-timestamp");
+        assertThat(req.getHeader("x-pix-signature")).isEqualTo("v1=" + HexFormat.of().formatHex(mac.doFinal((timestamp + "." + req.getBodyAsString()).getBytes(StandardCharsets.UTF_8))));
         assertThat(onlyDelivery(e2eId).get("status").asText()).isEqualTo("DELIVERED");
     }
 
@@ -221,9 +221,9 @@ class WebhookApiIT extends AbstractApplicationIT {
         putWebhook(baseUrl).andExpect(status().isCreated());
         String semChave = e2e();
         receivePix.receive(pixCommand(semChave, null, null));                       // sem hash e sem cobrança
-        for (String e : new String[]{semWebhook, removido, semChave}) {
+        for (String endToEndId : new String[]{semWebhook, removido, semChave}) {
             assertThat(jdbc.sql("SELECT count(*) FROM webhook_delivery d JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e")
-                    .param("e", e).query(Integer.class).single()).as(e).isZero();
+                    .param("e", endToEndId).query(Integer.class).single()).as(endToEndId).isZero();
         }
     }
 
@@ -266,6 +266,6 @@ class WebhookApiIT extends AbstractApplicationIT {
         mvc.perform(delete("/api/pix/v2/webhook/{chave}", pixKey).with(jwt("webhook.write"))).andExpect(status().isNoContent());
         dispatch.dispatchDue(50);
 
-        assertThat(receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream().anyMatch(r -> r.getBodyAsString().contains(e2eId))).isFalse();
+        assertThat(receiver.findAll(postRequestedFor(urlEqualTo("/receptor/pix"))).stream().anyMatch(request -> request.getBodyAsString().contains(e2eId))).isFalse();
     }
 }

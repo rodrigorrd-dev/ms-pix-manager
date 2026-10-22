@@ -52,14 +52,14 @@ class ManageLimitServiceTest {
         LimitPersistencePortOut persistence = new LimitPersistencePortOut() {
             public List<AccountLimit> findByAccount(UUID id) { return List.copyOf(configured.values()); }
             public Optional<AccountLimit> find(UUID id, LimitScope scope) { return Optional.ofNullable(configured.get(scope)); }
-            public AccountLimit save(AccountLimit l) { configured.put(l.scope(), l); return l; }
+            public AccountLimit save(AccountLimit accountLimit) { configured.put(accountLimit.scope(), accountLimit); return accountLimit; }
         };
         FindAccountUseCase accounts = new FindAccountUseCase() {
             public Optional<AccountInfo> findById(UUID id) {
                 return Optional.of(new AccountInfo(accountId, UUID.randomUUID(), holder, Cpf.of("52998224725"), "h", "Titular", "12345678",
                         "0001", "1", "CACC", AccountStatus.ACTIVE));
             }
-            public Optional<AccountInfo> findByIdentity(String a, String b, String c, String d) { return Optional.empty(); }
+            public Optional<AccountInfo> findByIdentity(String ispb, String branch, String number, String accountType) { return Optional.empty(); }
         };
         LimitPolicy.Config defaults = new LimitPolicy.Config(ZoneId.of("America/Sao_Paulo"), LocalTime.of(20, 0), LocalTime.of(6, 0),
                 Money.of("1000.00"), Money.of("200.00"), Money.of("1000.00"), Money.of("5000.00"), Money.of("50000.00"));
@@ -74,12 +74,12 @@ class ManageLimitServiceTest {
         assertThat(views).extracting(LimitView::scope).containsExactlyInAnyOrder(LimitScope.DAILY, LimitScope.NIGHTLY,
                 LimitScope.DEVICE_UNREGISTERED_PER_TX, LimitScope.DEVICE_UNREGISTERED_DAILY);
         assertThat(views).allMatch(LimitView::isDefault);
-        assertThat(views.stream().filter(v -> v.scope() == LimitScope.DAILY).findFirst().orElseThrow().effective()).isEqualTo(Money.of("5000.00"));
+        assertThat(views.stream().filter(limitView -> limitView.scope() == LimitScope.DAILY).findFirst().orElseThrow().effective()).isEqualTo(Money.of("5000.00"));
 
         holder = HolderType.BUSINESS;
-        List<LimitView> pj = service.list(owner, accountId);
-        assertThat(pj).extracting(LimitView::scope).doesNotContain(LimitScope.NIGHTLY);
-        assertThat(pj.stream().filter(v -> v.scope() == LimitScope.DAILY).findFirst().orElseThrow().effective()).isEqualTo(Money.of("50000.00"));
+        List<LimitView> legalEntityViews = service.list(owner, accountId);
+        assertThat(legalEntityViews).extracting(LimitView::scope).doesNotContain(LimitScope.NIGHTLY);
+        assertThat(legalEntityViews.stream().filter(limitView -> limitView.scope() == LimitScope.DAILY).findFirst().orElseThrow().effective()).isEqualTo(Money.of("50000.00"));
     }
 
     @Test
@@ -93,7 +93,7 @@ class ManageLimitServiceTest {
         assertThat(raised.pendingAmount()).isEqualTo(Money.of("4000.00"));
         assertThat(raised.effective(NOW.plusSeconds(24 * 3600 + 1))).isEqualTo(Money.of("4000.00"));
 
-        LimitView view = service.list(owner, accountId).stream().filter(v -> v.scope() == LimitScope.DAILY).findFirst().orElseThrow();
+        LimitView view = service.list(owner, accountId).stream().filter(limitView -> limitView.scope() == LimitScope.DAILY).findFirst().orElseThrow();
         assertThat(view.isDefault()).isFalse();
         assertThat(view.pendingAmount()).isEqualTo(Money.of("4000.00"));
         assertThat(view.pendingEffectiveAt()).isAfter(NOW);
@@ -106,8 +106,8 @@ class ManageLimitServiceTest {
                 .isInstanceOf(PreconditionRequiredException.class);
         assertThatThrownBy(() -> service.change(owner, accountId, LimitScope.DAILY, Money.of("1000.00"), Optional.of(new ExpectedVersion.Exact(99))))
                 .isInstanceOf(PreconditionFailedException.class);
-        long v = configured.get(LimitScope.DAILY).version();
-        assertThat(service.change(owner, accountId, LimitScope.DAILY, Money.of("1000.00"), Optional.of(new ExpectedVersion.Exact(v))).amount())
+        long version = configured.get(LimitScope.DAILY).version();
+        assertThat(service.change(owner, accountId, LimitScope.DAILY, Money.of("1000.00"), Optional.of(new ExpectedVersion.Exact(version))).amount())
                 .isEqualTo(Money.of("1000.00"));
     }
 

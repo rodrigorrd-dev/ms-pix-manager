@@ -97,8 +97,8 @@ class MedCaseServiceTest {
         clock = FixedClock.at("2026-10-15T15:00:00Z");
         service = new MedCaseService(cases, receivedPix, orders, refunds, gateway, reservations, ledger, refundUseCase, events, new SequentialIds(), TX, clock,
                 new PixPolicyProperties.Med(Duration.ofDays(80), Duration.ofDays(7), Duration.ofDays(90), Duration.ofDays(80)));
-        when(cases.save(any(MedCase.class))).thenAnswer(i -> i.getArgument(0));
-        when(cases.saveContestation(any())).thenAnswer(i -> i.getArgument(0));
+        when(cases.save(any(MedCase.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cases.saveContestation(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     ReceivedPix pix(Instant settledAt) {
@@ -111,10 +111,10 @@ class MedCaseServiceTest {
     MedCase medCase(MedRole role, MedStatus status, String blocked, UUID refund) {
         MedCase open = MedCase.open(SequentialIds.id(1000 + ++seq), role == MedRole.REPORTER ? "FR-1" : null, E2E, SequentialIds.id(300), null, accountId, MedCaseType.FRAUD, role, 1, "golpe",
                 Instant.parse("2026-10-15T15:00:00Z"), Instant.parse("2026-10-22T15:00:00Z"), Money.of("100.00"));
-        MedCase c = new MedCase(open.id(), open.dictFundsRecoveryId(), E2E, open.receivedId(), null, accountId, MedCaseType.FRAUD, role, status, 1, "golpe", open.reportedAt(),
+        MedCase medCase = new MedCase(open.id(), open.dictFundsRecoveryId(), E2E, open.receivedId(), null, accountId, MedCaseType.FRAUD, role, status, 1, "golpe", open.reportedAt(),
                 open.analysisDeadlineAt(), Money.of("100.00"), Money.of(blocked), refund, 0);
-        when(cases.findById(c.id())).thenReturn(Optional.of(c));
-        return c;
+        when(cases.findById(medCase.id())).thenReturn(Optional.of(medCase));
+        return medCase;
     }
 
     OpenMedCaseCommand open(MedRole role) {
@@ -122,9 +122,9 @@ class MedCaseServiceTest {
     }
 
     String lastEvent() {
-        ArgumentCaptor<DomainEvent> ev = ArgumentCaptor.forClass(DomainEvent.class);
-        verify(events, org.mockito.Mockito.atLeastOnce()).publish(ev.capture());
-        return ((MedCaseEvent) ev.getAllValues().get(ev.getAllValues().size() - 1)).action();
+        ArgumentCaptor<DomainEvent> domainEventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(events, org.mockito.Mockito.atLeastOnce()).publish(domainEventCaptor.capture());
+        return ((MedCaseEvent) domainEventCaptor.getAllValues().get(domainEventCaptor.getAllValues().size() - 1)).action();
     }
 
     @Test
@@ -132,12 +132,12 @@ class MedCaseServiceTest {
     void shouldOpenAsReported() {
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix(Instant.parse("2026-10-10T10:00:00Z"))));
 
-        MedCase c = service.open(caller, open(MedRole.REPORTED));
+        MedCase medCase = service.open(caller, open(MedRole.REPORTED));
 
-        assertThat(c.status()).isEqualTo(MedStatus.OPEN);
-        assertThat(c.analysisDeadlineAt()).isEqualTo(Instant.parse("2026-10-22T15:00:00Z"));
-        verify(cases).insert(c);
-        verify(cases).appendHistory(eq(c.id()), eq(null), eq(MedStatus.OPEN), eq("bo"), anyString(), any());
+        assertThat(medCase.status()).isEqualTo(MedStatus.OPEN);
+        assertThat(medCase.analysisDeadlineAt()).isEqualTo(Instant.parse("2026-10-22T15:00:00Z"));
+        verify(cases).insert(medCase);
+        verify(cases).appendHistory(eq(medCase.id()), eq(null), eq(MedStatus.OPEN), eq("bo"), anyString(), any());
         assertThat(lastEvent()).isEqualTo("OPENED");
         verify(gateway, never()).report(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt());
     }
@@ -169,19 +169,19 @@ class MedCaseServiceTest {
         when(orders.findByEndToEndId(E2E)).thenReturn(Optional.of(settled));
         when(gateway.report(eq(E2E), eq(MedCaseType.FRAUD), anyString(), eq(1))).thenReturn("FR-9");
 
-        MedCase c = service.open(caller, open(MedRole.REPORTER));
+        MedCase medCase = service.open(caller, open(MedRole.REPORTER));
 
-        assertThat(c.dictFundsRecoveryId()).isEqualTo("FR-9");
-        assertThat(c.paymentOrderId()).isEqualTo(SequentialIds.id(70));
+        assertThat(medCase.dictFundsRecoveryId()).isEqualTo("FR-9");
+        assertThat(medCase.paymentOrderId()).isEqualTo(SequentialIds.id(70));
     }
 
     @Test
     @DisplayName("aceitar/recusar/cancelar: só no papel e estado certos; aceitar reserva MED_BLOCK; cancelar ACCEPTED libera o core e o bloqueio")
     void shouldDecide() {
-        MedCase c = medCase(MedRole.REPORTED, MedStatus.OPEN, "0.00", null);
-        assertThat(service.accept(caller, c.id(), "ok").status()).isEqualTo(MedStatus.ACCEPTED);
-        verify(reservations).request(eq("med-" + c.id() + "-1"), eq(accountId), eq(LedgerPurpose.MED_BLOCK), eq("MED_CASE"), eq(c.id()), eq(Money.of("100.00")));
-        assertThat(service.refuse(caller, c.id(), "não procede").status()).isEqualTo(MedStatus.REFUSED);
+        MedCase medCase = medCase(MedRole.REPORTED, MedStatus.OPEN, "0.00", null);
+        assertThat(service.accept(caller, medCase.id(), "ok").status()).isEqualTo(MedStatus.ACCEPTED);
+        verify(reservations).request(eq("med-" + medCase.id() + "-1"), eq(accountId), eq(LedgerPurpose.MED_BLOCK), eq("MED_CASE"), eq(medCase.id()), eq(Money.of("100.00")));
+        assertThat(service.refuse(caller, medCase.id(), "não procede").status()).isEqualTo(MedStatus.REFUSED);
 
         MedCase reporter = medCase(MedRole.REPORTER, MedStatus.OPEN, "0.00", null);
         assertThatThrownBy(() -> service.accept(caller, reporter.id(), null)).isInstanceOf(BusinessException.class).hasMessageContaining("REPORTED");
@@ -202,31 +202,31 @@ class MedCaseServiceTest {
         MedCase noBlock = medCase(MedRole.REPORTED, MedStatus.ACCEPTED, "0.00", null);
         assertThatThrownBy(() -> service.startRefund(caller, noBlock.id())).isInstanceOf(BusinessException.class);
 
-        MedCase c = medCase(MedRole.REPORTED, MedStatus.ACCEPTED, "100.00", null);
+        MedCase medCase = medCase(MedRole.REPORTED, MedStatus.ACCEPTED, "100.00", null);
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(pix(Instant.parse("2026-10-10T10:00:00Z"))));
         Refund refund = Refund.request(SequentialIds.id(400), "med1", SequentialIds.id(300), new EndToEndId(E2E), "D12345678202610151403abcdefghij0", Money.of("100.00"),
                 RefundNature.MED_FRAUDE, "MED", Instant.parse("2026-10-15T15:00:00Z"));
         when(refundUseCase.requestMed(any(), any())).thenReturn(new RequestRefundResult.Created(refund));
 
-        MedCase refunding = service.startRefund(caller, c.id());
+        MedCase refunding = service.startRefund(caller, medCase.id());
 
         assertThat(refunding.status()).isEqualTo(MedStatus.REFUNDING);
         assertThat(refunding.refundId()).isEqualTo(refund.id());
         var order = org.mockito.Mockito.inOrder(ledger, refundUseCase, cases);
-        order.verify(ledger).cancel("med-" + c.id() + "-1");
+        order.verify(ledger).cancel("med-" + medCase.id() + "-1");
         order.verify(refundUseCase).requestMed(any(), any());
-        order.verify(cases).releaseBlock(c.id());
+        order.verify(cases).releaseBlock(medCase.id());
     }
 
     @Test
     @DisplayName("devolver: valor bloqueado maior que o devolvível ⇒ recusa sem mexer no core")
     void shouldNotReleaseTheBlockWhenTheRefundCannotBeMade() {
-        MedCase c = medCase(MedRole.REPORTED, MedStatus.ACCEPTED, "100.00", null);
+        MedCase medCase = medCase(MedRole.REPORTED, MedStatus.ACCEPTED, "100.00", null);
         ReceivedPix consumed = new ReceivedPix(SequentialIds.id(300), new EndToEndId(E2E), null, null, accountId, Money.of("100.00"), Money.of("100.00"), Money.of("60.00"), null, null,
                 Instant.parse("2026-10-10T10:00:00Z"), null, "m", List.of(), 0, Instant.parse("2026-10-10T10:00:00Z"));
         when(receivedPix.findByEndToEndId(E2E)).thenReturn(Optional.of(consumed));
 
-        assertThatThrownBy(() -> service.startRefund(caller, c.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.startRefund(caller, medCase.id())).isInstanceOf(BusinessException.class);
 
         verify(ledger, never()).cancel(anyString());
     }
@@ -246,8 +246,8 @@ class MedCaseServiceTest {
         when(refunds.findById(refundId)).thenReturn(Optional.of(refund));
 
         assertThatThrownBy(() -> service.contest(caller, closed.id(), " ")).isInstanceOf(BadRequestException.class);
-        MedContestation c = service.contest(caller, closed.id(), "valor legítimo");
-        assertThat(c.deadlineAt()).isEqualTo(Instant.parse("2026-12-21T10:00:00Z"));
+        MedContestation medContestation = service.contest(caller, closed.id(), "valor legítimo");
+        assertThat(medContestation.deadlineAt()).isEqualTo(Instant.parse("2026-12-21T10:00:00Z"));
         assertThat(lastEvent()).isEqualTo("CONTESTATION_OPENED");
 
         clock.set(Instant.parse("2027-01-15T10:00:00Z"));
@@ -255,13 +255,13 @@ class MedCaseServiceTest {
         MedCase open = medCase(MedRole.REPORTED, MedStatus.OPEN, "0.00", null);
         assertThatThrownBy(() -> service.contest(caller, open.id(), "x")).isInstanceOf(BusinessException.class);
 
-        when(cases.findContestation(c.id())).thenReturn(Optional.of(c));
-        assertThat(service.decideContestation(caller, c.id(), true, "procede").status()).isEqualTo("ACCEPTED");
+        when(cases.findContestation(medContestation.id())).thenReturn(Optional.of(medContestation));
+        assertThat(service.decideContestation(caller, medContestation.id(), true, "procede").status()).isEqualTo("ACCEPTED");
         assertThat(lastEvent()).isEqualTo("CONTESTATION_DECIDED");
-        verify(cases).save(org.mockito.ArgumentMatchers.argThat(m -> m.status() == MedStatus.CONTESTED));
-        MedContestation decided = new MedContestation(c.id(), c.caseId(), c.refundId(), "REJECTED", "x", c.refundedAt(), c.deadlineAt(), Instant.now(), 1);
-        when(cases.findContestation(c.id())).thenReturn(Optional.of(decided));
-        assertThatThrownBy(() -> service.decideContestation(caller, c.id(), true, null)).isInstanceOf(BusinessException.class).hasMessageContaining("já foi decidida");
+        verify(cases).save(org.mockito.ArgumentMatchers.argThat(medCase -> medCase.status() == MedStatus.CONTESTED));
+        MedContestation decided = new MedContestation(medContestation.id(), medContestation.caseId(), medContestation.refundId(), "REJECTED", "x", medContestation.refundedAt(), medContestation.deadlineAt(), Instant.now(), 1);
+        when(cases.findContestation(medContestation.id())).thenReturn(Optional.of(decided));
+        assertThatThrownBy(() -> service.decideContestation(caller, medContestation.id(), true, null)).isInstanceOf(BusinessException.class).hasMessageContaining("já foi decidida");
     }
 
     @Test

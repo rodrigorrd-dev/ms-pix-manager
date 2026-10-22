@@ -27,18 +27,18 @@ public class ApplyPaymentStatusService implements ApplyPaymentStatusUseCase {
     private final ConsumeLimitUseCase limits;
     private final DomainEventPublisherPortOut events;
     private final InboxPortOut inbox;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final ZoneId zone;
 
     public ApplyPaymentStatusService(PaymentOrderPersistencePortOut persistence, ExecuteReservationUseCase ledger,
                                      ConsumeLimitUseCase limits, DomainEventPublisherPortOut events, InboxPortOut inbox,
-                                     TransactionRunnerPortOut tx, ZoneId zone) {
+                                     TransactionRunnerPortOut transactionRunner, ZoneId zone) {
         this.persistence = persistence;
         this.ledger = ledger;
         this.limits = limits;
         this.events = events;
         this.inbox = inbox;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.zone = zone;
     }
 
@@ -52,7 +52,7 @@ public class ApplyPaymentStatusService implements ApplyPaymentStatusUseCase {
             case REJECTED -> ledger.cancel(endToEndId);
             case SENT -> { /* só registra o envio */ }
         }
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             if (!inbox.firstTime(consumerGroup, messageId, topic, partition, offset)) {
                 return;
             }

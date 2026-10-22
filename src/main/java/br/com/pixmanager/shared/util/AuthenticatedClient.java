@@ -28,6 +28,6 @@ public final class AuthenticatedClient {
 
     public static boolean canSeeFullDocument() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream().anyMatch(a -> ScopeNames.PII_DOCUMENT_READ.equals(a.getAuthority()));
+        return auth != null && auth.getAuthorities().stream().anyMatch(authority -> ScopeNames.PII_DOCUMENT_READ.equals(authority.getAuthority()));
     }
 }

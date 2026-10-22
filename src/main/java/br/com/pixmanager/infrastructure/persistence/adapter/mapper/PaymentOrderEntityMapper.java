@@ -23,47 +23,47 @@ public class PaymentOrderEntityMapper {
         this.crypto = crypto;
     }
 
-    public PaymentOrder toDomain(PaymentOrderEntity e) {
-        Document doc = e.getDestDocumentEnc() == null ? null : Document.of(crypto.decrypt(e.getDestDocumentEnc()));
-        PaymentDestination destination = new PaymentDestination(e.getDestinationKeyType() == null ? null : PixKeyType.valueOf(e.getDestinationKeyType()),
-                null, doc, e.getDestName(), e.getDestIspb(), e.getDestBranch(), e.getDestAccount(), e.getDestAccountType());
-        return new PaymentOrder(e.getId(), e.getPayerAccountId(), PaymentMethod.valueOf(e.getPaymentMethod()), PaymentOrigin.valueOf(e.getOrigin()),
-                destination, Money.of(e.getAmount()), e.getQrTxid(), e.getPayerMessage(), new EndToEndId(e.getEndToEndId()),
-                PaymentStatus.valueOf(e.getStatus()), e.getRejectReasonCode(), e.getRejectReasonDetail(), e.getLedgerReservationId(),
-                e.isDeviceRegistered(), e.getRequestedAt(), e.getSentAt(), e.getSettledAt(), e.getVersion());
+    public PaymentOrder toDomain(PaymentOrderEntity entity) {
+        Document doc = entity.getDestDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getDestDocumentEnc()));
+        PaymentDestination destination = new PaymentDestination(entity.getDestinationKeyType() == null ? null : PixKeyType.valueOf(entity.getDestinationKeyType()),
+                null, doc, entity.getDestName(), entity.getDestIspb(), entity.getDestBranch(), entity.getDestAccount(), entity.getDestAccountType());
+        return new PaymentOrder(entity.getId(), entity.getPayerAccountId(), PaymentMethod.valueOf(entity.getPaymentMethod()), PaymentOrigin.valueOf(entity.getOrigin()),
+                destination, Money.of(entity.getAmount()), entity.getQrTxid(), entity.getPayerMessage(), new EndToEndId(entity.getEndToEndId()),
+                PaymentStatus.valueOf(entity.getStatus()), entity.getRejectReasonCode(), entity.getRejectReasonDetail(), entity.getLedgerReservationId(),
+                entity.isDeviceRegistered(), entity.getRequestedAt(), entity.getSentAt(), entity.getSettledAt(), entity.getVersion());
     }
 
-    public void apply(PaymentOrder d, PaymentOrderEntity e, boolean isNew) {
+    public void apply(PaymentOrder paymentOrder, PaymentOrderEntity entity, boolean isNew) {
         if (isNew) {
-            e.setPayerAccountId(d.payerAccountId());
-            e.setPaymentMethod(d.method().name());
-            e.setOrigin(d.origin().name());
-            e.setDeviceRegistered(d.deviceRegistered());
-            PaymentDestination dest = d.destination();
-            e.setDestinationKeyType(dest.keyType() == null ? null : dest.keyType().name());
-            e.setDestinationKeyHash(dest.pixKey() == null ? null : crypto.blindIndex(dest.pixKey()));
+            entity.setPayerAccountId(paymentOrder.payerAccountId());
+            entity.setPaymentMethod(paymentOrder.method().name());
+            entity.setOrigin(paymentOrder.origin().name());
+            entity.setDeviceRegistered(paymentOrder.deviceRegistered());
+            PaymentDestination dest = paymentOrder.destination();
+            entity.setDestinationKeyType(dest.keyType() == null ? null : dest.keyType().name());
+            entity.setDestinationKeyHash(dest.pixKey() == null ? null : crypto.blindIndex(dest.pixKey()));
             if (dest.document() != null) {
-                e.setDestDocumentType(dest.document().type());
-                e.setDestDocumentEnc(crypto.encrypt(dest.document().value()));
-                e.setDestDocumentHash(crypto.blindIndex(dest.document().value()));
-                e.setDestDocumentMasked(dest.document().masked());
+                entity.setDestDocumentType(dest.document().type());
+                entity.setDestDocumentEnc(crypto.encrypt(dest.document().value()));
+                entity.setDestDocumentHash(crypto.blindIndex(dest.document().value()));
+                entity.setDestDocumentMasked(dest.document().masked());
             }
-            e.setDestName(dest.name());
-            e.setDestIspb(dest.ispb());
-            e.setDestBranch(dest.branch());
-            e.setDestAccount(dest.account());
-            e.setDestAccountType(dest.accountType());
-            e.setAmount(d.amount().value());
-            e.setQrTxid(d.qrTxid());
-            e.setPayerMessage(d.payerMessage());
-            e.setEndToEndId(d.endToEndId().value());
-            e.setRequestedAt(d.requestedAt());
+            entity.setDestName(dest.name());
+            entity.setDestIspb(dest.ispb());
+            entity.setDestBranch(dest.branch());
+            entity.setDestAccount(dest.account());
+            entity.setDestAccountType(dest.accountType());
+            entity.setAmount(paymentOrder.amount().value());
+            entity.setQrTxid(paymentOrder.qrTxid());
+            entity.setPayerMessage(paymentOrder.payerMessage());
+            entity.setEndToEndId(paymentOrder.endToEndId().value());
+            entity.setRequestedAt(paymentOrder.requestedAt());
         }
-        e.setStatus(d.status().name());
-        e.setRejectReasonCode(d.rejectReasonCode());
-        e.setRejectReasonDetail(d.rejectReasonDetail() == null ? null : d.rejectReasonDetail().substring(0, Math.min(255, d.rejectReasonDetail().length())));
-        e.setLedgerReservationId(d.ledgerReservationId());
-        e.setSentAt(d.sentAt());
-        e.setSettledAt(d.settledAt());
+        entity.setStatus(paymentOrder.status().name());
+        entity.setRejectReasonCode(paymentOrder.rejectReasonCode());
+        entity.setRejectReasonDetail(paymentOrder.rejectReasonDetail() == null ? null : paymentOrder.rejectReasonDetail().substring(0, Math.min(255, paymentOrder.rejectReasonDetail().length())));
+        entity.setLedgerReservationId(paymentOrder.ledgerReservationId());
+        entity.setSentAt(paymentOrder.sentAt());
+        entity.setSettledAt(paymentOrder.settledAt());
     }
 }

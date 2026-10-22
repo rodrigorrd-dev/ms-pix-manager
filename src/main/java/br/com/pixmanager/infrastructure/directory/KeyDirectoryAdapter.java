@@ -19,7 +19,7 @@ public class KeyDirectoryAdapter implements KeyDirectoryPortOut {
 
     @Override
     public Optional<ActiveKey> findActiveKey(String rawKey) {
-        return keys.findActive(rawKey).map(k -> new ActiveKey(k.keyId(), k.accountId(), k.holderDocumentHash()));
+        return keys.findActive(rawKey).map(pixKey -> new ActiveKey(pixKey.keyId(), pixKey.accountId(), pixKey.holderDocumentHash()));
     }
 
     @Override

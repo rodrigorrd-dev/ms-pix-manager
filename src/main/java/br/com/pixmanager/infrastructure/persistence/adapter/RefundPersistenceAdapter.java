@@ -40,9 +40,9 @@ public class RefundPersistenceAdapter implements RefundPersistencePortOut {
         mapper.apply(refund, entity, isNew);
         try {
             return mapper.toDomain(repository.saveAndFlush(entity));
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException exception) {
             throw new PreconditionFailedException("A devolução foi alterada por outra requisição (versão desatualizada).");
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException exception) {
             // corrida entre duas devoluções com o mesmo id do cliente: o índice único decide
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe devolução com este identificador.");
         }

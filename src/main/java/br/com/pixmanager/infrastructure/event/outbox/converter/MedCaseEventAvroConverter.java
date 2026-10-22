@@ -19,21 +19,21 @@ public class MedCaseEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        MedCaseEvent e = (MedCaseEvent) event;
-        MedCase c = e.medCase();
+        MedCaseEvent medCaseEvent = (MedCaseEvent) event;
+        MedCase medCase = medCaseEvent.medCase();
         return br.com.pixmanager.events.v1.MedCaseEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setMedCaseId(c.id())
+                .setMedCaseId(medCase.id())
                 .setParentCaseId(null)
-                .setEndToEndId(c.endToEndId())
-                .setLayer(c.layer())
-                .setStatus(c.status().name())
-                .setAction(e.action())
-                .setTrackedAmount(c.trackedAmount() == null ? null : c.trackedAmount().value())
-                .setBlockedAmount(c.blockedAmount() == null ? null : c.blockedAmount().value())
-                .setRefundedAmount(e.refundedAmount() == null ? null : e.refundedAmount().value())
+                .setEndToEndId(medCase.endToEndId())
+                .setLayer(medCase.layer())
+                .setStatus(medCase.status().name())
+                .setAction(medCaseEvent.action())
+                .setTrackedAmount(medCase.trackedAmount() == null ? null : medCase.trackedAmount().value())
+                .setBlockedAmount(medCase.blockedAmount() == null ? null : medCase.blockedAmount().value())
+                .setRefundedAmount(medCaseEvent.refundedAmount() == null ? null : medCaseEvent.refundedAmount().value())
                 .setWindowEndsAt(null)
-                .setContestationDeadlineAt(e.contestationDeadlineAt())
+                .setContestationDeadlineAt(medCaseEvent.contestationDeadlineAt())
                 .build();
     }
 }

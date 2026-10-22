@@ -48,42 +48,42 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     private final DomainEventPublisherPortOut events;
     private final IdGeneratorPortOut ids;
     private final EndToEndIdGeneratorPortOut e2eIds;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final AutomaticProperties properties;
 
     public ManageAutomaticService(AutomaticPersistencePortOut persistence, FindAccountUseCase accounts, AutomaticGatewayPortOut gateway,
                                   DomainEventPublisherPortOut events, IdGeneratorPortOut ids, EndToEndIdGeneratorPortOut e2eIds,
-                                  TransactionRunnerPortOut tx, Clock clock, AutomaticProperties properties) {
+                                  TransactionRunnerPortOut transactionRunner, Clock clock, AutomaticProperties properties) {
         this.persistence = persistence;
         this.accounts = accounts;
         this.gateway = gateway;
         this.events = events;
         this.ids = ids;
         this.e2eIds = e2eIds;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.properties = properties;
     }
 
     @Override
-    public AutomaticAuthorization receiveAuthorization(Caller caller, ReceiveAuthorizationCommand c) {
-        if (!caller.canAccess(c.payerAccountId())) {
+    public AutomaticAuthorization receiveAuthorization(Caller caller, ReceiveAuthorizationCommand command) {
+        if (!caller.canAccess(command.payerAccountId())) {
             throw new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada.");
         }
-        AccountInfo payer = accounts.findById(c.payerAccountId()).orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada."));
+        AccountInfo payer = accounts.findById(command.payerAccountId()).orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta não encontrada."));
         if (!payer.isActive()) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "A conta do pagador não está ativa.");
         }
-        if (c.payerDocument() == null || !Document.of(c.payerDocument()).value().equals(payer.document().value())) {
+        if (command.payerDocument() == null || !Document.of(command.payerDocument()).value().equals(payer.document().value())) {
             throw new BusinessException(ErrorCodes.DESTINATION_MISMATCH, "O documento do pagador da solicitação não é o do titular da conta.");   // BR-AUT-02
         }
-        Document.of(c.receiverDocument());                                                         // dígito verificador do recebedor
+        Document.of(command.receiverDocument());                                                         // dígito verificador do recebedor
         Instant now = clock.instant();
-        AutomaticAuthorization created = AutomaticAuthorization.received(ids.newId(), c.idRec(), payer.id(), Document.of(c.receiverDocument()).value(),
-                c.receiverName(), c.contract(), c.objectDescription(), c.periodicity(), c.startDate(), c.endDate(), c.fixedAmount(), c.receiverMinAmount(),
+        AutomaticAuthorization created = AutomaticAuthorization.received(ids.newId(), command.idRec(), payer.id(), Document.of(command.receiverDocument()).value(),
+                command.receiverName(), command.contract(), command.objectDescription(), command.periodicity(), command.startDate(), command.endDate(), command.fixedAmount(), command.receiverMinAmount(),
                 now.plus(properties.requestValidity()));
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             persistence.insertAuthorization(created);
             events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationReceived", created));
         });
@@ -120,15 +120,15 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     public AutomaticAuthorization cancel(Caller caller, UUID id, String cancelledBy) {
         AutomaticAuthorization current = load(caller, id);
         AutomaticAuthorization cancelled = current.cancelled(cancelledBy, clock.instant());
-        AutomaticAuthorization saved = tx.inTransaction(() -> {
-            AutomaticAuthorization s = persistence.saveAuthorization(cancelled);
+        AutomaticAuthorization saved = transactionRunner.inTransaction(() -> {
+            AutomaticAuthorization authorization = persistence.saveAuthorization(cancelled);
             for (AutomaticCharge charge : persistence.chargesOf(id)) {
                 if (charge.isLive()) {
                     cancelChargeRows(charge);
                 }
             }
-            events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationCancelled", s));
-            return s;
+            events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationCancelled", authorization));
+            return authorization;
         });
         if (!"RECEIVER".equals(cancelledBy)) {                                                     // o recebedor já sabe quando foi ele quem cancelou
             gateway.cancel(saved.idRec(), cancelledBy);
@@ -142,36 +142,36 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     }
 
     @Override
-    public AutomaticCharge registerCharge(Caller caller, UUID authorizationId, RegisterChargeCommand c) {
-        AutomaticAuthorization a = load(caller, authorizationId);
-        if (!a.isApproved()) {
+    public AutomaticCharge registerCharge(Caller caller, UUID authorizationId, RegisterChargeCommand command) {
+        AutomaticAuthorization authorization = load(caller, authorizationId);
+        if (!authorization.isApproved()) {
             throw new BusinessException(ErrorCodes.AUTOMATIC_NOT_AUTHORIZED, "Cobrança recusada: a autorização não está aprovada (BR-AUT-08).");
         }
-        if (c.txid() == null || !TXID.matcher(c.txid()).matches()) {
+        if (command.txid() == null || !TXID.matcher(command.txid()).matches()) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "txid inválido: 26 a 35 caracteres alfanuméricos.");
         }
-        if (c.dueDate() == null || c.amount() == null || !c.amount().isPositive() || c.receiverIspb() == null || !c.receiverIspb().matches("\\d{8}")
-                || c.receiverBranch() == null || c.receiverAccount() == null || c.receiverAccountType() == null) {
+        if (command.dueDate() == null || command.amount() == null || !command.amount().isPositive() || command.receiverIspb() == null || !command.receiverIspb().matches("\\d{8}")
+                || command.receiverBranch() == null || command.receiverAccount() == null || command.receiverAccountType() == null) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "A cobrança exige vencimento, valor e a conta do recebedor.");
         }
         LocalDate today = today();
-        long notice = java.time.temporal.ChronoUnit.DAYS.between(today, c.dueDate());
+        long notice = java.time.temporal.ChronoUnit.DAYS.between(today, command.dueDate());
         if (notice < properties.minNoticeDays() || notice > properties.maxNoticeDays()) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O vencimento deve estar entre " + properties.minNoticeDays() + " e " + properties.maxNoticeDays()
                     + " dias à frente.");
         }
-        if (c.dueDate().isBefore(a.startDate()) || a.endDate() != null && c.dueDate().isAfter(a.endDate())) {
+        if (command.dueDate().isBefore(authorization.startDate()) || authorization.endDate() != null && command.dueDate().isAfter(authorization.endDate())) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O vencimento está fora da vigência da autorização.");
         }
-        if (a.fixedAmount() != null && !a.fixedAmount().equals(c.amount())
-                || a.fixedAmount() == null && a.receiverMinAmount() != null && c.amount().compareTo(a.receiverMinAmount()) < 0
-                || a.payerMaxAmount() != null && c.amount().compareTo(a.payerMaxAmount()) > 0) {
+        if (authorization.fixedAmount() != null && !authorization.fixedAmount().equals(command.amount())
+                || authorization.fixedAmount() == null && authorization.receiverMinAmount() != null && command.amount().compareTo(authorization.receiverMinAmount()) < 0
+                || authorization.payerMaxAmount() != null && command.amount().compareTo(authorization.payerMaxAmount()) > 0) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O valor da cobrança não respeita o valor fixo, o mínimo ou o teto do pagador.");
         }
-        AutomaticCharge charge = new AutomaticCharge(ids.newId(), a.id(), c.txid(), c.dueDate(), c.amount(), c.receiverIspb(), c.receiverBranch(),
-                c.receiverAccount(), c.receiverAccountType(), "ATIVA", 0);
-        AutomaticAttempt first = new AutomaticAttempt(ids.newId(), charge.id(), "AGND", "AGENDADA", e2eIds.nextEndToEndId(), c.dueDate(), null, null, 0);
-        tx.inTransaction(() -> persistence.insertCharge(charge, first));
+        AutomaticCharge charge = new AutomaticCharge(ids.newId(), authorization.id(), command.txid(), command.dueDate(), command.amount(), command.receiverIspb(), command.receiverBranch(),
+                command.receiverAccount(), command.receiverAccountType(), "ATIVA", 0);
+        AutomaticAttempt first = new AutomaticAttempt(ids.newId(), charge.id(), "AGND", "AGENDADA", e2eIds.nextEndToEndId(), command.dueDate(), null, null, 0);
+        transactionRunner.inTransaction(() -> persistence.insertCharge(charge, first));
         return charge;
     }
 
@@ -197,7 +197,7 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
         if (!clock.instant().isBefore(limit.toInstant())) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O pagador pode cancelar a cobrança até as 23h59 da véspera do vencimento.");
         }
-        return tx.inTransaction(() -> cancelChargeRows(charge));
+        return transactionRunner.inTransaction(() -> cancelChargeRows(charge));
     }
 
     // ---------------------------------------------------------------- apoio
@@ -212,7 +212,7 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     }
 
     private AutomaticAuthorization decide(AutomaticAuthorization next, String eventType) {
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             AutomaticAuthorization saved = persistence.saveAuthorization(next);
             events.publish(new AutomaticAuthorizationEvent(eventType, saved));
             return saved;
@@ -220,13 +220,13 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
     }
 
     private AutomaticAuthorization load(Caller caller, UUID id) {
-        return persistence.findAuthorization(id).filter(a -> caller.canAccess(a.payerAccountId()))
+        return persistence.findAuthorization(id).filter(authorization -> caller.canAccess(authorization.payerAccountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Autorização não encontrada."));
     }
 
     private AutomaticCharge loadCharge(Caller caller, UUID authorizationId, UUID chargeId) {
         load(caller, authorizationId);
-        return persistence.findCharge(chargeId).filter(c -> c.authorizationId().equals(authorizationId))
+        return persistence.findCharge(chargeId).filter(charge -> charge.authorizationId().equals(authorizationId))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Cobrança não encontrada."));
     }
 

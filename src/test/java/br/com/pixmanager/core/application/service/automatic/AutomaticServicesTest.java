@@ -95,9 +95,9 @@ class AutomaticServicesTest {
         worker = new ExecuteAutomaticService(persistence, orders, createOrder, events, e2eIds, new SequentialIds(), TX, clock, props);
         when(e2eIds.nextEndToEndId()).thenReturn(E2E);
         when(accounts.findById(payerId)).thenReturn(Optional.of(account(AccountStatus.ACTIVE)));
-        when(persistence.saveAuthorization(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
+        when(persistence.saveAuthorization(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     AccountInfo account(AccountStatus status) {
@@ -110,11 +110,11 @@ class AutomaticServicesTest {
     }
 
     AutomaticAuthorization authorization(String status, String idRec) {
-        AutomaticAuthorization a = AutomaticAuthorization.received(SequentialIds.id(1), idRec, payerId, "11222333000181", "Academia", "CONTRATO", null, AutomaticPeriodicity.MENSAL,
+        AutomaticAuthorization received = AutomaticAuthorization.received(SequentialIds.id(1), idRec, payerId, "11222333000181", "Academia", "CONTRATO", null, AutomaticPeriodicity.MENSAL,
                 LocalDate.parse("2026-10-01"), null, Money.of("50.00"), null, Instant.parse("2026-10-22T15:00:00Z"));
-        AutomaticAuthorization r = "APROVADA".equals(status) ? a.approved(null, clock.instant()) : a;
-        when(persistence.findAuthorization(r.id())).thenReturn(Optional.of(r));
-        return r;
+        AutomaticAuthorization authorization = "APROVADA".equals(status) ? received.approved(null, clock.instant()) : received;
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        return authorization;
     }
 
     static final String REC_R = "RR" + "a".repeat(27);
@@ -189,7 +189,7 @@ class AutomaticServicesTest {
         when(persistence.attemptsOf(live.id())).thenReturn(List.of(new AutomaticAttempt(SequentialIds.id(6), live.id(), "AGND", "AGENDADA", E2E, live.dueDate(), null, null, 0)));
         assertThat(manage.cancel(caller, approved.id(), "RECEIVER").status()).isEqualTo("CANCELADA");
         verify(gateway, never()).cancel(any(), eq("RECEIVER"));
-        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(c -> c.status().equals("CANCELADA")));
+        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(charge -> charge.status().equals("CANCELADA")));
         manage.cancel(caller, approved.id(), "PAYER");
         verify(gateway).cancel(REC_R, "PAYER");
         assertThat(manage.adjustLimit(caller, approved.id(), Money.of("60.00")).payerMaxAmount()).isEqualTo(Money.of("60.00"));
@@ -202,14 +202,14 @@ class AutomaticServicesTest {
         AutomaticAuthorization pending = authorization("CRIADA", REC_R);
         assertThatThrownBy(() -> manage.registerCharge(caller, pending.id(), charge("2026-10-18", "50.00"))).isInstanceOf(BusinessException.class).hasMessageContaining("não está aprovada");
 
-        AutomaticAuthorization a = authorization("APROVADA", REC_R);
-        assertThatThrownBy(() -> manage.registerCharge(caller, a.id(), new RegisterChargeCommand("curto", LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC"))).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> manage.registerCharge(caller, a.id(), new RegisterChargeCommand("t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "123", "0001", "9", "CACC"))).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> manage.registerCharge(caller, a.id(), charge("2026-10-16", "50.00"))).hasMessageContaining("dias");
-        assertThatThrownBy(() -> manage.registerCharge(caller, a.id(), charge("2026-11-30", "50.00"))).hasMessageContaining("dias");
-        assertThatThrownBy(() -> manage.registerCharge(caller, a.id(), charge("2026-10-18", "51.00"))).hasMessageContaining("valor");
+        AutomaticAuthorization authorization = authorization("APROVADA", REC_R);
+        assertThatThrownBy(() -> manage.registerCharge(caller, authorization.id(), new RegisterChargeCommand("curto", LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC"))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> manage.registerCharge(caller, authorization.id(), new RegisterChargeCommand("t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "123", "0001", "9", "CACC"))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> manage.registerCharge(caller, authorization.id(), charge("2026-10-16", "50.00"))).hasMessageContaining("dias");
+        assertThatThrownBy(() -> manage.registerCharge(caller, authorization.id(), charge("2026-11-30", "50.00"))).hasMessageContaining("dias");
+        assertThatThrownBy(() -> manage.registerCharge(caller, authorization.id(), charge("2026-10-18", "51.00"))).hasMessageContaining("valor");
 
-        AutomaticCharge ok = manage.registerCharge(caller, a.id(), charge("2026-10-18", "50.00"));
+        AutomaticCharge ok = manage.registerCharge(caller, authorization.id(), charge("2026-10-18", "50.00"));
         assertThat(ok.status()).isEqualTo("ATIVA");
         ArgumentCaptor<AutomaticAttempt> first = ArgumentCaptor.forClass(AutomaticAttempt.class);
         verify(persistence).insertCharge(eq(ok), first.capture());
@@ -220,34 +220,34 @@ class AutomaticServicesTest {
     @Test
     @DisplayName("cancelar cobrança: ativa e antes da véspera; viva demais, vencida ou já cancelada ⇒ 422; listagens respeitam o escopo")
     void shouldCancelChargesUntilTheEve() {
-        AutomaticAuthorization a = authorization("APROVADA", REC_R);
-        AutomaticCharge live = new AutomaticCharge(SequentialIds.id(5), a.id(), "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
+        AutomaticAuthorization authorization = authorization("APROVADA", REC_R);
+        AutomaticCharge live = new AutomaticCharge(SequentialIds.id(5), authorization.id(), "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
         when(persistence.findCharge(live.id())).thenReturn(Optional.of(live));
         when(persistence.attemptsOf(live.id())).thenReturn(List.of());
 
-        assertThat(manage.cancelCharge(caller, a.id(), live.id()).status()).isEqualTo("CANCELADA");
-        assertThat(manage.attempts(caller, a.id(), live.id())).isEmpty();
-        assertThat(manage.charges(caller, a.id())).isEmpty();
+        assertThat(manage.cancelCharge(caller, authorization.id(), live.id()).status()).isEqualTo("CANCELADA");
+        assertThat(manage.attempts(caller, authorization.id(), live.id())).isEmpty();
+        assertThat(manage.charges(caller, authorization.id())).isEmpty();
 
         clock.set(Instant.parse("2026-10-18T03:30:00Z"));                                      // 00:30 do dia do vencimento (Brasília)
-        assertThatThrownBy(() -> manage.cancelCharge(caller, a.id(), live.id())).hasMessageContaining("23h59");
+        assertThatThrownBy(() -> manage.cancelCharge(caller, authorization.id(), live.id())).hasMessageContaining("23h59");
         when(persistence.findCharge(live.id())).thenReturn(Optional.of(live.with("CONCLUIDA")));
-        assertThatThrownBy(() -> manage.cancelCharge(caller, a.id(), live.id())).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> manage.cancelCharge(caller, a.id(), SequentialIds.id(404))).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> manage.cancelCharge(caller, authorization.id(), live.id())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> manage.cancelCharge(caller, authorization.id(), SequentialIds.id(404))).isInstanceOf(NotFoundException.class);
     }
 
     // ------------------------------------------------------------------ worker
 
     AutomaticCharge activeCharge(UUID authId) {
-        AutomaticCharge c = new AutomaticCharge(SequentialIds.id(5), authId, "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
-        when(persistence.findCharge(c.id())).thenReturn(Optional.of(c));
-        return c;
+        AutomaticCharge automaticCharge = new AutomaticCharge(SequentialIds.id(5), authId, "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
+        when(persistence.findCharge(automaticCharge.id())).thenReturn(Optional.of(automaticCharge));
+        return automaticCharge;
     }
 
-    AutomaticAttempt claimed(AutomaticCharge c, String type, LocalDate day) {
-        AutomaticAttempt t = new AutomaticAttempt(SequentialIds.id(6), c.id(), type, "SOLICITADA", E2E, day, null, null, 1);
-        when(persistence.claimDue(any(), any(), anyInt())).thenReturn(List.of(t));
-        return t;
+    AutomaticAttempt claimed(AutomaticCharge automaticCharge, String type, LocalDate day) {
+        AutomaticAttempt automaticAttempt = new AutomaticAttempt(SequentialIds.id(6), automaticCharge.id(), type, "SOLICITADA", E2E, day, null, null, 1);
+        when(persistence.claimDue(any(), any(), anyInt())).thenReturn(List.of(automaticAttempt));
+        return automaticAttempt;
     }
 
     PaymentOrder order() {
@@ -255,35 +255,35 @@ class AutomaticServicesTest {
     }
 
     String lastAttempt() {
-        ArgumentCaptor<AutomaticAttempt> c = ArgumentCaptor.forClass(AutomaticAttempt.class);
-        verify(persistence, org.mockito.Mockito.atLeastOnce()).saveAttempt(c.capture());
-        AutomaticAttempt t = c.getAllValues().get(c.getAllValues().size() - 1);
-        return t.status() + (t.lastErrorCode() == null ? "" : ":" + t.lastErrorCode());
+        ArgumentCaptor<AutomaticAttempt> automaticAttemptCaptor = ArgumentCaptor.forClass(AutomaticAttempt.class);
+        verify(persistence, org.mockito.Mockito.atLeastOnce()).saveAttempt(automaticAttemptCaptor.capture());
+        AutomaticAttempt automaticAttempt = automaticAttemptCaptor.getAllValues().get(automaticAttemptCaptor.getAllValues().size() - 1);
+        return automaticAttempt.status() + (automaticAttempt.lastErrorCode() == null ? "" : ":" + automaticAttempt.lastErrorCode());
     }
 
     @Test
     @DisplayName("worker: autorização cancelada ⇒ tentativa CANCELADA (PIX-422-060), atraso ⇒ EXPIRADA, teto reduzido ⇒ REJEITADA:LIMIT; nada é pago")
     void shouldRefuseToDebitWithoutAuthorization() {
-        AutomaticAuthorization a = authorization("APROVADA", REC_R);
-        AutomaticAuthorization cancelled = a.cancelled("PAYER", clock.instant());
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(cancelled));
-        claimed(activeCharge(a.id()), "AGND", LocalDate.parse("2026-10-15"));
+        AutomaticAuthorization authorization = authorization("APROVADA", REC_R);
+        AutomaticAuthorization cancelled = authorization.cancelled("PAYER", clock.instant());
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(cancelled));
+        claimed(activeCharge(authorization.id()), "AGND", LocalDate.parse("2026-10-15"));
         worker.runCycle();
         assertThat(lastAttempt()).isEqualTo("CANCELADA:PIX-422-060");
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
-        claimed(activeCharge(a.id()), "AGND", LocalDate.parse("2026-10-01"));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        claimed(activeCharge(authorization.id()), "AGND", LocalDate.parse("2026-10-01"));
         worker.runCycle();
         assertThat(lastAttempt()).isEqualTo("EXPIRADA:MISSED");
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a.withPayerMax(Money.of("50.00"))));
-        AutomaticCharge big = new AutomaticCharge(SequentialIds.id(5), a.id(), "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("60.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization.withPayerMax(Money.of("50.00"))));
+        AutomaticCharge big = new AutomaticCharge(SequentialIds.id(5), authorization.id(), "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("60.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
         when(persistence.findCharge(big.id())).thenReturn(Optional.of(big));
         claimed(big, "AGND", LocalDate.parse("2026-10-15"));
         worker.runCycle();
@@ -294,29 +294,29 @@ class AutomaticServicesTest {
     @Test
     @DisplayName("worker: negócio ⇒ REJEITADA; técnica ⇒ volta AGENDADA; ordem criada vincula e conta; limite estourado ⇒ REJEITADA")
     void shouldStartAttempts() {
-        AutomaticAuthorization a = authorization("APROVADA", REC_R);
-        AutomaticCharge c = activeCharge(a.id());
-        claimed(c, "AGND", LocalDate.parse("2026-10-15"));
+        AutomaticAuthorization authorization = authorization("APROVADA", REC_R);
+        AutomaticCharge automaticCharge = activeCharge(authorization.id());
+        claimed(automaticCharge, "AGND", LocalDate.parse("2026-10-15"));
         when(createOrder.prepare(any(), any())).thenThrow(new BusinessException("PIX-422-012", "x"));
         assertThat(worker.runCycle().failed()).isEqualTo(1);
         assertThat(lastAttempt()).isEqualTo("REJEITADA:PIX-422-012");
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
-        activeCharge(a.id());
-        claimed(c, "AGND", LocalDate.parse("2026-10-15"));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        activeCharge(authorization.id());
+        claimed(automaticCharge, "AGND", LocalDate.parse("2026-10-15"));
         org.mockito.Mockito.reset(createOrder);
         when(createOrder.prepare(any(), any())).thenThrow(new DependencyUnavailableException("dict", null));
         worker.runCycle();
         assertThat(lastAttempt()).isEqualTo("AGENDADA:" + new DependencyUnavailableException("x", null).getCode());
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
-        activeCharge(a.id());
-        claimed(c, "AGND", LocalDate.parse("2026-10-15"));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        activeCharge(authorization.id());
+        claimed(automaticCharge, "AGND", LocalDate.parse("2026-10-15"));
         PaymentOrder created = order();
         org.mockito.Mockito.reset(createOrder);
         when(createOrder.prepare(any(), any())).thenReturn(new PreparedPaymentOrder(created));
@@ -328,29 +328,29 @@ class AutomaticServicesTest {
         assertThat(worker.runCycle().failed()).isEqualTo(1);
     }
 
-    AutomaticAttempt inProgress(AutomaticAuthorization a, int attemptsMade) {
-        AutomaticCharge c = activeCharge(a.id());
-        AutomaticAttempt t = new AutomaticAttempt(SequentialIds.id(6), c.id(), "AGND", "SOLICITADA", E2E, LocalDate.parse("2026-10-18"), SequentialIds.id(70), null, 1);
-        when(persistence.inProgressWithOrder(anyInt())).thenReturn(List.of(t));
-        when(persistence.attemptsOf(c.id())).thenReturn(java.util.Collections.nCopies(attemptsMade, t));
-        return t;
+    AutomaticAttempt inProgress(AutomaticAuthorization authorization, int attemptsMade) {
+        AutomaticCharge automaticCharge = activeCharge(authorization.id());
+        AutomaticAttempt automaticAttempt = new AutomaticAttempt(SequentialIds.id(6), automaticCharge.id(), "AGND", "SOLICITADA", E2E, LocalDate.parse("2026-10-18"), SequentialIds.id(70), null, 1);
+        when(persistence.inProgressWithOrder(anyInt())).thenReturn(List.of(automaticAttempt));
+        when(persistence.attemptsOf(automaticCharge.id())).thenReturn(java.util.Collections.nCopies(attemptsMade, automaticAttempt));
+        return automaticAttempt;
     }
 
     @Test
     @DisplayName("acompanhar: enviada ⇒ PAGA/CONCLUIDA; AM04 com allow_retry ⇒ nova tentativa NTAG no dia seguinte; sem allow_retry, sem tentativas restantes ou outro código ⇒ REJEITADA")
     void shouldFollowOutcomes() {
         clock.set(Instant.parse("2026-10-18T15:00:00Z"));
-        AutomaticAuthorization a = authorization("APROVADA", REC_R);
-        inProgress(a, 1);
+        AutomaticAuthorization authorization = authorization("APROVADA", REC_R);
+        inProgress(authorization, 1);
         when(orders.findById(SequentialIds.id(70))).thenReturn(Optional.of(order().validated(SequentialIds.id(80)).reserved().sentToSpi(clock.instant())));
         assertThat(worker.runCycle().paid()).isEqualTo(1);
-        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(c -> c.status().equals("CONCLUIDA")));
+        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(charge -> charge.status().equals("CONCLUIDA")));
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
-        inProgress(a, 1);
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        inProgress(authorization, 1);
         PaymentOrder noFunds = order().validated(SequentialIds.id(80)).reserved().rejected("AM04", "sem saldo");
         when(orders.findById(SequentialIds.id(70))).thenReturn(Optional.of(noFunds));
         assertThat(worker.runCycle().retried()).isEqualTo(1);
@@ -360,26 +360,26 @@ class AutomaticServicesTest {
         assertThat(next.getValue().settlementDate()).isEqualTo(LocalDate.parse("2026-10-19"));
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        inProgress(a, 4);                                                                           // 1 + 3 tentativas: acabaram
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        inProgress(authorization, 4);                                                                           // 1 + 3 tentativas: acabaram
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
         worker.runCycle();
-        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(c -> c.status().equals("REJEITADA")));
+        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(charge -> charge.status().equals("REJEITADA")));
 
         AutomaticAuthorization noRetry = authorization("APROVADA", REC_N);
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
         inProgress(noRetry, 1);
         worker.runCycle();
         verify(persistence, never()).insertAttempt(any());
 
         org.mockito.Mockito.reset(persistence);
-        when(persistence.saveAttempt(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.saveCharge(any())).thenAnswer(i -> i.getArgument(0));
-        when(persistence.findAuthorization(a.id())).thenReturn(Optional.of(a));
-        inProgress(a, 1);
+        when(persistence.saveAttempt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.saveCharge(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(persistence.findAuthorization(authorization.id())).thenReturn(Optional.of(authorization));
+        inProgress(authorization, 1);
         when(orders.findById(SequentialIds.id(70))).thenReturn(Optional.of(order().validated(SequentialIds.id(80)).reserved().rejected("AC03", "conta")));
         worker.runCycle();
         assertThat(lastAttempt()).isEqualTo("REJEITADA:AC03");
@@ -391,7 +391,7 @@ class AutomaticServicesTest {
         AutomaticAuthorization pending = authorization("CRIADA", REC_R);
         when(persistence.findExpiredRequests(any(), anyInt())).thenReturn(List.of(pending));
         assertThat(worker.runCycle().expired()).isEqualTo(1);
-        verify(persistence).saveAuthorization(org.mockito.ArgumentMatchers.argThat(x -> x.status().equals("EXPIRADA")));
+        verify(persistence).saveAuthorization(org.mockito.ArgumentMatchers.argThat(authorization -> authorization.status().equals("EXPIRADA")));
 
         AutomaticAttempt stuck = new AutomaticAttempt(SequentialIds.id(6), SequentialIds.id(5), "AGND", "SOLICITADA", E2E, LocalDate.parse("2026-10-15"), null, null, 1);
         when(persistence.inProgressWithoutOrderSince(any(), anyInt())).thenReturn(List.of(stuck));

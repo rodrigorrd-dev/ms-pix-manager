@@ -19,16 +19,16 @@ public class PaymentOrderEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        PaymentOrder o = ((PaymentOrderEvent) event).order();
+        PaymentOrder paymentOrder = ((PaymentOrderEvent) event).order();
         return br.com.pixmanager.events.v1.PaymentOrderEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setPaymentOrderId(o.id())
-                .setPayerAccountId(o.payerAccountId())
-                .setStatus(o.status().name())
-                .setAmount(o.amount().value())
-                .setEndToEndId(o.endToEndId().value())
-                .setRejectReasonCode(o.rejectReasonCode())
-                .setDestinationDocumentMasked(o.destination().document() == null ? null : o.destination().document().masked())
+                .setPaymentOrderId(paymentOrder.id())
+                .setPayerAccountId(paymentOrder.payerAccountId())
+                .setStatus(paymentOrder.status().name())
+                .setAmount(paymentOrder.amount().value())
+                .setEndToEndId(paymentOrder.endToEndId().value())
+                .setRejectReasonCode(paymentOrder.rejectReasonCode())
+                .setDestinationDocumentMasked(paymentOrder.destination().document() == null ? null : paymentOrder.destination().document().masked())
                 .build();
     }
 }

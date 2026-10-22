@@ -13,27 +13,27 @@ public final class LedgerReservationEntityMapper {
 
     private LedgerReservationEntityMapper() {}
 
-    public static LedgerReservation toDomain(LedgerReservationEntity e) {
-        return new LedgerReservation(e.getId(), e.getIdempotencyKey(), e.getAccountId(), LedgerPurpose.valueOf(e.getPurpose()),
-                e.getReferenceType(), e.getReferenceId(), Money.of(e.getAmount()), LedgerStatus.valueOf(e.getStatus()),
-                e.getLedgerRef(), e.getAttempts(), e.getNextAttemptAt(), e.getLastError(), e.getVersion());
+    public static LedgerReservation toDomain(LedgerReservationEntity entity) {
+        return new LedgerReservation(entity.getId(), entity.getIdempotencyKey(), entity.getAccountId(), LedgerPurpose.valueOf(entity.getPurpose()),
+                entity.getReferenceType(), entity.getReferenceId(), Money.of(entity.getAmount()), LedgerStatus.valueOf(entity.getStatus()),
+                entity.getLedgerRef(), entity.getAttempts(), entity.getNextAttemptAt(), entity.getLastError(), entity.getVersion());
     }
 
     /** Campos imutáveis só são gravados na criação; o resto é a transição de estado. */
-    public static void apply(LedgerReservation d, LedgerReservationEntity e, Instant now, boolean isNew) {
+    public static void apply(LedgerReservation reservation, LedgerReservationEntity entity, Instant now, boolean isNew) {
         if (isNew) {
-            e.setIdempotencyKey(d.idempotencyKey());
-            e.setAccountId(d.accountId());
-            e.setPurpose(d.purpose().name());
-            e.setReferenceType(d.referenceType());
-            e.setReferenceId(d.referenceId());
-            e.setAmount(d.amount().value());
+            entity.setIdempotencyKey(reservation.idempotencyKey());
+            entity.setAccountId(reservation.accountId());
+            entity.setPurpose(reservation.purpose().name());
+            entity.setReferenceType(reservation.referenceType());
+            entity.setReferenceId(reservation.referenceId());
+            entity.setAmount(reservation.amount().value());
         }
-        e.setStatus(d.status().name());
-        e.setLedgerRef(d.ledgerRef());
-        e.setAttempts((short) d.attempts());
-        e.setNextAttemptAt(d.nextAttemptAt());
-        e.setLastError(d.lastError() == null ? null : d.lastError().substring(0, Math.min(500, d.lastError().length())));
-        e.setUpdatedAt(now);
+        entity.setStatus(reservation.status().name());
+        entity.setLedgerRef(reservation.ledgerRef());
+        entity.setAttempts((short) reservation.attempts());
+        entity.setNextAttemptAt(reservation.nextAttemptAt());
+        entity.setLastError(reservation.lastError() == null ? null : reservation.lastError().substring(0, Math.min(500, reservation.lastError().length())));
+        entity.setUpdatedAt(now);
     }
 }

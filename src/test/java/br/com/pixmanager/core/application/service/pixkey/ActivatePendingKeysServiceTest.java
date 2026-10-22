@@ -51,13 +51,13 @@ class ActivatePendingKeysServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
-        service = new ActivatePendingKeysService(persistence, dict, events, tx, FixedClock.at("2026-10-15T15:00:00Z"), MIN_AGE);
+        service = new ActivatePendingKeysService(persistence, dict, events, transactionRunner, FixedClock.at("2026-10-15T15:00:00Z"), MIN_AGE);
     }
 
     @Test
@@ -138,8 +138,8 @@ class ActivatePendingKeysServiceTest {
 
     // ------------------------------------------------------------------ helpers
 
-    private static PixKey pending(long n) {
-        return PixKey.register(SequentialIds.id(n), SequentialIds.id(10), PixKeyValue.of(PixKeyType.EVP, "0000000" + n + "-0000-0000-0000-000000000000"), NOW);
+    private static PixKey pending(long index) {
+        return PixKey.register(SequentialIds.id(index), SequentialIds.id(10), PixKeyValue.of(PixKeyType.EVP, "0000000" + index + "-0000-0000-0000-000000000000"), NOW);
     }
 
     private List<String> publishedEvents() {

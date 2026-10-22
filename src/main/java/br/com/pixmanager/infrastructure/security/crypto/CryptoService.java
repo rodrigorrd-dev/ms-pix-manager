@@ -73,17 +73,17 @@ public class CryptoService {
             return null;
         }
         try {
-            byte[] iv = new byte[IV_SIZE];
-            random.nextBytes(iv);
+            byte[] initializationVector = new byte[IV_SIZE];
+            random.nextBytes(initializationVector);
             Cipher cipher = Cipher.getInstance(AES_GCM);
-            cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(TAG_BITS, iv));
-            byte[] ct = cipher.doFinal(text.getBytes(StandardCharsets.UTF_8));
-            byte[] out = new byte[iv.length + ct.length];
-            System.arraycopy(iv, 0, out, 0, iv.length);
-            System.arraycopy(ct, 0, out, iv.length, ct.length);
+            cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(TAG_BITS, initializationVector));
+            byte[] cipherText = cipher.doFinal(text.getBytes(StandardCharsets.UTF_8));
+            byte[] out = new byte[initializationVector.length + cipherText.length];
+            System.arraycopy(initializationVector, 0, out, 0, initializationVector.length);
+            System.arraycopy(cipherText, 0, out, initializationVector.length, cipherText.length);
             return version + ":" + Base64.getEncoder().encodeToString(out);
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao cifrar dado sensível", e);
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao cifrar dado sensível", exception);
         }
     }
 
@@ -110,10 +110,10 @@ public class CryptoService {
             Cipher cipher = Cipher.getInstance(AES_GCM);
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, data, 0, IV_SIZE));
             return new String(cipher.doFinal(data, IV_SIZE, data.length - IV_SIZE), StandardCharsets.UTF_8);
-        } catch (CryptoException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao decifrar dado sensível", e);
+        } catch (CryptoException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao decifrar dado sensível", exception);
         }
     }
 
@@ -126,8 +126,8 @@ public class CryptoService {
             Mac mac = Mac.getInstance(HMAC);
             mac.init(hmacKey);
             return HexFormat.of().formatHex(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao calcular índice cego", e);
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao calcular índice cego", exception);
         }
     }
 
@@ -137,7 +137,7 @@ public class CryptoService {
         }
         try {
             return Base64.getDecoder().decode(base64);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("Propriedade não é Base64 válido: " + property);
         }
     }

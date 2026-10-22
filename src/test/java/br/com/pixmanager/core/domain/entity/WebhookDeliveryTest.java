@@ -27,9 +27,9 @@ class WebhookDeliveryTest {
         assertThat(policy.delayAfter(1, 0.5)).isEqualTo(Duration.ofSeconds(5));
         assertThat(policy.delayAfter(2, 0.5)).isEqualTo(Duration.ofSeconds(30));
         assertThat(policy.delayAfter(3, 0.5)).isEqualTo(Duration.ofMinutes(3));
-        for (int n = 1; n <= 20; n++) {
-            assertThat(policy.delayAfter(n, 1.0)).isLessThanOrEqualTo(Duration.ofHours(6));
-            assertThat(policy.delayAfter(n, 0.0)).isPositive();
+        for (int attempt = 1; attempt <= 20; attempt++) {
+            assertThat(policy.delayAfter(attempt, 1.0)).isLessThanOrEqualTo(Duration.ofHours(6));
+            assertThat(policy.delayAfter(attempt, 0.0)).isPositive();
         }
         assertThat(policy.delayAfter(10, 0.5)).isEqualTo(Duration.ofHours(6));
     }
@@ -43,18 +43,18 @@ class WebhookDeliveryTest {
     @Test
     @DisplayName("8 falhas ⇒ DEAD; antes disso RETRYING com próxima tentativa no futuro")
     void exhaustingAttemptsKillsTheDelivery() {
-        WebhookDelivery d = fresh();
-        for (int i = 1; i < 8; i++) {
-            d = d.failed(500, "boom", NOW, policy, 0.5);
-            assertThat(d.status()).isEqualTo(DeliveryStatus.RETRYING);
-            assertThat(d.nextAttemptAt()).isAfter(NOW);
-            assertThat(d.attempts()).isEqualTo(i);
+        WebhookDelivery delivery = fresh();
+        for (int index = 1; index < 8; index++) {
+            delivery = delivery.failed(500, "boom", NOW, policy, 0.5);
+            assertThat(delivery.status()).isEqualTo(DeliveryStatus.RETRYING);
+            assertThat(delivery.nextAttemptAt()).isAfter(NOW);
+            assertThat(delivery.attempts()).isEqualTo(index);
         }
-        d = d.failed(503, "x".repeat(900), NOW, policy, 0.5);
-        assertThat(d.status()).isEqualTo(DeliveryStatus.DEAD);
-        assertThat(d.attempts()).isEqualTo(8);
-        assertThat(d.lastError()).hasSize(500);
-        assertThat(d.isDue(NOW.plusSeconds(999_999))).isFalse();
+        delivery = delivery.failed(503, "x".repeat(900), NOW, policy, 0.5);
+        assertThat(delivery.status()).isEqualTo(DeliveryStatus.DEAD);
+        assertThat(delivery.attempts()).isEqualTo(8);
+        assertThat(delivery.lastError()).hasSize(500);
+        assertThat(delivery.isDue(NOW.plusSeconds(999_999))).isFalse();
     }
 
     @Test
@@ -68,15 +68,15 @@ class WebhookDeliveryTest {
 
     @Test
     void dueOnlyWhenTheTimeHasCome() {
-        WebhookDelivery r = fresh().failed(500, "e", NOW, policy, 0.5);
-        assertThat(r.isDue(NOW)).isFalse();
-        assertThat(r.isDue(NOW.plusSeconds(6))).isTrue();
+        WebhookDelivery delivery = fresh().failed(500, "e", NOW, policy, 0.5);
+        assertThat(delivery.isDue(NOW)).isFalse();
+        assertThat(delivery.isDue(NOW.plusSeconds(6))).isTrue();
     }
 
     @Test
     void manualRequeueOnlyFromDead() {
         WebhookDelivery dead = fresh();
-        for (int i = 0; i < 8; i++) {
+        for (int index = 0; index < 8; index++) {
             dead = dead.failed(500, "e", NOW, policy, 0.5);
         }
         WebhookDelivery again = dead.requeued(NOW.plusSeconds(60));

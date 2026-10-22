@@ -48,7 +48,7 @@ class ReceivePixConsumerRetryIT extends AbstractKafkaIT {
         publishAvro(ReceivePixConsumer.TOPIC, e2eId, settled("tech-" + UUID.randomUUID(), e2eId, null, "5.00", "100001"));
 
         await().atMost(Duration.ofSeconds(40)).untilAsserted(() -> assertThat(attempts.get()).isGreaterThanOrEqualTo(3));
-        assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).noneMatch(r -> e2eId.equals(r.key()));
+        assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).noneMatch(record -> e2eId.equals(record.key()));
     }
 
     @Test
@@ -63,7 +63,7 @@ class ReceivePixConsumerRetryIT extends AbstractKafkaIT {
         publishAvro(ReceivePixConsumer.TOPIC, e2eId, settled("tech-dlt-" + UUID.randomUUID(), e2eId, null, "5.00", "100001"));
 
         await().atMost(Duration.ofSeconds(60)).untilAsserted(() ->
-                assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).anyMatch(r -> e2eId.equals(r.key())));
+                assertThat(readAll(ReceivePixConsumer.TOPIC + ".dlt", Duration.ofSeconds(2))).anyMatch(record -> e2eId.equals(record.key())));
         assertThat(attempts.get()).as("pix.kafka.retry.attempts=3 no perfil de teste").isEqualTo(3);
     }
 }

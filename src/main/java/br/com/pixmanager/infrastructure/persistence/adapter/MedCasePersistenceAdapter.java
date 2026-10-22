@@ -42,28 +42,28 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
 
     @Override
     @Transactional
-    public void insert(MedCase c) {
+    public void insert(MedCase medCase) {
         jdbc.sql("""
                 INSERT INTO med_case (id, dict_funds_recovery_id, end_to_end_id, received_id, payment_order_id, account_id, case_type, role, status,
                     layer, description, reported_at, analysis_deadline_at, tracked_amount, blocked_amount, created_by, updated_by)
                 VALUES (:id, :dict, :e2e, :received, :order, :account, :type, :role, :status, :layer, :desc, :reported, :deadline, :tracked, :blocked, :actor, :actor)""")
-                .param("id", c.id()).param("dict", c.dictFundsRecoveryId()).param("e2e", c.endToEndId()).param("received", c.receivedId())
-                .param("order", c.paymentOrderId()).param("account", c.accountId()).param("type", c.caseType().name()).param("role", c.role().name())
-                .param("status", c.status().name()).param("layer", c.layer()).param("desc", c.description()).param("reported", Timestamp.from(c.reportedAt()))
-                .param("deadline", Timestamp.from(c.analysisDeadlineAt())).param("tracked", c.trackedAmount().value())
-                .param("blocked", c.blockedAmount().value()).param("actor", ACTOR).update();
+                .param("id", medCase.id()).param("dict", medCase.dictFundsRecoveryId()).param("e2e", medCase.endToEndId()).param("received", medCase.receivedId())
+                .param("order", medCase.paymentOrderId()).param("account", medCase.accountId()).param("type", medCase.caseType().name()).param("role", medCase.role().name())
+                .param("status", medCase.status().name()).param("layer", medCase.layer()).param("desc", medCase.description()).param("reported", Timestamp.from(medCase.reportedAt()))
+                .param("deadline", Timestamp.from(medCase.analysisDeadlineAt())).param("tracked", medCase.trackedAmount().value())
+                .param("blocked", medCase.blockedAmount().value()).param("actor", ACTOR).update();
     }
 
     @Override
     @Transactional
-    public MedCase save(MedCase c) {
+    public MedCase save(MedCase medCase) {
         int rows = jdbc.sql("UPDATE med_case SET status = :status, blocked_amount = :blocked, refund_id = :refund, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v")
-                .param("status", c.status().name()).param("blocked", c.blockedAmount().value()).param("refund", c.refundId()).param("actor", ACTOR)
-                .param("id", c.id()).param("v", c.version()).update();
+                .param("status", medCase.status().name()).param("blocked", medCase.blockedAmount().value()).param("refund", medCase.refundId()).param("actor", ACTOR)
+                .param("id", medCase.id()).param("v", medCase.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("O caso MED foi alterado por outra requisição (versão desatualizada).");
         }
-        return findById(c.id()).orElseThrow();
+        return findById(medCase.id()).orElseThrow();
     }
 
     @Override
@@ -113,8 +113,8 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     @Transactional(readOnly = true)
     public List<HistoryEntry> history(UUID caseId) {
         return jdbc.sql("SELECT from_status, to_status, actor, note, occurred_at FROM med_case_history WHERE case_id = :c ORDER BY occurred_at, id")
-                .param("c", caseId).query((rs, i) -> new HistoryEntry(rs.getString("from_status") == null ? null : MedStatus.valueOf(rs.getString("from_status")),
-                        MedStatus.valueOf(rs.getString("to_status")), rs.getString("actor"), rs.getString("note"), rs.getTimestamp("occurred_at").toInstant())).list();
+                .param("c", caseId).query((resultSet, rowNumber) -> new HistoryEntry(resultSet.getString("from_status") == null ? null : MedStatus.valueOf(resultSet.getString("from_status")),
+                        MedStatus.valueOf(resultSet.getString("to_status")), resultSet.getString("actor"), resultSet.getString("note"), resultSet.getTimestamp("occurred_at").toInstant())).list();
     }
 
     @Override
@@ -138,12 +138,12 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
 
     @Override
     @Transactional
-    public void insertContestation(MedContestation c) {
+    public void insertContestation(MedContestation medContestation) {
         try {
             jdbc.sql("INSERT INTO med_contestation (id, case_id, refund_id, status, reason, refunded_at, deadline_at, created_by) VALUES (:id, :c, :r, 'OPEN', :reason, :ra, :d, :actor)")
-                    .param("id", c.id()).param("c", c.caseId()).param("r", c.refundId()).param("reason", c.reason()).param("ra", Timestamp.from(c.refundedAt()))
-                    .param("d", Timestamp.from(c.deadlineAt())).param("actor", ACTOR).update();
-        } catch (DuplicateKeyException e) {
+                    .param("id", medContestation.id()).param("c", medContestation.caseId()).param("r", medContestation.refundId()).param("reason", medContestation.reason()).param("ra", Timestamp.from(medContestation.refundedAt()))
+                    .param("d", Timestamp.from(medContestation.deadlineAt())).param("actor", ACTOR).update();
+        } catch (DuplicateKeyException exception) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe uma contestação aberta para esta devolução.");
         }
     }
@@ -156,28 +156,28 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
 
     @Override
     @Transactional
-    public MedContestation saveContestation(MedContestation c) {
+    public MedContestation saveContestation(MedContestation medContestation) {
         int rows = jdbc.sql("UPDATE med_contestation SET status = :s, decided_at = :d, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
-                .param("s", c.status()).param("d", c.decidedAt() == null ? null : Timestamp.from(c.decidedAt())).param("id", c.id()).param("v", c.version()).update();
+                .param("s", medContestation.status()).param("d", medContestation.decidedAt() == null ? null : Timestamp.from(medContestation.decidedAt())).param("id", medContestation.id()).param("v", medContestation.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A contestação foi alterada por outra requisição (versão desatualizada).");
         }
-        return findContestation(c.id()).orElseThrow();
+        return findContestation(medContestation.id()).orElseThrow();
     }
 
-    private MedCase map(ResultSet rs, int row) throws SQLException {
-        BigDecimal tracked = rs.getBigDecimal("tracked_amount");
-        return new MedCase(rs.getObject("id", UUID.class), rs.getString("dict_funds_recovery_id"), rs.getString("end_to_end_id"),
-                rs.getObject("received_id", UUID.class), rs.getObject("payment_order_id", UUID.class), rs.getObject("account_id", UUID.class),
-                MedCaseType.valueOf(rs.getString("case_type")), MedRole.valueOf(rs.getString("role")), MedStatus.valueOf(rs.getString("status")),
-                rs.getInt("layer"), rs.getString("description"), rs.getTimestamp("reported_at").toInstant(), rs.getTimestamp("analysis_deadline_at").toInstant(),
-                tracked == null ? Money.ZERO : Money.of(tracked), Money.of(rs.getBigDecimal("blocked_amount")), rs.getObject("refund_id", UUID.class), rs.getLong("version"));
+    private MedCase map(ResultSet resultSet, int row) throws SQLException {
+        BigDecimal tracked = resultSet.getBigDecimal("tracked_amount");
+        return new MedCase(resultSet.getObject("id", UUID.class), resultSet.getString("dict_funds_recovery_id"), resultSet.getString("end_to_end_id"),
+                resultSet.getObject("received_id", UUID.class), resultSet.getObject("payment_order_id", UUID.class), resultSet.getObject("account_id", UUID.class),
+                MedCaseType.valueOf(resultSet.getString("case_type")), MedRole.valueOf(resultSet.getString("role")), MedStatus.valueOf(resultSet.getString("status")),
+                resultSet.getInt("layer"), resultSet.getString("description"), resultSet.getTimestamp("reported_at").toInstant(), resultSet.getTimestamp("analysis_deadline_at").toInstant(),
+                tracked == null ? Money.ZERO : Money.of(tracked), Money.of(resultSet.getBigDecimal("blocked_amount")), resultSet.getObject("refund_id", UUID.class), resultSet.getLong("version"));
     }
 
-    private MedContestation contestation(ResultSet rs, int row) throws SQLException {
-        Timestamp decided = rs.getTimestamp("decided_at");
-        return new MedContestation(rs.getObject("id", UUID.class), rs.getObject("case_id", UUID.class), rs.getObject("refund_id", UUID.class), rs.getString("status"),
-                rs.getString("reason"), rs.getTimestamp("refunded_at").toInstant(), rs.getTimestamp("deadline_at").toInstant(),
-                decided == null ? null : decided.toInstant(), rs.getLong("version"));
+    private MedContestation contestation(ResultSet resultSet, int row) throws SQLException {
+        Timestamp decided = resultSet.getTimestamp("decided_at");
+        return new MedContestation(resultSet.getObject("id", UUID.class), resultSet.getObject("case_id", UUID.class), resultSet.getObject("refund_id", UUID.class), resultSet.getString("status"),
+                resultSet.getString("reason"), resultSet.getTimestamp("refunded_at").toInstant(), resultSet.getTimestamp("deadline_at").toInstant(),
+                decided == null ? null : decided.toInstant(), resultSet.getLong("version"));
     }
 }

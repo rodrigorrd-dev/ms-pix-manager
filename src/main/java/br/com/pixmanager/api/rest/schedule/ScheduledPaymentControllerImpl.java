@@ -37,14 +37,14 @@ public class ScheduledPaymentControllerImpl implements ScheduledPaymentControlle
     }
 
     @Override
-    public ResponseEntity<?> create(String idempotencyKey, CreateScheduledPaymentRequest r) {
+    public ResponseEntity<?> create(String idempotencyKey, CreateScheduledPaymentRequest request) {
         var caller = CallerContext.current();
-        var result = idempotency.execute(caller.clientId(), "POST /v1/scheduled-payments", idempotencyKey, r, () -> {
-            var d = r.destination();
-            ScheduledPayment created = schedules.create(caller, new CreateScheduledPaymentCommand(r.payerAccountId(), r.recurrence(), r.method(),
+        var result = idempotency.execute(caller.clientId(), "POST /v1/scheduled-payments", idempotencyKey, request, () -> {
+            var d = request.destination();
+            ScheduledPayment created = schedules.create(caller, new CreateScheduledPaymentCommand(request.payerAccountId(), request.recurrence(), request.method(),
                     d == null ? null : d.pixKeyType(), d == null ? null : d.pixKey(), d == null ? null : d.ispb(), d == null ? null : d.branch(),
                     d == null ? null : d.account(), d == null ? null : d.accountType(), d == null ? null : d.name(),
-                    d == null ? null : d.document(), Money.parseBcb(r.amount()), r.payerMessage(), r.firstDate(), r.endDate(), r.occurrencesTotal()));
+                    d == null ? null : d.document(), Money.parseBcb(request.amount()), request.payerMessage(), request.firstDate(), request.endDate(), request.occurrencesTotal()));
             return new IdempotentExecutor.Response(HttpStatus.CREATED.value(), toResponse(created));
         });
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(result.status()).cacheControl(CacheControl.noStore());
@@ -57,11 +57,11 @@ public class ScheduledPaymentControllerImpl implements ScheduledPaymentControlle
 
     @Override
     public ResponseEntity<ScheduledPaymentResponse> get(UUID id, String ifNoneMatch) {
-        ScheduledPayment p = schedules.get(CallerContext.current(), id);
-        if (ETags.noneMatch(ifNoneMatch, p.version())) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(String.valueOf(p.version())).build();
+        ScheduledPayment scheduledPayment = schedules.get(CallerContext.current(), id);
+        if (ETags.noneMatch(ifNoneMatch, scheduledPayment.version())) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(String.valueOf(scheduledPayment.version())).build();
         }
-        return ResponseEntity.ok().eTag(String.valueOf(p.version())).cacheControl(CacheControl.noStore()).body(toResponse(p));
+        return ResponseEntity.ok().eTag(String.valueOf(scheduledPayment.version())).cacheControl(CacheControl.noStore()).body(toResponse(scheduledPayment));
     }
 
     @Override
@@ -78,8 +78,8 @@ public class ScheduledPaymentControllerImpl implements ScheduledPaymentControlle
 
     @Override
     public ResponseEntity<ScheduledPaymentResponse> cancel(UUID id, String ifMatch) {
-        ScheduledPayment p = schedules.cancel(CallerContext.current(), id, ExpectedVersion.parse(ifMatch));
-        return ResponseEntity.ok().eTag(String.valueOf(p.version())).cacheControl(CacheControl.noStore()).body(toResponse(p));
+        ScheduledPayment scheduledPayment = schedules.cancel(CallerContext.current(), id, ExpectedVersion.parse(ifMatch));
+        return ResponseEntity.ok().eTag(String.valueOf(scheduledPayment.version())).cacheControl(CacheControl.noStore()).body(toResponse(scheduledPayment));
     }
 
     @Override
@@ -87,16 +87,16 @@ public class ScheduledPaymentControllerImpl implements ScheduledPaymentControlle
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(toResponse(schedules.cancelOccurrence(CallerContext.current(), id, occurrenceId)));
     }
 
-    private ScheduledPaymentResponse toResponse(ScheduledPayment p) {
-        String keyMasked = p.pixKey() == null ? null : PixKeyValue.infer(p.pixKey()).map(PixKeyValue::masked).orElse(null);
-        String docMasked = p.document() == null || p.document().isBlank() ? null : Document.of(p.document()).masked();
-        return new ScheduledPaymentResponse(p.id(), p.payerAccountId(), p.recurrence(), p.method(), p.amount().toBcb(), p.firstDate(), p.endDate(),
-                p.occurrencesTotal(), p.status(), new ScheduledPaymentResponse.Destination(p.pixKeyType(), keyMasked, p.name(), docMasked, p.ispb()),
-                p.payerMessage(), p.version());
+    private ScheduledPaymentResponse toResponse(ScheduledPayment scheduledPayment) {
+        String keyMasked = scheduledPayment.pixKey() == null ? null : PixKeyValue.infer(scheduledPayment.pixKey()).map(PixKeyValue::masked).orElse(null);
+        String docMasked = scheduledPayment.document() == null || scheduledPayment.document().isBlank() ? null : Document.of(scheduledPayment.document()).masked();
+        return new ScheduledPaymentResponse(scheduledPayment.id(), scheduledPayment.payerAccountId(), scheduledPayment.recurrence(), scheduledPayment.method(), scheduledPayment.amount().toBcb(), scheduledPayment.firstDate(), scheduledPayment.endDate(),
+                scheduledPayment.occurrencesTotal(), scheduledPayment.status(), new ScheduledPaymentResponse.Destination(scheduledPayment.pixKeyType(), keyMasked, scheduledPayment.name(), docMasked, scheduledPayment.ispb()),
+                scheduledPayment.payerMessage(), scheduledPayment.version());
     }
 
-    private ScheduledOccurrenceResponse toResponse(ScheduledOccurrence o) {
-        return new ScheduledOccurrenceResponse(o.id(), o.sequenceNo(), o.dueDate(), o.status(), o.attemptCount(), o.nextAttemptAt(),
-                o.customerNotifiedAt(), o.paymentOrderId(), o.lastErrorCode());
+    private ScheduledOccurrenceResponse toResponse(ScheduledOccurrence occurrence) {
+        return new ScheduledOccurrenceResponse(occurrence.id(), occurrence.sequenceNo(), occurrence.dueDate(), occurrence.status(), occurrence.attemptCount(), occurrence.nextAttemptAt(),
+                occurrence.customerNotifiedAt(), occurrence.paymentOrderId(), occurrence.lastErrorCode());
     }
 }

@@ -34,11 +34,11 @@ public class PendingReservationJob {
         for (LedgerReservation due : persistence.findDue(clock.instant(), 100)) {
             try {
                 process.process(due.id());
-            } catch (IntegrationException e) {
+            } catch (IntegrationException exception) {
                 // já registrada com backoff pelo service; segue para as demais (uma dependência lenta não trava o lote)
-                log.debug("Reserva {} adiada [{}]: {}", due.id(), e.getCode(), e.getMessage());
-            } catch (RuntimeException e) {
-                log.error("Erro inesperado na reserva {}", due.id(), e);
+                log.debug("Reserva {} adiada [{}]: {}", due.id(), exception.getCode(), exception.getMessage());
+            } catch (RuntimeException exception) {
+                log.error("Erro inesperado na reserva {}", due.id(), exception);
             }
         }
     }

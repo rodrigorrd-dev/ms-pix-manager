@@ -63,67 +63,67 @@ class ExecuteReservationServiceTest {
 
     @Test
     void shouldReserveAndNotCallCoreAgainWhenAlreadyReserved() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> new GatewayResult.Done("LEDGER-1");
-        LedgerReservation reserved = execute.reserve(p.id());
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> new GatewayResult.Done("LEDGER-1");
+        LedgerReservation reserved = execute.reserve(reservation.id());
         assertThat(reserved.status()).isEqualTo(LedgerStatus.RESERVED);
         assertThat(reserved.ledgerRef()).isEqualTo("LEDGER-1");
 
-        execute.reserve(p.id());
+        execute.reserve(reservation.id());
         assertThat(gateway.reserveCalls).isEqualTo(1);
     }
 
     @Test
     void businessRefusalIsDefinitiveAndNeverRetried() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo");
-        LedgerReservation result = execute.reserve(p.id());
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> new GatewayResult.Refused(GatewayResult.Reason.INSUFFICIENT_FUNDS, "sem saldo");
+        LedgerReservation result = execute.reserve(reservation.id());
         assertThat(result.status()).isEqualTo(LedgerStatus.CANCELLED);
         assertThat(result.lastError()).isEqualTo("INSUFFICIENT_FUNDS");
-        assertThat(execute.reserve(p.id()).status()).isEqualTo(LedgerStatus.CANCELLED);
+        assertThat(execute.reserve(reservation.id()).status()).isEqualTo(LedgerStatus.CANCELLED);
         assertThat(gateway.reserveCalls).isEqualTo(1);
     }
 
     @Test
     void technicalFailureSchedulesBackoffKeepsPendingAndRethrows() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> { throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "timeout", null); };
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> { throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "timeout", null); };
 
-        assertThatThrownBy(() -> execute.reserve(p.id())).isInstanceOf(IntegrationException.class);
-        LedgerReservation after = persistence.findById(p.id()).orElseThrow();
+        assertThatThrownBy(() -> execute.reserve(reservation.id())).isInstanceOf(IntegrationException.class);
+        LedgerReservation after = persistence.findById(reservation.id()).orElseThrow();
         assertThat(after.status()).isEqualTo(LedgerStatus.PENDING);
         assertThat(after.attempts()).isEqualTo(1);
         assertThat(after.nextAttemptAt()).isEqualTo(clock.instant().plus(Duration.ofSeconds(5)));
 
-        assertThatThrownBy(() -> execute.reserve(p.id())).isInstanceOf(IntegrationException.class);
-        assertThat(persistence.findById(p.id()).orElseThrow().nextAttemptAt()).isEqualTo(clock.instant().plus(Duration.ofSeconds(10)));
+        assertThatThrownBy(() -> execute.reserve(reservation.id())).isInstanceOf(IntegrationException.class);
+        assertThat(persistence.findById(reservation.id()).orElseThrow().nextAttemptAt()).isEqualTo(clock.instant().plus(Duration.ofSeconds(10)));
     }
 
     @Test
     void technicalFailuresAreCappedAndTheReservationEndsFailed() {
-        LedgerReservation p = pending();
-        LedgerReservation worn = p;
-        for (int i = 0; i < ExecuteReservationService.MAX_TECHNICAL_ATTEMPTS - 1; i++) {
+        LedgerReservation reservation = pending();
+        LedgerReservation worn = reservation;
+        for (int index = 0; index < ExecuteReservationService.MAX_TECHNICAL_ATTEMPTS - 1; index++) {
             worn = worn.technicalFailure("timeout", clock.instant());
         }
         persistence.save(worn);
-        gateway.onReserve = r -> { throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "timeout", null); };
+        gateway.onReserve = ledgerReservation -> { throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "timeout", null); };
 
-        LedgerReservation result = execute.reserve(p.id());
+        LedgerReservation result = execute.reserve(reservation.id());
 
         assertThat(result.status()).isEqualTo(LedgerStatus.FAILED);
-        assertThat(persistence.findById(p.id()).orElseThrow().status()).isEqualTo(LedgerStatus.FAILED);
+        assertThat(persistence.findById(reservation.id()).orElseThrow().status()).isEqualTo(LedgerStatus.FAILED);
     }
 
     @Test
     void decideReserveDoesNotPersistTheOutcome() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> new GatewayResult.Done("L");
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> new GatewayResult.Done("L");
 
-        LedgerReservation decided = execute.decideReserve(p.id());
+        LedgerReservation decided = execute.decideReserve(reservation.id());
 
         assertThat(decided.status()).isEqualTo(LedgerStatus.RESERVED);
-        assertThat(persistence.findById(p.id()).orElseThrow().status()).isEqualTo(LedgerStatus.PENDING);
+        assertThat(persistence.findById(reservation.id()).orElseThrow().status()).isEqualTo(LedgerStatus.PENDING);
     }
 
     @Test
@@ -134,10 +134,10 @@ class ExecuteReservationServiceTest {
 
     @Test
     void confirmIsIdempotentAndCancelAfterConfirmIsInvalid() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> new GatewayResult.Done("L");
-        gateway.onConfirm = r -> new GatewayResult.Done("L");
-        execute.reserve(p.id());
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> new GatewayResult.Done("L");
+        gateway.onConfirm = ledgerReservation -> new GatewayResult.Done("L");
+        execute.reserve(reservation.id());
 
         assertThat(execute.confirm(E2E).status()).isEqualTo(LedgerStatus.CONFIRMED);
         assertThat(execute.confirm(E2E).status()).isEqualTo(LedgerStatus.CONFIRMED);
@@ -148,26 +148,26 @@ class ExecuteReservationServiceTest {
 
     @Test
     void cancelOfPendingDoesNotCallTheCoreBecauseItNeverSawTheReservation() {
-        LedgerReservation p = pending();
+        LedgerReservation reservation = pending();
         assertThat(execute.cancel(E2E).status()).isEqualTo(LedgerStatus.CANCELLED);
         assertThat(gateway.cancelCalls).isZero();
-        assertThat(p.status()).isEqualTo(LedgerStatus.PENDING);
+        assertThat(reservation.status()).isEqualTo(LedgerStatus.PENDING);
     }
 
     @Test
     void cancelOfReservedCallsTheCore() {
-        LedgerReservation p = pending();
-        gateway.onReserve = r -> new GatewayResult.Done("L");
-        gateway.onCancel = r -> new GatewayResult.Done("L");
-        execute.reserve(p.id());
+        LedgerReservation reservation = pending();
+        gateway.onReserve = ledgerReservation -> new GatewayResult.Done("L");
+        gateway.onCancel = ledgerReservation -> new GatewayResult.Done("L");
+        execute.reserve(reservation.id());
         assertThat(execute.cancel(E2E).status()).isEqualTo(LedgerStatus.CANCELLED);
         assertThat(gateway.cancelCalls).isEqualTo(1);
     }
 
     @Test
     void invalidTransitionIsRejected() {
-        LedgerReservation p = pending();
-        assertThatThrownBy(() -> p.confirmed()).isInstanceOf(InvalidTransitionException.class);
+        LedgerReservation reservation = pending();
+        assertThatThrownBy(() -> reservation.confirmed()).isInstanceOf(InvalidTransitionException.class);
         assertThat(LedgerStatus.RESERVED.canTransitionTo(LedgerStatus.PENDING)).isFalse();
     }
 
@@ -178,8 +178,8 @@ class ExecuteReservationServiceTest {
                 var m = ExecuteReservationService.class.getDeclaredMethod("backoff", int.class);
                 m.setAccessible(true);
                 return (Duration) m.invoke(null, attempts);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException(e);
+            } catch (ReflectiveOperationException exception) {
+                throw new IllegalStateException(exception);
             }
         }
     }
@@ -187,9 +187,9 @@ class ExecuteReservationServiceTest {
     static class InMemoryPersistence implements LedgerReservationPersistencePortOut {
         final Map<UUID, LedgerReservation> store = new LinkedHashMap<>();
 
-        public LedgerReservation save(LedgerReservation r) {
-            store.put(r.id(), r);
-            return r;
+        public LedgerReservation save(LedgerReservation reservation) {
+            store.put(reservation.id(), reservation);
+            return reservation;
         }
 
         public Optional<LedgerReservation> findById(UUID id) {
@@ -197,7 +197,7 @@ class ExecuteReservationServiceTest {
         }
 
         public Optional<LedgerReservation> findByIdempotencyKey(String key) {
-            return store.values().stream().filter(r -> r.idempotencyKey().equals(key)).findFirst();
+            return store.values().stream().filter(reservation -> reservation.idempotencyKey().equals(key)).findFirst();
         }
 
         public List<LedgerReservation> findDue(Instant now, int limit) {
@@ -206,13 +206,13 @@ class ExecuteReservationServiceTest {
     }
 
     static class FakeGateway implements LedgerGatewayPortOut {
-        Function<LedgerReservation, GatewayResult> onReserve = r -> new GatewayResult.Done("x");
-        Function<LedgerReservation, GatewayResult> onConfirm = r -> new GatewayResult.Done("x");
-        Function<LedgerReservation, GatewayResult> onCancel = r -> new GatewayResult.Done("x");
+        Function<LedgerReservation, GatewayResult> onReserve = ledgerReservation -> new GatewayResult.Done("x");
+        Function<LedgerReservation, GatewayResult> onConfirm = ledgerReservation -> new GatewayResult.Done("x");
+        Function<LedgerReservation, GatewayResult> onCancel = ledgerReservation -> new GatewayResult.Done("x");
         int reserveCalls, confirmCalls, cancelCalls;
 
-        public GatewayResult reserve(LedgerReservation r) { reserveCalls++; return onReserve.apply(r); }
-        public GatewayResult confirm(LedgerReservation r) { confirmCalls++; return onConfirm.apply(r); }
-        public GatewayResult cancel(LedgerReservation r) { cancelCalls++; return onCancel.apply(r); }
+        public GatewayResult reserve(LedgerReservation reservation) { reserveCalls++; return onReserve.apply(reservation); }
+        public GatewayResult confirm(LedgerReservation reservation) { confirmCalls++; return onConfirm.apply(reservation); }
+        public GatewayResult cancel(LedgerReservation reservation) { cancelCalls++; return onCancel.apply(reservation); }
     }
 }

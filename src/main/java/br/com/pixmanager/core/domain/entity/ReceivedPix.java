@@ -26,8 +26,8 @@ public record ReceivedPix(UUID id, EndToEndId endToEndId, String txid, UUID char
     /** {@code valor = original + saque + troco + multa + juros − abatimento − desconto} (API Pix 2.10.0). */
     public static Money totalOf(List<ValueComponent> components) {
         Money total = Money.ZERO;
-        for (ValueComponent c : components) {
-            total = c.type().isDeduction() ? total.minus(c.amount()) : total.plus(c.amount());
+        for (ValueComponent valueComponent : components) {
+            total = valueComponent.type().isDeduction() ? total.minus(valueComponent.amount()) : total.plus(valueComponent.amount());
         }
         return total;
     }

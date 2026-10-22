@@ -124,7 +124,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, type, value))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_OWNED));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_OWNED));
 
         verify(persistence, never()).save(any());
         verifyNoInteractions(events);
@@ -139,7 +139,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.EVP, null))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_LIMIT_EXCEEDED));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_LIMIT_EXCEEDED));
 
         verify(persistence, never()).save(any());
     }
@@ -195,7 +195,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.CPF, HOLDER_CPF))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, events);
     }
@@ -206,7 +206,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.EMAIL, "Nao-e-Email"))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
 
         verifyNoInteractions(events);
     }

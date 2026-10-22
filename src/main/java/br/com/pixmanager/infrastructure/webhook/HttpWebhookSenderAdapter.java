@@ -65,19 +65,19 @@ public class HttpWebhookSenderAdapter implements WebhookSenderPortOut {
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
             HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
             return new SendResult(response.statusCode(), null);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return new SendResult(null, "interrompido");
-        } catch (IOException | RuntimeException e) {
-            return new SendResult(null, e.getClass().getSimpleName() + ": " + e.getMessage());
+        } catch (IOException | RuntimeException exception) {
+            return new SendResult(null, exception.getClass().getSimpleName() + ": " + exception.getMessage());
         }
     }
 
     /** {@code <webhookUrl>/pix}: o "/pix" entra no CAMINHO (antes da query, se houver) e barras finais não geram "//pix". */
     static URI pixEndpoint(String webhookUrl) {
-        URI u = URI.create(webhookUrl.trim());
-        String path = (u.getRawPath() == null ? "" : u.getRawPath()).replaceAll("/+$", "") + "/pix";
-        return URI.create(u.getScheme() + "://" + u.getRawAuthority() + path + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery()));
+        URI uRI = URI.create(webhookUrl.trim());
+        String path = (uRI.getRawPath() == null ? "" : uRI.getRawPath()).replaceAll("/+$", "") + "/pix";
+        return URI.create(uRI.getScheme() + "://" + uRI.getRawAuthority() + path + (uRI.getRawQuery() == null ? "" : "?" + uRI.getRawQuery()));
     }
 
 

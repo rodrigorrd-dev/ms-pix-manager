@@ -139,10 +139,10 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
     @DisplayName("Autorização: recebe (idRec valida, allow_retry derivado), recusa documento ≠ titular e idRec repetido; aprova com teto e avisa o recebedor; rejeita; cancela; ajusta o limite")
     void shouldManageAuthorizations() throws Exception {
         String rec = idRec("R");
-        JsonNode a = receive(rec, ",\"fixedAmount\":\"50.00\"");
-        assertThat(a.get("allowRetry").asBoolean()).isTrue();
-        assertThat(a.get("status").asText()).isEqualTo("CRIADA");
-        assertThat(a.get("receiverDocumentMasked").asText()).contains("*");
+        JsonNode authorization = receive(rec, ",\"fixedAmount\":\"50.00\"");
+        assertThat(authorization.get("allowRetry").asBoolean()).isTrue();
+        assertThat(authorization.get("status").asText()).isEqualTo("CRIADA");
+        assertThat(authorization.get("receiverDocumentMasked").asText()).contains("*");
         assertThat(receive(idRec("N"), "").get("allowRetry").asBoolean()).isFalse();
 
         mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
@@ -151,9 +151,9 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"idRec\":\"%s\",\"payerAccountId\":\"%s\",\"payerDocument\":\"%s\",\"receiverDocument\":\"%s\",\"receiverName\":\"X\",\"contract\":\"C\",\"periodicity\":\"MENSAL\",\"startDate\":\"2026-10-01\"}"
                         .formatted(rec, payer.id(), payerCpf, TestDocuments.randomCnpj()))).andExpect(status().isConflict());
-        mvc.perform(post("/v1/automatic-authorizations/{id}/approval", a.get("id").asText()).with(jwt("automatic.read"))).andExpect(status().isForbidden());
+        mvc.perform(post("/v1/automatic-authorizations/{id}/approval", authorization.get("id").asText()).with(jwt("automatic.read"))).andExpect(status().isForbidden());
 
-        String id = a.get("id").asText();
+        String id = authorization.get("id").asText();
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"payerMaxAmount\":\"10.00\"}"))
                 .andExpect(status().isUnprocessableEntity());                                           // teto abaixo do valor fixo
         mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON).content("{\"payerMaxAmount\":\"80.00\"}"))
@@ -187,9 +187,9 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
         charge(id, txid(), "2026-11-20", "50.00").andExpect(status().isUnprocessableEntity());             // além de 10 dias
         charge(id, txid(), DUE, "51.00").andExpect(status().isUnprocessableEntity());                      // difere do valor fixo
         charge(id, "curto", DUE, "50.00").andExpect(status().isBadRequest());
-        String t = txid();
-        var created = charge(id, t, DUE, "50.00").andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("ATIVA")).andReturn();
-        charge(id, t, DUE, "50.00").andExpect(status().isConflict());
+        String chargeTxid = txid();
+        var created = charge(id, chargeTxid, DUE, "50.00").andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("ATIVA")).andReturn();
+        charge(id, chargeTxid, DUE, "50.00").andExpect(status().isConflict());
         String chargeId = json.readTree(created.getResponse().getContentAsString()).get("id").asText();
         assertThat(attemptStatuses(chargeId)).containsExactly("AGND:AGENDADA");
 

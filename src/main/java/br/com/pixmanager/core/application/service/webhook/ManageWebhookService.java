@@ -54,7 +54,7 @@ public class ManageWebhookService implements ManageWebhookUseCase {
         }
         Optional<WebhookSubscription> existing = subscriptions.findByPixKeyId(key.id());
         WebhookSubscription saved = existing
-                .map(s -> subscriptions.save(s.withUrl(webhookUrl)))
+                .map(subscription -> subscriptions.save(subscription.withUrl(webhookUrl)))
                 .orElseGet(() -> subscriptions.save(WebhookSubscription.register(ids.newId(), key.id(), webhookUrl, clock.instant(), caller.clientId())));
         return new Registered(saved, key.value().value(), existing.isEmpty());
     }
@@ -62,14 +62,14 @@ public class ManageWebhookService implements ManageWebhookUseCase {
     @Override
     public Optional<WebhookView> get(Caller caller, String keyValue) {
         PixKey key = owned(caller, keyValue);
-        return subscriptions.findByPixKeyId(key.id()).map(s -> new WebhookView(s, key.accountId(), key.value().value()));
+        return subscriptions.findByPixKeyId(key.id()).map(subscription -> new WebhookView(subscription, key.accountId(), key.value().value()));
     }
 
     @Override
     public boolean delete(Caller caller, String keyValue) {
         PixKey key = owned(caller, keyValue);
         Optional<WebhookSubscription> existing = subscriptions.findByPixKeyId(key.id());
-        existing.ifPresent(s -> subscriptions.delete(s.id()));
+        existing.ifPresent(subscription -> subscriptions.delete(subscription.id()));
         return existing.isPresent();
     }
 
@@ -80,7 +80,7 @@ public class ManageWebhookService implements ManageWebhookUseCase {
 
     private PixKey owned(Caller caller, String keyValue) {
         PixKeyValue value = PixKeyValue.infer(keyValue).orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Chave não encontrada."));
-        return keys.findLiveByValue(value).filter(k -> caller.canAccess(k.accountId()))
+        return keys.findLiveByValue(value).filter(pixKey -> caller.canAccess(pixKey.accountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Chave não encontrada."));
     }
 }

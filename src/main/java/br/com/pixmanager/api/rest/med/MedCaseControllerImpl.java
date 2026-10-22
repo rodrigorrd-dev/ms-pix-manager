@@ -32,11 +32,11 @@ public class MedCaseControllerImpl implements MedCaseController {
     }
 
     @Override
-    public ResponseEntity<?> open(String idempotencyKey, MedRequests.Open r) {
+    public ResponseEntity<?> open(String idempotencyKey, MedRequests.Open open) {
         var caller = CallerContext.current();
-        var result = idempotency.execute(caller.clientId(), "POST /v1/med-cases", idempotencyKey, r,
+        var result = idempotency.execute(caller.clientId(), "POST /v1/med-cases", idempotencyKey, open,
                 () -> new IdempotentExecutor.Response(HttpStatus.CREATED.value(),
-                        toResponse(med.open(caller, new OpenMedCaseCommand(r.role(), r.endToEndId(), r.caseType(), r.description(), r.layer())))));
+                        toResponse(med.open(caller, new OpenMedCaseCommand(open.role(), open.endToEndId(), open.caseType(), open.description(), open.layer())))));
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(result.status()).cacheControl(CacheControl.noStore());
         if (result.replayed()) {
             builder.header("Idempotent-Replayed", "true");
@@ -58,7 +58,7 @@ public class MedCaseControllerImpl implements MedCaseController {
     @Override
     public ResponseEntity<List<MedResponses.History>> history(UUID id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(med.history(CallerContext.current(), id).stream()
-                .map(h -> new MedResponses.History(h.from(), h.to(), h.actor(), h.note(), h.occurredAt())).toList());
+                .map(historyEntry -> new MedResponses.History(historyEntry.from(), historyEntry.to(), historyEntry.actor(), historyEntry.note(), historyEntry.occurredAt())).toList());
     }
 
     @Override
@@ -97,20 +97,20 @@ public class MedCaseControllerImpl implements MedCaseController {
                 .body(toResponse(med.decideContestation(CallerContext.current(), contestationId, body.accepted(), body.note())));
     }
 
-    private ResponseEntity<MedResponses.Case> ok(MedCase c) {
-        return ResponseEntity.ok().eTag(String.valueOf(c.version())).cacheControl(CacheControl.noStore()).body(toResponse(c));
+    private ResponseEntity<MedResponses.Case> ok(MedCase medCase) {
+        return ResponseEntity.ok().eTag(String.valueOf(medCase.version())).cacheControl(CacheControl.noStore()).body(toResponse(medCase));
     }
 
     private static String note(MedRequests.Note body) {
         return body == null ? null : body.note();
     }
 
-    private MedResponses.Case toResponse(MedCase c) {
-        return new MedResponses.Case(c.id(), c.endToEndId(), c.accountId(), c.caseType(), c.role(), c.status(), c.layer(), c.description(), c.reportedAt(),
-                c.analysisDeadlineAt(), c.trackedAmount().toBcb(), c.blockedAmount().toBcb(), c.refundId(), c.dictFundsRecoveryId(), c.version());
+    private MedResponses.Case toResponse(MedCase medCase) {
+        return new MedResponses.Case(medCase.id(), medCase.endToEndId(), medCase.accountId(), medCase.caseType(), medCase.role(), medCase.status(), medCase.layer(), medCase.description(), medCase.reportedAt(),
+                medCase.analysisDeadlineAt(), medCase.trackedAmount().toBcb(), medCase.blockedAmount().toBcb(), medCase.refundId(), medCase.dictFundsRecoveryId(), medCase.version());
     }
 
-    private MedResponses.Contestation toResponse(MedContestation c) {
-        return new MedResponses.Contestation(c.id(), c.caseId(), c.refundId(), c.status(), c.reason(), c.refundedAt(), c.deadlineAt(), c.decidedAt());
+    private MedResponses.Contestation toResponse(MedContestation medContestation) {
+        return new MedResponses.Contestation(medContestation.id(), medContestation.caseId(), medContestation.refundId(), medContestation.status(), medContestation.reason(), medContestation.refundedAt(), medContestation.deadlineAt(), medContestation.decidedAt());
     }
 }

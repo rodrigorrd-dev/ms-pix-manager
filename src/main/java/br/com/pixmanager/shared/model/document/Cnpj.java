@@ -66,8 +66,8 @@ public record Cnpj(String value) implements Document {
 
     private static int checkDigit(String base, int[] weights) {
         int sum = 0;
-        for (int i = 0; i < base.length(); i++) {
-            sum += (base.charAt(i) - '0') * weights[i];   // letras: 'A'-48 = 17 … 'Z'-48 = 42
+        for (int index = 0; index < base.length(); index++) {
+            sum += (base.charAt(index) - '0') * weights[index];   // letras: 'A'-48 = 17 … 'Z'-48 = 42
         }
         int rest = sum % 11;
         return rest < 2 ? 0 : 11 - rest;

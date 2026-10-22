@@ -70,10 +70,10 @@ public class PaymentOrderControllerImpl implements PaymentOrderController {
                 case PaymentOrderResult.Created created -> new IdempotentExecutor.Response(HttpStatus.CREATED.value(), mapper.toResponse(created.order()));
                 case PaymentOrderResult.Rejected rejected -> {
                     // recusa de NEGÓCIO é uma resposta como outra qualquer: gravada (e reproduzida) pela chave de idempotência
-                    ProblemDetail pd = ProblemDetails.of(errors, HttpStatus.UNPROCESSABLE_ENTITY, "Pagamento recusado", rejected.detail(),
+                    ProblemDetail problemDetail = ProblemDetails.of(errors, HttpStatus.UNPROCESSABLE_ENTITY, "Pagamento recusado", rejected.detail(),
                             rejected.errorCode());
-                    pd.setProperty("paymentOrderId", rejected.order().id().toString());
-                    yield new IdempotentExecutor.Response(HttpStatus.UNPROCESSABLE_ENTITY.value(), pd);
+                    problemDetail.setProperty("paymentOrderId", rejected.order().id().toString());
+                    yield new IdempotentExecutor.Response(HttpStatus.UNPROCESSABLE_ENTITY.value(), problemDetail);
                 }
             };
         });

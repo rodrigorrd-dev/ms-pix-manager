@@ -41,7 +41,7 @@ public record BrCode(String payload, Optional<String> pixKey, Optional<String> p
         }
         Optional<Money> amount = Optional.ofNullable(root.get("54")).map(Money::parseBcb);
         String additional = root.get("62");
-        Optional<String> txid = additional == null ? Optional.empty() : Optional.ofNullable(tlv(additional).get("05")).filter(s -> !"***".equals(s));
+        Optional<String> txid = additional == null ? Optional.empty() : Optional.ofNullable(tlv(additional).get("05")).filter(value -> !"***".equals(value));
         return new BrCode(payload, Optional.ofNullable(sub.get("01")), Optional.ofNullable(sub.get("25")), amount, txid,
                 Optional.ofNullable(root.get("59")), Optional.ofNullable(root.get("60")));
     }
@@ -49,9 +49,9 @@ public record BrCode(String payload, Optional<String> pixKey, Optional<String> p
     /** CRC-16/CCITT-FALSE em hexadecimal maiúsculo de 4 dígitos. */
     public static String crc16(String data) {
         int crc = 0xFFFF;
-        for (byte b : data.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
-            crc ^= (b & 0xFF) << 8;
-            for (int i = 0; i < 8; i++) {
+        for (byte byteValue : data.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            crc ^= (byteValue & 0xFF) << 8;
+            for (int index = 0; index < 8; index++) {
                 crc = (crc & 0x8000) != 0 ? (crc << 1) ^ 0x1021 : crc << 1;
                 crc &= 0xFFFF;
             }
@@ -62,23 +62,23 @@ public record BrCode(String payload, Optional<String> pixKey, Optional<String> p
     /** Lê TLV de 2+2+N caracteres; sequência malformada ⇒ BR Code inválido (nunca ArrayIndexOutOfBounds). */
     private static Map<String, String> tlv(String data) {
         Map<String, String> map = new HashMap<>();
-        int i = 0;
-        while (i < data.length()) {
-            if (i + 4 > data.length()) {
+        int index = 0;
+        while (index < data.length()) {
+            if (index + 4 > data.length()) {
                 throw invalid();
             }
-            String tag = data.substring(i, i + 2);
+            String tag = data.substring(index, index + 2);
             int length;
             try {
-                length = Integer.parseInt(data.substring(i + 2, i + 4));
-            } catch (NumberFormatException e) {
+                length = Integer.parseInt(data.substring(index + 2, index + 4));
+            } catch (NumberFormatException exception) {
                 throw invalid();
             }
-            if (i + 4 + length > data.length()) {
+            if (index + 4 + length > data.length()) {
                 throw invalid();
             }
-            map.putIfAbsent(tag, data.substring(i + 4, i + 4 + length));
-            i += 4 + length;
+            map.putIfAbsent(tag, data.substring(index + 4, index + 4 + length));
+            index += 4 + length;
         }
         return map;
     }

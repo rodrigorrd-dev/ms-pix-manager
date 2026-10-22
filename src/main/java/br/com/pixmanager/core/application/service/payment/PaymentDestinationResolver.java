@@ -35,14 +35,14 @@ class PaymentDestinationResolver {
         return switch (cmd.method()) {
             case KEY -> byKey(caller, cmd, cmd.pixKeyType(), cmd.pixKey(), cmd.amount(), null);
             case QR_STATIC -> {
-                BrCode qr = BrCode.parse(cmd.qrPayload());
-                if (qr.isDynamic() || qr.pixKey().isEmpty()) {
+                BrCode brCode = BrCode.parse(cmd.qrPayload());
+                if (brCode.isDynamic() || brCode.pixKey().isEmpty()) {
                     throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O BR Code informado não é um QR estático com chave.");
                 }
-                PixKeyValue key = PixKeyValue.infer(qr.pixKey().get())
+                PixKeyValue key = PixKeyValue.infer(brCode.pixKey().get())
                         .orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_PIX_KEY, "A chave do BR Code é inválida."));
-                Money amount = amountFor(cmd.amount(), qr.amount());
-                yield byKey(caller, cmd, key.type(), key.value(), amount, qr.txid().orElse(null));
+                Money amount = amountFor(cmd.amount(), brCode.amount());
+                yield byKey(caller, cmd, key.type(), key.value(), amount, brCode.txid().orElse(null));
             }
             case QR_DYNAMIC -> dynamic(caller, cmd);
             case MANUAL -> manual(cmd);
@@ -70,11 +70,11 @@ class PaymentDestinationResolver {
 
     /** QR dinâmico: o valor e a chave vêm do payload ASSINADO do recebedor, não do que o cliente digitou. */
     private Resolved dynamic(Caller caller, CreatePaymentOrderCommand cmd) {
-        BrCode qr = BrCode.parse(cmd.qrPayload());
-        if (!qr.isDynamic()) {
+        BrCode brCode = BrCode.parse(cmd.qrPayload());
+        if (!brCode.isDynamic()) {
             throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "O BR Code informado não é um QR dinâmico.");
         }
-        var payload = dynamicQr.fetch(qr.paymentUrl().get());
+        var payload = dynamicQr.fetch(brCode.paymentUrl().get());
         if (!"ATIVA".equals(payload.status())) {
             throw new BusinessException(ErrorCodes.QR_DYNAMIC_INVALID, "A cobrança do QR não está ativa (status " + payload.status() + ").");
         }

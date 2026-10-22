@@ -19,8 +19,8 @@ public final class FixedClock extends Clock {
         return new FixedClock(Instant.parse(iso));
     }
 
-    public void advance(Duration d) {
-        now = now.plus(d);
+    public void advance(Duration duration) {
+        now = now.plus(duration);
     }
 
     public void set(Instant instant) {

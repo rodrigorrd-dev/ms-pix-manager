@@ -72,35 +72,35 @@ class WebhookServicesTest {
     final Caller owner = Caller.forAccounts("cli", ACCOUNT);
 
     final PixKeyPersistencePortOut keyPort = new PixKeyPersistencePortOut() {
-        public PixKey save(PixKey k) { keys.put(k.id(), k); return k; }
+        public PixKey save(PixKey pixKey) { keys.put(pixKey.id(), pixKey); return pixKey; }
         public Optional<PixKey> findById(UUID id) { return Optional.ofNullable(keys.get(id)); }
-        public Optional<PixKey> findLiveByValue(PixKeyValue v) { return keys.values().stream().filter(k -> k.value().equals(v)).findFirst(); }
-        public long countLiveByAccount(UUID a) { return 0; }
-        public PageResult<PixKey> list(UUID a, Optional<PixKeyStatus> s, PageQuery p) { return new PageResult<>(List.of(), 0, 20, 0); }
+        public Optional<PixKey> findLiveByValue(PixKeyValue pixKeyValue) { return keys.values().stream().filter(pixKey -> pixKey.value().equals(pixKeyValue)).findFirst(); }
+        public long countLiveByAccount(UUID accountId) { return 0; }
+        public PageResult<PixKey> list(UUID accountId, Optional<PixKeyStatus> pixKeyStatus, PageQuery pageQuery) { return new PageResult<>(List.of(), 0, 20, 0); }
         public List<PixKey> findPendingDict(Instant olderThan, int limit) { return List.of(); }
     };
     final WebhookSubscriptionPortOut subPort = new WebhookSubscriptionPortOut() {
-        public WebhookSubscription save(WebhookSubscription s) { subs.put(s.id(), s); return s; }
-        public Optional<WebhookSubscription> findByPixKeyId(UUID k) { return subs.values().stream().filter(s -> s.pixKeyId().equals(k)).findFirst(); }
+        public WebhookSubscription save(WebhookSubscription webhookSubscription) { subs.put(webhookSubscription.id(), webhookSubscription); return webhookSubscription; }
+        public Optional<WebhookSubscription> findByPixKeyId(UUID pixKeyId) { return subs.values().stream().filter(subscription -> subscription.pixKeyId().equals(pixKeyId)).findFirst(); }
         public void delete(UUID id) { subs.remove(id); }
         public PageResult<WebhookView> list(Set<UUID> accounts, boolean all, Instant from, Instant to, PageQuery page) {
-            List<WebhookView> v = subs.values().stream().map(s -> new WebhookView(s, ACCOUNT, EMAIL)).filter(w -> all || accounts.contains(w.accountId())).toList();
-            return new PageResult<>(v, page.page(), page.size(), v.size());
+            List<WebhookView> webhookViews = subs.values().stream().map(subscription -> new WebhookView(subscription, ACCOUNT, EMAIL)).filter(view -> all || accounts.contains(view.accountId())).toList();
+            return new PageResult<>(webhookViews, page.page(), page.size(), webhookViews.size());
         }
     };
     final WebhookDeliveryPortOut deliveryPort = new WebhookDeliveryPortOut() {
-        public void enqueue(WebhookDelivery d, Map<String, Object> payload) {
-            boolean dup = deliveries.values().stream().anyMatch(x -> x.subscriptionId().equals(d.subscriptionId()) && x.sourceEventId().equals(d.sourceEventId()));
-            if (!dup) { deliveries.put(d.id(), d); payloads.put(d.id(), payload.toString()); }
+        public void enqueue(WebhookDelivery delivery, Map<String, Object> payload) {
+            boolean dup = deliveries.values().stream().anyMatch(existing -> existing.subscriptionId().equals(delivery.subscriptionId()) && existing.sourceEventId().equals(delivery.sourceEventId()));
+            if (!dup) { deliveries.put(delivery.id(), delivery); payloads.put(delivery.id(), payload.toString()); }
         }
         public List<DueDelivery> findDue(Instant now, int limit) {
-            return deliveries.values().stream().filter(d -> d.isDue(now)).limit(limit)
-                    .map(d -> new DueDelivery(d, subs.get(d.subscriptionId()).url(), payloads.get(d.id()))).toList();
+            return deliveries.values().stream().filter(delivery -> delivery.isDue(now)).limit(limit)
+                    .map(delivery -> new DueDelivery(delivery, subs.get(delivery.subscriptionId()).url(), payloads.get(delivery.id()))).toList();
         }
         public Optional<WebhookDelivery> findById(UUID id) { return Optional.ofNullable(deliveries.get(id)); }
-        public WebhookDelivery save(WebhookDelivery d) {
+        public WebhookDelivery save(WebhookDelivery delivery) {
             if (saveConflicts) throw new ConflictException(ErrorCodes.CONFLICT, "versão");
-            deliveries.put(d.id(), d); return d;
+            deliveries.put(delivery.id(), delivery); return delivery;
         }
     };
     final WebhookUrlPolicyPortOut policy = url -> nextVerdict != null ? nextVerdict : (urlAllowed ? new Verdict.Allowed() : new Verdict.Forbidden("só https é aceito"));
@@ -146,9 +146,9 @@ class WebhookServicesTest {
     @DisplayName("URL fora da política (SSRF) ⇒ 422 PIX-422-017 com o motivo; nada é gravado")
     void putRejectsForbiddenUrl() {
         urlAllowed = false;
-        assertThatThrownBy(() -> manage.put(owner, EMAIL, "http://x")).isInstanceOfSatisfying(BusinessException.class, e -> {
-            assertThat(e.getCode()).isEqualTo(ErrorCodes.WEBHOOK_URL_REJECTED);
-            assertThat(e.getMessage()).contains("só https");
+        assertThatThrownBy(() -> manage.put(owner, EMAIL, "http://x")).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getCode()).isEqualTo(ErrorCodes.WEBHOOK_URL_REJECTED);
+            assertThat(exception.getMessage()).contains("só https");
         });
         nextVerdict = new Verdict.Unresolvable("x.invalid");
         assertThatThrownBy(() -> manage.put(owner, EMAIL, "https://x.invalid")).hasMessageContaining("não resolve");
@@ -167,7 +167,7 @@ class WebhookServicesTest {
 
         keyPort.save(new PixKey(key.id(), ACCOUNT, key.value(), PixKeyStatus.PENDING_DICT, null, null, null, null, 0, clock.instant()));
         assertThatThrownBy(() -> manage.put(owner, EMAIL, "https://a.example/h")).isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                exception -> assertThat(exception.getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
     }
 
     @Test
@@ -176,7 +176,7 @@ class WebhookServicesTest {
         assertThat(manage.get(owner, EMAIL)).isEmpty();
         manage.put(owner, EMAIL, "https://loja.example/hook");
 
-        assertThat(manage.get(owner, EMAIL)).hasValueSatisfying(v -> assertThat(v.subscription().url()).isEqualTo("https://loja.example/hook"));
+        assertThat(manage.get(owner, EMAIL)).hasValueSatisfying(view -> assertThat(view.subscription().url()).isEqualTo("https://loja.example/hook"));
         assertThat(manage.list(owner, Instant.EPOCH, clock.instant(), PageQuery.of(0, 20)).content()).hasSize(1);
         assertThat(manage.list(Caller.forAccounts("outro", SequentialIds.id(777)), Instant.EPOCH, clock.instant(), PageQuery.of(0, 20)).content()).isEmpty();
         assertThat(manage.list(Caller.system("backoffice"), Instant.EPOCH, clock.instant(), PageQuery.of(0, 20)).content()).hasSize(1);
@@ -195,10 +195,10 @@ class WebhookServicesTest {
         notify.pixReceived(pix("pedido 42"), "hash-da-chave");          // mesma mensagem reprocessada
 
         assertThat(deliveries).hasSize(1);
-        WebhookDelivery d = deliveries.values().iterator().next();
-        assertThat(d.status()).isEqualTo(DeliveryStatus.PENDING);
-        assertThat(d.eventType()).isEqualTo("pix.received");
-        String body = payloads.get(d.id());
+        WebhookDelivery delivery = deliveries.values().iterator().next();
+        assertThat(delivery.status()).isEqualTo(DeliveryStatus.PENDING);
+        assertThat(delivery.eventType()).isEqualTo("pix.received");
+        String body = payloads.get(delivery.id());
         assertThat(body).contains("endToEndId=E12345678202610161200abcdefghijk", "txid=txidtxidtxidtxidtxidtxidtxid12", "chave=" + EMAIL,
                 "valor=10.00", "horario=2026-10-16T11:59:00Z", "infoPagador=pedido 42");
         assertThat(body).doesNotContain("Fulano").doesNotContain("60746948");     // nome/banco do pagador não vão no webhook
@@ -218,7 +218,7 @@ class WebhookServicesTest {
         notify.pixReceived(pix(null), "h");
         assertThat(deliveries).isEmpty();
 
-        WebhookNotificationService broken = new WebhookNotificationService((h, c) -> { throw new IllegalStateException("banco"); }, keyPort, subPort,
+        WebhookNotificationService broken = new WebhookNotificationService((delivery, cause) -> { throw new IllegalStateException("banco"); }, keyPort, subPort,
                 deliveryPort, new SequentialIds(), clock);
         broken.pixReceived(pix(null), "h");                              // não lança
         assertThat(deliveries).isEmpty();
@@ -234,26 +234,26 @@ class WebhookServicesTest {
     @Test
     @DisplayName("2xx ⇒ DELIVERED (uma tentativa); o POST vai para a URL ATUAL da assinatura")
     void deliversOnSuccess() {
-        WebhookDelivery d = queued();
+        WebhookDelivery delivery = queued();
         manage.put(owner, EMAIL, "https://loja.example/outra");           // a URL mudou depois de enfileirar
 
         int attempted = dispatch.dispatchDue(10);
 
         assertThat(attempted).isEqualTo(1);
         assertThat(sentTo).containsExactly("https://loja.example/outra");
-        assertThat(deliveries.get(d.id()).status()).isEqualTo(DeliveryStatus.DELIVERED);
-        assertThat(deliveries.get(d.id()).attempts()).isEqualTo(1);
+        assertThat(deliveries.get(delivery.id()).status()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(deliveries.get(delivery.id()).attempts()).isEqualTo(1);
         assertThat(dispatch.dispatchDue(10)).isZero();                    // entregue não volta à fila
     }
 
     @Test
     @DisplayName("falha ⇒ RETRYING com backoff (5 s, depois 30 s, depois DEAD no limite); a entrega só volta à fila quando vence")
     void retriesWithBackoffThenDies() {
-        WebhookDelivery d = queued();
+        WebhookDelivery delivery = queued();
         nextSend = new SendResult(503, null);
 
         dispatch.dispatchDue(10);
-        WebhookDelivery first = deliveries.get(d.id());
+        WebhookDelivery first = deliveries.get(delivery.id());
         assertThat(first.status()).isEqualTo(DeliveryStatus.RETRYING);
         assertThat(first.lastHttpStatus()).isEqualTo(503);
         assertThat(first.nextAttemptAt()).isEqualTo(clock.instant().plusSeconds(5));
@@ -261,12 +261,12 @@ class WebhookServicesTest {
 
         clock.advance(Duration.ofSeconds(5));
         dispatch.dispatchDue(10);
-        assertThat(deliveries.get(d.id()).nextAttemptAt()).isEqualTo(clock.instant().plusSeconds(30));
+        assertThat(deliveries.get(delivery.id()).nextAttemptAt()).isEqualTo(clock.instant().plusSeconds(30));
 
         clock.advance(Duration.ofSeconds(30));
         dispatch.dispatchDue(10);
-        assertThat(deliveries.get(d.id()).status()).isEqualTo(DeliveryStatus.DEAD);       // 3ª falha esgota (política de teste: 3)
-        assertThat(deliveries.get(d.id()).attempts()).isEqualTo(3);
+        assertThat(deliveries.get(delivery.id()).status()).isEqualTo(DeliveryStatus.DEAD);       // 3ª falha esgota (política de teste: 3)
+        assertThat(deliveries.get(delivery.id()).attempts()).isEqualTo(3);
         clock.advance(Duration.ofDays(1));
         assertThat(dispatch.dispatchDue(10)).isZero();
     }
@@ -278,22 +278,22 @@ class WebhookServicesTest {
             deliveries.clear();
             subs.clear();
             nextSend = result;
-            WebhookDelivery d = queued();
+            WebhookDelivery delivery = queued();
             dispatch.dispatchDue(10);
-            assertThat(deliveries.get(d.id()).status()).as(String.valueOf(result)).isEqualTo(DeliveryStatus.RETRYING);
+            assertThat(deliveries.get(delivery.id()).status()).as(String.valueOf(result)).isEqualTo(DeliveryStatus.RETRYING);
         }
     }
 
     @Test
     @DisplayName("URL que passou a ser proibida (DNS apontou para dentro): NÃO envia, registra o motivo e tenta de novo depois")
     void blockedUrlIsNeverCalled() {
-        WebhookDelivery d = queued();
+        WebhookDelivery delivery = queued();
         nextVerdict = new Verdict.Forbidden("o host resolve para um endereço interno (10.0.0.9)");
 
         dispatch.dispatchDue(10);
 
         assertThat(sentTo).isEmpty();
-        WebhookDelivery after = deliveries.get(d.id());
+        WebhookDelivery after = deliveries.get(delivery.id());
         assertThat(after.status()).isEqualTo(DeliveryStatus.RETRYING);
         assertThat(after.lastError()).contains("bloqueada pela política").contains("10.0.0.9");
     }
@@ -309,21 +309,21 @@ class WebhookServicesTest {
     @Test
     @DisplayName("reenvio manual: só back-office, só entrega DEAD (zera as tentativas); outras ⇒ 422; inexistente ⇒ 404")
     void manualResend() {
-        WebhookDelivery d = queued();
+        WebhookDelivery delivery = queued();
         Caller backoffice = Caller.system("backoffice");
-        assertThatThrownBy(() -> dispatch.resend(owner, d.id())).isInstanceOf(ForbiddenException.class);
-        assertThatThrownBy(() -> dispatch.resend(backoffice, d.id())).isInstanceOf(InvalidTransitionException.class);      // ainda PENDING
+        assertThatThrownBy(() -> dispatch.resend(owner, delivery.id())).isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> dispatch.resend(backoffice, delivery.id())).isInstanceOf(InvalidTransitionException.class);      // ainda PENDING
         assertThatThrownBy(() -> dispatch.resend(backoffice, SequentialIds.id(404))).isInstanceOf(NotFoundException.class);
 
         nextSend = new SendResult(500, null);
-        for (int i = 0; i < 3; i++) { dispatch.dispatchDue(10); clock.advance(Duration.ofHours(2)); }
-        assertThat(deliveries.get(d.id()).status()).isEqualTo(DeliveryStatus.DEAD);
+        for (int index = 0; index < 3; index++) { dispatch.dispatchDue(10); clock.advance(Duration.ofHours(2)); }
+        assertThat(deliveries.get(delivery.id()).status()).isEqualTo(DeliveryStatus.DEAD);
 
-        WebhookDelivery again = dispatch.resend(backoffice, d.id());
+        WebhookDelivery again = dispatch.resend(backoffice, delivery.id());
         assertThat(again.status()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(again.attempts()).isZero();
         nextSend = new SendResult(200, null);
         dispatch.dispatchDue(10);
-        assertThat(deliveries.get(d.id()).status()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(deliveries.get(delivery.id()).status()).isEqualTo(DeliveryStatus.DELIVERED);
     }
 }

@@ -45,8 +45,8 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
 
     @Override
     @Transactional
-    public void insert(ScheduledPayment p, List<ScheduledOccurrence> occurrences) {
-        Document doc = p.document() == null || p.document().isBlank() ? null : Document.of(p.document());
+    public void insert(ScheduledPayment scheduledPayment, List<ScheduledOccurrence> occurrences) {
+        Document doc = scheduledPayment.document() == null || scheduledPayment.document().isBlank() ? null : Document.of(scheduledPayment.document());
         jdbc.sql("""
                 INSERT INTO scheduled_payment (id, payer_account_id, recurrence, payment_method, destination_key_type, destination_key_hash,
                     destination_key_enc, dest_document_type, dest_document_enc, dest_document_hash, dest_document_masked, dest_name, dest_ispb,
@@ -54,20 +54,20 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                     device_registered, created_by, updated_by)
                 VALUES (:id, :payer, :recurrence, :method, :keyType, :keyHash, :keyEnc, :docType, :docEnc, :docHash, :docMasked, :name, :ispb,
                     :branch, :account, :accountType, :amount, :message, :first, :end, :total, :status, :device, :actor, :actor)""")
-                .param("id", p.id()).param("payer", p.payerAccountId()).param("recurrence", p.recurrence().name())
-                .param("method", p.method().name()).param("keyType", p.pixKeyType() == null ? null : p.pixKeyType().name())
-                .param("keyHash", p.pixKey() == null ? null : crypto.blindIndex(p.pixKey()))
-                .param("keyEnc", p.pixKey() == null ? null : crypto.encrypt(p.pixKey()))
+                .param("id", scheduledPayment.id()).param("payer", scheduledPayment.payerAccountId()).param("recurrence", scheduledPayment.recurrence().name())
+                .param("method", scheduledPayment.method().name()).param("keyType", scheduledPayment.pixKeyType() == null ? null : scheduledPayment.pixKeyType().name())
+                .param("keyHash", scheduledPayment.pixKey() == null ? null : crypto.blindIndex(scheduledPayment.pixKey()))
+                .param("keyEnc", scheduledPayment.pixKey() == null ? null : crypto.encrypt(scheduledPayment.pixKey()))
                 .param("docType", doc == null ? null : doc.type()).param("docEnc", doc == null ? null : crypto.encrypt(doc.value()))
                 .param("docHash", doc == null ? null : crypto.blindIndex(doc.value())).param("docMasked", doc == null ? null : doc.masked())
-                .param("name", p.name()).param("ispb", p.ispb()).param("branch", p.branch()).param("account", p.account())
-                .param("accountType", p.accountType()).param("amount", p.amount().value()).param("message", p.payerMessage())
-                .param("first", p.firstDate()).param("end", p.endDate()).param("total", p.occurrencesTotal())
-                .param("status", p.status().name()).param("device", p.deviceRegistered()).param("actor", ACTOR).update();
-        for (ScheduledOccurrence o : occurrences) {
+                .param("name", scheduledPayment.name()).param("ispb", scheduledPayment.ispb()).param("branch", scheduledPayment.branch()).param("account", scheduledPayment.account())
+                .param("accountType", scheduledPayment.accountType()).param("amount", scheduledPayment.amount().value()).param("message", scheduledPayment.payerMessage())
+                .param("first", scheduledPayment.firstDate()).param("end", scheduledPayment.endDate()).param("total", scheduledPayment.occurrencesTotal())
+                .param("status", scheduledPayment.status().name()).param("device", scheduledPayment.deviceRegistered()).param("actor", ACTOR).update();
+        for (ScheduledOccurrence occurrence : occurrences) {
             jdbc.sql("INSERT INTO scheduled_payment_occurrence (id, scheduled_payment_id, sequence_no, due_date, status) VALUES (:id, :sp, :seq, :due, :status)")
-                    .param("id", o.id()).param("sp", o.scheduledPaymentId()).param("seq", o.sequenceNo()).param("due", o.dueDate())
-                    .param("status", o.status().name()).update();
+                    .param("id", occurrence.id()).param("sp", occurrence.scheduledPaymentId()).param("seq", occurrence.sequenceNo()).param("due", occurrence.dueDate())
+                    .param("status", occurrence.status().name()).update();
         }
     }
 
@@ -79,13 +79,13 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
 
     @Override
     @Transactional
-    public ScheduledPayment save(ScheduledPayment p) {
+    public ScheduledPayment save(ScheduledPayment scheduledPayment) {
         int rows = jdbc.sql("UPDATE scheduled_payment SET status = :status, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v")
-                .param("status", p.status().name()).param("actor", ACTOR).param("id", p.id()).param("v", p.version()).update();
+                .param("status", scheduledPayment.status().name()).param("actor", ACTOR).param("id", scheduledPayment.id()).param("v", scheduledPayment.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("O agendamento foi alterado por outra requisição (versão desatualizada).");
         }
-        return findById(p.id()).orElseThrow();
+        return findById(scheduledPayment.id()).orElseThrow();
     }
 
     @Override
@@ -112,22 +112,22 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
 
     @Override
     @Transactional
-    public ScheduledOccurrence saveOccurrence(ScheduledOccurrence o) {
+    public ScheduledOccurrence saveOccurrence(ScheduledOccurrence occurrence) {
         int rows = jdbc.sql("""
                 UPDATE scheduled_payment_occurrence SET status = :status, attempt_count = :attempts, next_attempt_at = :next,
                     customer_notified_at = :notified, payment_order_id = :order, last_error_code = :error, version = version + 1, updated_at = now()
                 WHERE id = :id AND version = :v""")
-                .param("status", o.status().name()).param("attempts", o.attemptCount()).param("next", ts(o.nextAttemptAt()))
-                .param("notified", ts(o.customerNotifiedAt())).param("order", o.paymentOrderId()).param("error", o.lastErrorCode())
-                .param("id", o.id()).param("v", o.version()).update();
+                .param("status", occurrence.status().name()).param("attempts", occurrence.attemptCount()).param("next", ts(occurrence.nextAttemptAt()))
+                .param("notified", ts(occurrence.customerNotifiedAt())).param("order", occurrence.paymentOrderId()).param("error", occurrence.lastErrorCode())
+                .param("id", occurrence.id()).param("v", occurrence.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A ocorrência foi alterada por outra requisição (versão desatualizada).");
         }
-        if (o.paymentOrderId() != null) {                                                    // rastreabilidade ordem → ocorrência
+        if (occurrence.paymentOrderId() != null) {                                                    // rastreabilidade ordem → ocorrência
             jdbc.sql("UPDATE payment_order SET scheduled_occurrence_id = :o WHERE id = :order AND scheduled_occurrence_id IS DISTINCT FROM :o")
-                    .param("o", o.id()).param("order", o.paymentOrderId()).update();
+                    .param("o", occurrence.id()).param("order", occurrence.paymentOrderId()).update();
         }
-        return findOccurrence(o.id()).orElseThrow();
+        return findOccurrence(occurrence.id()).orElseThrow();
     }
 
     @Override
@@ -171,32 +171,32 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
 
     // ---------------------------------------------------------------- mapeamento
 
-    private ScheduledPayment payment(ResultSet rs, int row) throws SQLException {
-        String keyEnc = rs.getString("destination_key_enc");
-        String docEnc = rs.getString("dest_document_enc");
-        String keyType = rs.getString("destination_key_type");
-        return new ScheduledPayment(rs.getObject("id", UUID.class), rs.getObject("payer_account_id", UUID.class),
-                Recurrence.valueOf(rs.getString("recurrence")), PaymentMethod.valueOf(rs.getString("payment_method")),
-                keyType == null ? null : PixKeyType.valueOf(keyType), keyEnc == null ? null : crypto.decrypt(keyEnc), rs.getString("dest_ispb"),
-                rs.getString("dest_branch"), rs.getString("dest_account"), rs.getString("dest_account_type"), rs.getString("dest_name"),
-                docEnc == null ? null : crypto.decrypt(docEnc), Money.of(rs.getBigDecimal("amount")), rs.getString("payer_message"),
-                rs.getObject("first_date", LocalDate.class), rs.getObject("end_date", LocalDate.class),
-                (Integer) rs.getObject("occurrences_total"), ScheduleStatus.valueOf(rs.getString("status")), rs.getBoolean("device_registered"),
-                rs.getLong("version"));
+    private ScheduledPayment payment(ResultSet resultSet, int row) throws SQLException {
+        String keyEnc = resultSet.getString("destination_key_enc");
+        String docEnc = resultSet.getString("dest_document_enc");
+        String keyType = resultSet.getString("destination_key_type");
+        return new ScheduledPayment(resultSet.getObject("id", UUID.class), resultSet.getObject("payer_account_id", UUID.class),
+                Recurrence.valueOf(resultSet.getString("recurrence")), PaymentMethod.valueOf(resultSet.getString("payment_method")),
+                keyType == null ? null : PixKeyType.valueOf(keyType), keyEnc == null ? null : crypto.decrypt(keyEnc), resultSet.getString("dest_ispb"),
+                resultSet.getString("dest_branch"), resultSet.getString("dest_account"), resultSet.getString("dest_account_type"), resultSet.getString("dest_name"),
+                docEnc == null ? null : crypto.decrypt(docEnc), Money.of(resultSet.getBigDecimal("amount")), resultSet.getString("payer_message"),
+                resultSet.getObject("first_date", LocalDate.class), resultSet.getObject("end_date", LocalDate.class),
+                (Integer) resultSet.getObject("occurrences_total"), ScheduleStatus.valueOf(resultSet.getString("status")), resultSet.getBoolean("device_registered"),
+                resultSet.getLong("version"));
     }
 
-    private ScheduledOccurrence occurrence(ResultSet rs, int row) throws SQLException {
-        return new ScheduledOccurrence(rs.getObject("id", UUID.class), rs.getObject("scheduled_payment_id", UUID.class), rs.getInt("sequence_no"),
-                rs.getObject("due_date", LocalDate.class), OccurrenceStatus.valueOf(rs.getString("status")), rs.getInt("attempt_count"),
-                instant(rs.getTimestamp("next_attempt_at")), instant(rs.getTimestamp("customer_notified_at")),
-                rs.getObject("payment_order_id", UUID.class), rs.getString("last_error_code"), rs.getLong("version"));
+    private ScheduledOccurrence occurrence(ResultSet resultSet, int row) throws SQLException {
+        return new ScheduledOccurrence(resultSet.getObject("id", UUID.class), resultSet.getObject("scheduled_payment_id", UUID.class), resultSet.getInt("sequence_no"),
+                resultSet.getObject("due_date", LocalDate.class), OccurrenceStatus.valueOf(resultSet.getString("status")), resultSet.getInt("attempt_count"),
+                instant(resultSet.getTimestamp("next_attempt_at")), instant(resultSet.getTimestamp("customer_notified_at")),
+                resultSet.getObject("payment_order_id", UUID.class), resultSet.getString("last_error_code"), resultSet.getLong("version"));
     }
 
-    private static Timestamp ts(Instant i) {
-        return i == null ? null : Timestamp.from(i);
+    private static Timestamp ts(Instant instant) {
+        return instant == null ? null : Timestamp.from(instant);
     }
 
-    private static Instant instant(Timestamp t) {
-        return t == null ? null : t.toInstant();
+    private static Instant instant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
     }
 }

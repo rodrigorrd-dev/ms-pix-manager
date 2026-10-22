@@ -29,8 +29,8 @@ public class UuidV7IdGeneratorAdapter implements IdGeneratorPortOut {
         random.nextBytes(rnd);
         long msb = (millis << 16) | 0x7000L | ((rnd[0] & 0x0FL) << 8) | (rnd[1] & 0xFFL);
         long lsb = 0L;
-        for (int i = 2; i < 10; i++) {
-            lsb = (lsb << 8) | (rnd[i] & 0xFF);
+        for (int index = 2; index < 10; index++) {
+            lsb = (lsb << 8) | (rnd[index] & 0xFF);
         }
         lsb = (lsb & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;   // variante RFC 4122
         return new UUID(msb, lsb);

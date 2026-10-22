@@ -153,8 +153,8 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
     @Test
     @DisplayName("Cancelamento: do agendamento (If-Match) cancela as ocorrências em espera; ocorrência avulsa cancela e conclui; fora do estado ⇒ 422 PIX-422-062")
     void shouldCancel() throws Exception {
-        JsonNode s = create(body("WEEKLY", "2026-10-20", ",\"occurrencesTotal\":2", "10.00"));
-        String id = s.get("id").asText();
+        JsonNode schedule = create(body("WEEKLY", "2026-10-20", ",\"occurrencesTotal\":2", "10.00"));
+        String id = schedule.get("id").asText();
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write"))).andExpect(status().isPreconditionRequired());
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write")).header("If-Match", "\"99\"")).andExpect(status().isPreconditionFailed());
         mvc.perform(post("/v1/scheduled-payments/{id}/cancellation", id).with(jwt("schedule.write")).header("If-Match", "\"0\""))

@@ -24,7 +24,7 @@ public sealed interface Document permits Cpf, Cnpj {
         if (cpf.isPresent()) {
             return Optional.of(cpf.get());
         }
-        return Cnpj.tryParse(raw).map(c -> c);
+        return Cnpj.tryParse(raw).map(cnpj -> cnpj);
     }
 
     static Document of(String raw) {

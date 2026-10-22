@@ -47,7 +47,7 @@ public class CreateChargeService implements CreateChargeUseCase {
     @Override
     public CreateChargeResult create(Caller caller, CreateChargeCommand cmd) {
         ActiveKey key = keys.findActiveKey(cmd.pixKey())
-                .filter(k -> caller.canAccess(k.accountId()))      // chave de outro recebedor é indistinguível de inexistente
+                .filter(pixKey -> caller.canAccess(pixKey.accountId()))      // chave de outro recebedor é indistinguível de inexistente
                 .orElseThrow(() -> new BusinessException(ErrorCodes.KEY_NOT_ACTIVE, "A chave informada não está ativa para este recebedor."));
         TxId txid = new TxId(cmd.txid() != null ? cmd.txid() : ids.newId().toString().replace("-", ""));
 

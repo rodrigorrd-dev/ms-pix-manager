@@ -60,14 +60,14 @@ class HttpDynamicQrPayloadAdapterTest {
         server.start();
         leaf = p12("/qr/leaf.p12");
         other = p12("/qr/outro.p12");
-        KeyStore ts = KeyStore.getInstance("PKCS12");
-        ts.load(null, null);
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null, null);
         try (InputStream in = getClass().getResourceAsStream("/qr/ca.crt")) {
-            ts.setCertificateEntry("ca", CertificateFactory.getInstance("X.509").generateCertificate(in));
+            keyStore.setCertificateEntry("ca", CertificateFactory.getInstance("X.509").generateCertificate(in));
         }
         trustStore = tmp.resolve("trust.p12");
         try (var out = new FileOutputStream(trustStore.toFile())) {
-            ts.store(out, PW);
+            keyStore.store(out, PW);
         }
     }
 
@@ -79,13 +79,13 @@ class HttpDynamicQrPayloadAdapterTest {
     @Test
     @DisplayName("JWS RS256 com cadeia confiável ⇒ devolve txid, chave, valor, status e validade (criação + expiração)")
     void shouldAcceptAValidSignedPayload() throws Exception {
-        DynamicQrPayload p = adapter(true, false).validate(sign(leaf, JWSAlgorithm.RS256, COB));
+        DynamicQrPayload dynamicQrPayload = adapter(true, false).validate(sign(leaf, JWSAlgorithm.RS256, COB));
 
-        assertThat(p.txid()).isEqualTo("abc123");
-        assertThat(p.pixKey()).isEqualTo("123e4567-e89b-42d3-a456-426655440000");
-        assertThat(p.amount().toBcb()).isEqualTo("25.00");
-        assertThat(p.status()).isEqualTo("ATIVA");
-        assertThat(p.expiresAt()).isEqualTo(Instant.parse("2026-10-16T13:00:00Z"));
+        assertThat(dynamicQrPayload.txid()).isEqualTo("abc123");
+        assertThat(dynamicQrPayload.pixKey()).isEqualTo("123e4567-e89b-42d3-a456-426655440000");
+        assertThat(dynamicQrPayload.amount().toBcb()).isEqualTo("25.00");
+        assertThat(dynamicQrPayload.status()).isEqualTo("ATIVA");
+        assertThat(dynamicQrPayload.expiresAt()).isEqualTo(Instant.parse("2026-10-16T13:00:00Z"));
     }
 
     @Test
@@ -94,10 +94,10 @@ class HttpDynamicQrPayloadAdapterTest {
         String cobv = "{\"txid\":\"v1\",\"status\":\"ATIVA\",\"chave\":\"a@b.com\",\"calendario\":{\"dataDeVencimento\":\"2026-10-20\","
                 + "\"validadeAposVencimento\":2},\"valor\":{\"original\":\"100.00\",\"final\":\"103.50\"}}";
 
-        DynamicQrPayload p = adapter(true, false).validate(sign(leaf, JWSAlgorithm.RS256, cobv));
+        DynamicQrPayload dynamicQrPayload = adapter(true, false).validate(sign(leaf, JWSAlgorithm.RS256, cobv));
 
-        assertThat(p.amount().toBcb()).isEqualTo("103.50");
-        assertThat(p.expiresAt()).isEqualTo(Instant.parse("2026-10-23T03:00:00Z"));      // 23/10 00:00 em Brasília (UTC-3)
+        assertThat(dynamicQrPayload.amount().toBcb()).isEqualTo("103.50");
+        assertThat(dynamicQrPayload.expiresAt()).isEqualTo(Instant.parse("2026-10-23T03:00:00Z"));      // 23/10 00:00 em Brasília (UTC-3)
     }
 
     @Test
@@ -125,9 +125,9 @@ class HttpDynamicQrPayloadAdapterTest {
     @Test
     @DisplayName("Algoritmo simétrico (HS256), JWS sem x5c e lixo ⇒ recusa")
     void shouldRejectWeakAlgorithmsMissingCertsAndGarbage() throws Exception {
-        JWSObject hs = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.HS256).build(), new Payload(COB));
-        hs.sign(new MACSigner(new byte[32]));
-        assertInvalid(() -> adapter(true, false).validate(hs.serialize()), "Algoritmo");
+        JWSObject jwsObject = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.HS256).build(), new Payload(COB));
+        jwsObject.sign(new MACSigner(new byte[32]));
+        assertInvalid(() -> adapter(true, false).validate(jwsObject.serialize()), "Algoritmo");
 
         JWSObject noX5c = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.RS256).build(), new Payload(COB));
         noX5c.sign(new RSASSASigner((PrivateKey) leaf.getKey("leaf", PW)));
@@ -184,8 +184,8 @@ class HttpDynamicQrPayloadAdapterTest {
 
     private static String sign(KeyStore store, JWSAlgorithm alg, String json) throws Exception {
         List<Base64> chain = new ArrayList<>();
-        for (Certificate c : store.getCertificateChain(store.aliases().nextElement())) {
-            chain.add(Base64.encode(((X509Certificate) c).getEncoded()));
+        for (Certificate certificate : store.getCertificateChain(store.aliases().nextElement())) {
+            chain.add(Base64.encode(((X509Certificate) certificate).getEncoded()));
         }
         JWSObject jws = new JWSObject(new JWSHeader.Builder(alg).x509CertChain(chain).build(), new Payload(json));
         jws.sign(new RSASSASigner((PrivateKey) store.getKey(store.aliases().nextElement(), PW)));
@@ -193,17 +193,17 @@ class HttpDynamicQrPayloadAdapterTest {
     }
 
     private KeyStore p12(String resource) throws Exception {
-        KeyStore ks = KeyStore.getInstance("PKCS12");
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
         try (InputStream in = getClass().getResourceAsStream(resource)) {
-            ks.load(in, PW);
+            keyStore.load(in, PW);
         }
-        return ks;
+        return keyStore;
     }
 
     private static void assertInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, String messagePart) {
-        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> {
-            assertThat(e.getCode()).isEqualTo(ErrorCodes.QR_DYNAMIC_INVALID);
-            assertThat(e.getMessage()).contains(messagePart);
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getCode()).isEqualTo(ErrorCodes.QR_DYNAMIC_INVALID);
+            assertThat(exception.getMessage()).contains(messagePart);
         });
     }
 }

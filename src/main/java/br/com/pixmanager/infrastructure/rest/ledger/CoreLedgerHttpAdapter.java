@@ -48,27 +48,27 @@ public class CoreLedgerHttpAdapter implements LedgerGatewayPortOut {
     }
 
     @Override
-    public GatewayResult reserve(LedgerReservation r) {
-        return call(r, "/ledger/v1/reservations", Map.of(
-                "idempotencyKey", r.idempotencyKey(), "accountId", r.accountId().toString(),
-                "amount", r.amount().toBcb(), "purpose", r.purpose().name()));
+    public GatewayResult reserve(LedgerReservation reservation) {
+        return call(reservation, "/ledger/v1/reservations", Map.of(
+                "idempotencyKey", reservation.idempotencyKey(), "accountId", reservation.accountId().toString(),
+                "amount", reservation.amount().toBcb(), "purpose", reservation.purpose().name()));
     }
 
     @Override
-    public GatewayResult confirm(LedgerReservation r) {
-        return call(r, "/ledger/v1/reservations/" + r.idempotencyKey() + "/confirmation", Map.of());
+    public GatewayResult confirm(LedgerReservation reservation) {
+        return call(reservation, "/ledger/v1/reservations/" + reservation.idempotencyKey() + "/confirmation", Map.of());
     }
 
     @Override
-    public GatewayResult cancel(LedgerReservation r) {
-        return call(r, "/ledger/v1/reservations/" + r.idempotencyKey() + "/cancellation", Map.of());
+    public GatewayResult cancel(LedgerReservation reservation) {
+        return call(reservation, "/ledger/v1/reservations/" + reservation.idempotencyKey() + "/cancellation", Map.of());
     }
 
     private GatewayResult call(LedgerReservation reservation, String path, Map<String, String> body) {
         try {
             return breaker.executeSupplier(() -> exchange(reservation, path, body));
-        } catch (CallNotPermittedException e) {
-            throw new DependencyUnavailableException("Circuito do core aberto", e);
+        } catch (CallNotPermittedException exception) {
+            throw new DependencyUnavailableException("Circuito do core aberto", exception);
         }
     }
 
@@ -79,8 +79,8 @@ public class CoreLedgerHttpAdapter implements LedgerGatewayPortOut {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .exchange((request, response) -> translate(response.getStatusCode(), response.getBody()));
-        } catch (ResourceAccessException e) {
-            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "Core indisponível (timeout/IO)", e);
+        } catch (ResourceAccessException exception) {
+            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "Core indisponível (timeout/IO)", exception);
         }
     }
 

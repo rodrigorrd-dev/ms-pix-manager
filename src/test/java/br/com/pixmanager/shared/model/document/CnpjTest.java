@@ -46,7 +46,7 @@ class CnpjTest {
         assertThatThrownBy(() -> Cnpj.of("12ABC34501DE36"))
                 .isInstanceOf(InvalidDocumentException.class)
                 .hasMessageNotContaining("12ABC")
-                .satisfies(e -> assertThat(((InvalidDocumentException) e).getCode()).isEqualTo(ErrorCodes.INVALID_CNPJ));
+                .satisfies(exception -> assertThat(((InvalidDocumentException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_CNPJ));
     }
 
     /** Propriedade: qualquer base alfanumérica de 12 posições com os DV calculados pelo mesmo algoritmo deve validar. */
@@ -54,29 +54,29 @@ class CnpjTest {
     void generatedAlphanumericCnpjsShouldAllValidate() {
         SecureRandom random = new SecureRandom();
         String alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        int[] w1 = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
-        int[] w2 = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int n = 0; n < 5_000; n++) {
+        int[] firstWeights = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        int[] secondWeights = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        for (int iteration = 0; iteration < 5_000; iteration++) {
             StringBuilder base = new StringBuilder();
-            for (int i = 0; i < 12; i++) {
+            for (int index = 0; index < 12; index++) {
                 base.append(alphabet.charAt(random.nextInt(alphabet.length())));
             }
             if (base.chars().distinct().count() == 1) {
                 continue;
             }
-            int d1 = dv(base.toString(), w1);
-            int d2 = dv(base.toString() + d1, w2);
-            assertThat(Cnpj.isValid(base.toString() + d1 + d2)).as(base.toString()).isTrue();
-            assertThat(Cnpj.isValid(base.toString() + d1 + ((d2 + 1) % 10))).isFalse();
+            int firstCheckDigit = dv(base.toString(), firstWeights);
+            int secondCheckDigit = dv(base.toString() + firstCheckDigit, secondWeights);
+            assertThat(Cnpj.isValid(base.toString() + firstCheckDigit + secondCheckDigit)).as(base.toString()).isTrue();
+            assertThat(Cnpj.isValid(base.toString() + firstCheckDigit + ((secondCheckDigit + 1) % 10))).isFalse();
         }
     }
 
-    private static int dv(String s, int[] w) {
+    private static int dv(String digits, int[] weights) {
         int sum = 0;
-        for (int i = 0; i < s.length(); i++) {
-            sum += (s.charAt(i) - 48) * w[i];
+        for (int index = 0; index < digits.length(); index++) {
+            sum += (digits.charAt(index) - 48) * weights[index];
         }
-        int r = sum % 11;
-        return r < 2 ? 0 : 11 - r;
+        int remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
     }
 }

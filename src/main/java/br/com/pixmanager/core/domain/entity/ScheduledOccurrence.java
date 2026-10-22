@@ -73,8 +73,8 @@ public record ScheduledOccurrence(UUID id, UUID scheduledPaymentId, int sequence
         return with(OccurrenceStatus.CANCELLED, null, customerNotifiedAt, lastErrorCode);
     }
 
-    private ScheduledOccurrence with(OccurrenceStatus s, Instant next, Instant notified, String error) {
-        return new ScheduledOccurrence(id, scheduledPaymentId, sequenceNo, dueDate, s, attemptCount, next, notified, paymentOrderId, error, version);
+    private ScheduledOccurrence with(OccurrenceStatus occurrenceStatus, Instant next, Instant notified, String error) {
+        return new ScheduledOccurrence(id, scheduledPaymentId, sequenceNo, dueDate, occurrenceStatus, attemptCount, next, notified, paymentOrderId, error, version);
     }
 
     private void require(boolean ok, OccurrenceStatus target) {

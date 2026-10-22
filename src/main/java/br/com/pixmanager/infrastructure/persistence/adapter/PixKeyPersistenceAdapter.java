@@ -52,9 +52,9 @@ public class PixKeyPersistenceAdapter implements PixKeyPersistencePortOut {
         mapper.apply(key, entity, isNew);
         try {
             return mapper.toDomain(repository.saveAndFlush(entity));   // flush aqui: o conflito aparece dentro do try
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException exception) {
             throw new PreconditionFailedException("A chave foi alterada por outra requisição (versão desatualizada).");
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException exception) {
             // corrida entre dois registros do mesmo valor: o índice único parcial uk_pix_key_live_hash decide
             throw new ConflictException(ErrorCodes.CONFLICT, "A chave informada já está registrada.");
         }

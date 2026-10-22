@@ -22,7 +22,7 @@ public class FindPaymentOrderService implements FindPaymentOrderUseCase {
 
     @Override
     public Optional<PaymentOrder> find(Caller caller, UUID id) {
-        return persistence.findById(id).filter(o -> caller.canAccess(o.payerAccountId()));
+        return persistence.findById(id).filter(paymentOrder -> caller.canAccess(paymentOrder.payerAccountId()));
     }
 
     @Override

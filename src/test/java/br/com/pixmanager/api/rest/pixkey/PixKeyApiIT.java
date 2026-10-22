@@ -40,27 +40,27 @@ class PixKeyApiIT extends AbstractApplicationIT {
     @Autowired ActivatePendingKeysUseCase activate;
 
     String cpf;
-    Account pf;
+    Account account;
 
     @BeforeEach
     void setUp() {
         DictGatewayStub.reset();
         cpf = TestDocuments.randomCpf();
-        pf = fixtures.account(cpf, "Titular PF");
+        account = fixtures.account(cpf, "Titular PF");
     }
 
     org.springframework.test.web.servlet.request.RequestPostProcessor jwt(String... scopes) {
-        return TestJwt.client("cli", List.of(pf.id()), scopes);
+        return TestJwt.client("cli", List.of(account.id()), scopes);
     }
 
     String register(String type, String value) {
-        return "{\"accountId\":\"%s\",\"pixKeyType\":\"%s\"%s}".formatted(pf.id(), type, value == null ? "" : ",\"pixKey\":\"" + value + "\"");
+        return "{\"accountId\":\"%s\",\"pixKeyType\":\"%s\"%s}".formatted(account.id(), type, value == null ? "" : ",\"pixKey\":\"" + value + "\"");
     }
 
     JsonNode create(String type, String value) throws Exception {
-        MvcResult r = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON).content(register(type, value)))
+        MvcResult mvcResult = mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).contentType(MediaType.APPLICATION_JSON).content(register(type, value)))
                 .andExpect(status().isCreated()).andReturn();
-        return json.readTree(r.getResponse().getContentAsString());
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     @Test
@@ -88,16 +88,16 @@ class PixKeyApiIT extends AbstractApplicationIT {
     @DisplayName("Conta PJ: chave CNPJ alfanumérico do titular é aceita")
     void shouldAcceptAlphanumericCnpjKeyOnBusinessAccount() throws Exception {
         String cnpj = TestDocuments.randomCnpj();
-        Account pj = fixtures.account(cnpj, "Empresa");
-        mvc.perform(post("/v1/pix-keys").with(TestJwt.client("cli", List.of(pj.id()), "pixkey.write")).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"CNPJ\",\"pixKey\":\"%s\"}".formatted(pj.id(), cnpj)))
+        Account account = fixtures.account(cnpj, "Empresa");
+        mvc.perform(post("/v1/pix-keys").with(TestJwt.client("cli", List.of(account.id()), "pixkey.write")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"%s\",\"pixKeyType\":\"CNPJ\",\"pixKey\":\"%s\"}".formatted(account.id(), cnpj)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING_DICT"));
     }
 
     @Test
     @DisplayName("BR-KEY-03/04: limite de 5 chaves por conta PF (6ª ⇒ PIX-422-011); EMAIL/PHONE nascem aguardando prova de posse; chave repetida ⇒ 409")
     void shouldEnforceKeyLimitOwnershipProofAndUniqueness() throws Exception {
-        for (int i = 0; i < 4; i++) {
+        for (int index = 0; index < 4; index++) {
             create("EVP", null);
         }
         JsonNode email = create("EMAIL", "usuario" + UUID.randomUUID().toString().substring(0, 8) + "@exemplo.com.br");
@@ -176,7 +176,7 @@ class PixKeyApiIT extends AbstractApplicationIT {
     void shouldLookupKeyWithMaskedOwnerDocument() throws Exception {
         String ownerCpf = TestDocuments.randomCpf();
         DictGatewayStub.lookupFound(ownerCpf);
-        String req = "{\"payerAccountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"alguem@exemplo.com.br\"}".formatted(pf.id());
+        String req = "{\"payerAccountId\":\"%s\",\"pixKeyType\":\"EMAIL\",\"pixKey\":\"alguem@exemplo.com.br\"}".formatted(account.id());
         mvc.perform(post("/v1/pix-keys/lookups").with(jwt("pixkey.read")).contentType(MediaType.APPLICATION_JSON).content(req))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ownerName").value("Joao Favorecido"))
                 .andExpect(jsonPath("$.ownerDocument").value(org.hamcrest.Matchers.startsWith("***.")));
@@ -202,7 +202,7 @@ class PixKeyApiIT extends AbstractApplicationIT {
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn();
         assertThat(json.readTree(replay.getResponse().getContentAsString()).get("id"))
                 .isEqualTo(json.readTree(first.getResponse().getContentAsString()).get("id"));
-        assertThat(jdbc.sql("SELECT count(*) FROM pix_key WHERE account_id = :a").param("a", pf.id()).query(Integer.class).single()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT count(*) FROM pix_key WHERE account_id = :a").param("a", account.id()).query(Integer.class).single()).isEqualTo(1);
 
         mvc.perform(post("/v1/pix-keys").with(jwt("pixkey.write")).header("Idempotency-Key", key)
                         .contentType(MediaType.APPLICATION_JSON).content(register("EMAIL", "outro@exemplo.com.br")))
@@ -224,9 +224,9 @@ class PixKeyApiIT extends AbstractApplicationIT {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/v1/pix-keys/{id}", key.get("id").asText()).with(TestJwt.client("outro", List.of(UUID.randomUUID()), "pixkey.read")))
                 .andExpect(status().isNotFound());
-        mvc.perform(get("/v1/pix-keys").param("accountId", pf.id().toString()).with(TestJwt.client("outro", List.of(UUID.randomUUID()), "pixkey.read")))
+        mvc.perform(get("/v1/pix-keys").param("accountId", account.id().toString()).with(TestJwt.client("outro", List.of(UUID.randomUUID()), "pixkey.read")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
-        mvc.perform(get("/v1/pix-keys").param("accountId", pf.id().toString()).with(jwt("pixkey.read")))
+        mvc.perform(get("/v1/pix-keys").param("accountId", account.id().toString()).with(jwt("pixkey.read")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(key.get("id").asText()));
     }
 

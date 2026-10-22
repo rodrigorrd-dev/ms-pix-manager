@@ -16,16 +16,16 @@ public final class TestJwt {
     private TestJwt() {}
 
     public static RequestPostProcessor client(String clientId, List<UUID> accounts, String... scopes) {
-        return jwt().jwt(j -> j.claim("azp", clientId).claim("pix_accounts", accounts.stream().map(UUID::toString).toList()))
+        return jwt().jwt(jwtBuilder -> jwtBuilder.claim("azp", clientId).claim("pix_accounts", accounts.stream().map(UUID::toString).toList()))
                 .authorities(authorities(scopes));
     }
 
     public static RequestPostProcessor admin(String clientId, String... scopes) {
-        return jwt().jwt(j -> j.claim("azp", clientId).claim("pix_accounts", List.of("*")))
+        return jwt().jwt(jwtBuilder -> jwtBuilder.claim("azp", clientId).claim("pix_accounts", List.of("*")))
                 .authorities(authorities(scopes));
     }
 
     private static GrantedAuthority[] authorities(String... scopes) {
-        return Arrays.stream(scopes).map(s -> (GrantedAuthority) new SimpleGrantedAuthority("SCOPE_" + s)).toArray(GrantedAuthority[]::new);
+        return Arrays.stream(scopes).map(scope -> (GrantedAuthority) new SimpleGrantedAuthority("SCOPE_" + scope)).toArray(GrantedAuthority[]::new);
     }
 }

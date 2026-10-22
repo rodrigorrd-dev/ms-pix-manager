@@ -169,7 +169,7 @@ class CreateChargeServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, immediate(TXID, "50.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, locations, events);
     }
@@ -182,7 +182,7 @@ class CreateChargeServiceTest {
 
         assertThatThrownBy(() -> service.create(other, immediate(TXID, "50.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, events);
     }

@@ -73,7 +73,7 @@ public class RequestRefundService implements RequestRefundUseCase {
     private RequestRefundResult doRequest(Caller caller, RequestRefundCommand cmd) {
         EndToEndId e2e = new EndToEndId(cmd.endToEndId());
         ReceivedPix pix = receivedPix.findByEndToEndId(e2e.value())
-                .filter(p -> caller.canAccess(p.receiverAccountId()))           // fora do escopo ⇒ 404
+                .filter(foundPix -> caller.canAccess(foundPix.receiverAccountId()))           // fora do escopo ⇒ 404
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Pix não encontrado."));
 
         Optional<Refund> existing = refunds.findByEndToEndIdAndClientId(e2e.value(), cmd.clientRefundId());

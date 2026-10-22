@@ -47,14 +47,14 @@ class ConsumeLimitServiceTest {
         LimitPersistencePortOut limits = new LimitPersistencePortOut() {
             public List<AccountLimit> findByAccount(UUID id) { return List.copyOf(configured.values()); }
             public Optional<AccountLimit> find(UUID id, LimitScope scope) { return Optional.ofNullable(configured.get(scope)); }
-            public AccountLimit save(AccountLimit l) { configured.put(l.scope(), l); return l; }
+            public AccountLimit save(AccountLimit accountLimit) { configured.put(accountLimit.scope(), accountLimit); return accountLimit; }
         };
         FindAccountUseCase accounts = new FindAccountUseCase() {
             public Optional<AccountInfo> findById(UUID id) {
                 return Optional.of(new AccountInfo(accountId, UUID.randomUUID(), holder, Cpf.of("52998224725"), "hash", "Titular", "12345678",
                         "0001", "1", "CACC", AccountStatus.ACTIVE));
             }
-            public Optional<AccountInfo> findByIdentity(String a, String b, String c, String d) { return Optional.empty(); }
+            public Optional<AccountInfo> findByIdentity(String ispb, String branch, String number, String accountType) { return Optional.empty(); }
         };
         service = new ConsumeLimitService(limits, usage, accounts, CFG);
     }
@@ -78,7 +78,7 @@ class ConsumeLimitServiceTest {
     @DisplayName("Dispositivo não cadastrado: R$1.000/dia; ao estourar, o diário GERAL consumido é devolvido (compensação)")
     void deviceDailyRejectionReleasesTheGeneralDaily() {
         assertThat(service.consume(accountId, Money.of("200.00"), DAYTIME, false)).isInstanceOf(LimitDecision.Allowed.class);
-        for (int i = 0; i < 4; i++) {
+        for (int index = 0; index < 4; index++) {
             assertThat(service.consume(accountId, Money.of("200.00"), DAYTIME, false)).isInstanceOf(LimitDecision.Allowed.class);
         }
         // 5 × 200 = 1000 consumidos; o próximo estoura o do dispositivo
@@ -118,11 +118,11 @@ class ConsumeLimitServiceTest {
         }
 
         public synchronized void release(UUID account, LocalDate day, LimitScope scope, Money amount) {
-            used.merge(day + "|" + scope, Money.ZERO, (a, b) -> a.minus(amount));
+            used.merge(day + "|" + scope, Money.ZERO, (existing, incoming) -> existing.minus(amount));
         }
 
         Money used(LimitScope scope) {
-            return used.entrySet().stream().filter(e -> e.getKey().endsWith("|" + scope)).map(Map.Entry::getValue)
+            return used.entrySet().stream().filter(entry -> entry.getKey().endsWith("|" + scope)).map(Map.Entry::getValue)
                     .reduce(Money.ZERO, Money::plus);
         }
     }

@@ -122,7 +122,7 @@ class RequestRefundServiceTest {
 
         assertThatThrownBy(() -> service.request(caller, command("41.00", RefundNature.ORIGINAL, "devolução")))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.IDEMPOTENCY_MISMATCH));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.IDEMPOTENCY_MISMATCH));
 
         verify(refunds, never()).save(any());
         verifyNoInteractions(reservations, events);
@@ -138,7 +138,7 @@ class RequestRefundServiceTest {
 
         assertThatThrownBy(() -> service.request(caller, command("500.00", RefundNature.ORIGINAL, null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.REFUND_EXCEEDS_AMOUNT));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.REFUND_EXCEEDS_AMOUNT));
 
         verify(refunds, never()).save(any());
         verifyNoInteractions(reservations, events);
@@ -160,7 +160,7 @@ class RequestRefundServiceTest {
         clock.set(SETTLED.plus(WINDOW).plusSeconds(1));
         assertThatThrownBy(() -> service.request(caller, command("10.00", RefundNature.ORIGINAL, null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.REFUND_OUT_OF_WINDOW));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.REFUND_OUT_OF_WINDOW));
     }
 
     @ParameterizedTest

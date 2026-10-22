@@ -35,14 +35,14 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
     }
 
     @Override
-    public void enqueue(WebhookDelivery d, Map<String, Object> payload) {
+    public void enqueue(WebhookDelivery delivery, Map<String, Object> payload) {
         jdbc.sql("""
                 INSERT INTO webhook_delivery (id, subscription_id, source_event_id, event_type, payload, status, attempts, next_attempt_at)
                 VALUES (:id, :sub, :event, :type, CAST(:payload AS jsonb), 'PENDING', 0, :next)
                 ON CONFLICT (subscription_id, source_event_id) DO NOTHING
                 """)
-                .param("id", d.id()).param("sub", d.subscriptionId()).param("event", d.sourceEventId()).param("type", d.eventType())
-                .param("payload", toJson(payload)).param("next", Timestamp.from(d.nextAttemptAt())).update();
+                .param("id", delivery.id()).param("sub", delivery.subscriptionId()).param("event", delivery.sourceEventId()).param("type", delivery.eventType())
+                .param("payload", toJson(payload)).param("next", Timestamp.from(delivery.nextAttemptAt())).update();
     }
 
     @Override
@@ -52,48 +52,48 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
                         + "WHERE d.status IN ('PENDING','RETRYING') AND d.next_attempt_at <= :now AND s.status = 'ACTIVE' "
                         + "ORDER BY d.next_attempt_at, d.id LIMIT :n")
                 .param("now", Timestamp.from(now)).param("n", limit)
-                .query((rs, i) -> new DueDelivery(map(rs), rs.getString("url"), rs.getString("payload_json"))).list();
+                .query((resultSet, rowNumber) -> new DueDelivery(map(resultSet), resultSet.getString("url"), resultSet.getString("payload_json"))).list();
     }
 
     @Override
     public Optional<WebhookDelivery> findById(UUID id) {
-        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_delivery d WHERE d.id = :id").param("id", id).query((rs, i) -> map(rs)).optional();
+        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_delivery d WHERE d.id = :id").param("id", id).query((resultSet, rowNumber) -> map(resultSet)).optional();
     }
 
     @Override
-    public WebhookDelivery save(WebhookDelivery d) {
+    public WebhookDelivery save(WebhookDelivery delivery) {
         int updated = jdbc.sql("""
                 UPDATE webhook_delivery SET status = :status, attempts = :attempts, next_attempt_at = COALESCE(:next, next_attempt_at),
                        last_http_status = :http, last_error = :error, delivered_at = :delivered, version = version + 1, updated_at = now()
                  WHERE id = :id AND version = :version
                 """)
-                .param("status", d.status().name()).param("attempts", d.attempts())
-                .param("next", d.nextAttemptAt() == null ? null : Timestamp.from(d.nextAttemptAt()))
-                .param("http", d.lastHttpStatus()).param("error", d.lastError())
-                .param("delivered", d.deliveredAt() == null ? null : Timestamp.from(d.deliveredAt()))
-                .param("id", d.id()).param("version", d.version()).update();
+                .param("status", delivery.status().name()).param("attempts", delivery.attempts())
+                .param("next", delivery.nextAttemptAt() == null ? null : Timestamp.from(delivery.nextAttemptAt()))
+                .param("http", delivery.lastHttpStatus()).param("error", delivery.lastError())
+                .param("delivered", delivery.deliveredAt() == null ? null : Timestamp.from(delivery.deliveredAt()))
+                .param("id", delivery.id()).param("version", delivery.version()).update();
         if (updated == 0) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Entrega alterada por outra instância.");
         }
-        return findById(d.id()).orElseThrow();
+        return findById(delivery.id()).orElseThrow();
     }
 
     private String toJson(Map<String, Object> payload) {
         try {
             return json.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Corpo do webhook não serializável", e);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Corpo do webhook não serializável", exception);
         }
     }
 
-    private static WebhookDelivery map(ResultSet rs) throws SQLException {
-        Timestamp next = rs.getTimestamp("next_attempt_at");
-        Timestamp delivered = rs.getTimestamp("delivered_at");
-        int http = rs.getInt("last_http_status");
-        boolean httpIsNull = rs.wasNull();                  // wasNull() só vale logo após ler a coluna
-        return new WebhookDelivery(rs.getObject("id", UUID.class), rs.getObject("subscription_id", UUID.class),
-                rs.getObject("source_event_id", UUID.class), rs.getString("event_type"), DeliveryStatus.valueOf(rs.getString("status")),
-                rs.getInt("attempts"), next == null ? null : next.toInstant(), httpIsNull ? null : http, rs.getString("last_error"),
-                delivered == null ? null : delivered.toInstant(), rs.getLong("version"));
+    private static WebhookDelivery map(ResultSet resultSet) throws SQLException {
+        Timestamp next = resultSet.getTimestamp("next_attempt_at");
+        Timestamp delivered = resultSet.getTimestamp("delivered_at");
+        int http = resultSet.getInt("last_http_status");
+        boolean httpIsNull = resultSet.wasNull();                  // wasNull() só vale logo após ler a coluna
+        return new WebhookDelivery(resultSet.getObject("id", UUID.class), resultSet.getObject("subscription_id", UUID.class),
+                resultSet.getObject("source_event_id", UUID.class), resultSet.getString("event_type"), DeliveryStatus.valueOf(resultSet.getString("status")),
+                resultSet.getInt("attempts"), next == null ? null : next.toInstant(), httpIsNull ? null : http, resultSet.getString("last_error"),
+                delivered == null ? null : delivered.toInstant(), resultSet.getLong("version"));
     }
 }

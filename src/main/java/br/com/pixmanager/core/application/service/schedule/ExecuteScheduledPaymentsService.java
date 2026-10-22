@@ -41,7 +41,7 @@ public class ExecuteScheduledPaymentsService implements ExecuteScheduledPayments
     private final PaymentOrderPersistencePortOut orders;
     private final CreatePaymentOrderUseCase createOrder;
     private final DomainEventPublisherPortOut events;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final ScheduleProperties properties;
     private final ScheduleRetryPolicy retryPolicy;
@@ -49,13 +49,13 @@ public class ExecuteScheduledPaymentsService implements ExecuteScheduledPayments
 
     public ExecuteScheduledPaymentsService(ScheduledPaymentPersistencePortOut schedules, PaymentOrderPersistencePortOut orders,
                                            CreatePaymentOrderUseCase createOrder, DomainEventPublisherPortOut events,
-                                           TransactionRunnerPortOut tx, Clock clock, ScheduleProperties properties,
+                                           TransactionRunnerPortOut transactionRunner, Clock clock, ScheduleProperties properties,
                                            ScheduleRetryPolicy retryPolicy, DoubleSupplier jitter) {
         this.schedules = schedules;
         this.orders = orders;
         this.createOrder = createOrder;
         this.events = events;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.properties = properties;
         this.retryPolicy = retryPolicy;
@@ -66,111 +66,111 @@ public class ExecuteScheduledPaymentsService implements ExecuteScheduledPayments
     public Result runCycle() {
         Instant now = clock.instant();
         LocalDate today = LocalDate.now(clock.withZone(properties.zone()));
-        int[] c = new int[5];                                                               // started, settled, retried, failed, released
-        for (ScheduledOccurrence o : schedules.claimDue(today, now, properties.batch())) {
-            guarded(o, () -> start(o, today, now, c));
+        int[] counters = new int[5];                                                               // started, settled, retried, failed, released
+        for (ScheduledOccurrence occurrence : schedules.claimDue(today, now, properties.batch())) {
+            guarded(occurrence, () -> start(occurrence, today, now, counters));
         }
-        for (ScheduledOccurrence o : schedules.processingWithOrder(properties.batch())) {
-            guarded(o, () -> follow(o, now, c));
+        for (ScheduledOccurrence occurrence : schedules.processingWithOrder(properties.batch())) {
+            guarded(occurrence, () -> follow(occurrence, now, counters));
         }
-        for (ScheduledOccurrence o : schedules.processingWithoutOrderSince(now.minus(properties.stuckAfter()), properties.batch())) {
-            guarded(o, () -> {
-                tx.inTransaction(() -> schedules.saveOccurrence(o.technicalRetry(now, "STUCK")));
-                c[4]++;
+        for (ScheduledOccurrence occurrence : schedules.processingWithoutOrderSince(now.minus(properties.stuckAfter()), properties.batch())) {
+            guarded(occurrence, () -> {
+                transactionRunner.inTransaction(() -> schedules.saveOccurrence(occurrence.technicalRetry(now, "STUCK")));
+                counters[4]++;
             });
         }
-        return new Result(c[0], c[1], c[2], c[3], c[4]);
+        return new Result(counters[0], counters[1], counters[2], counters[3], counters[4]);
     }
 
     // ---------------------------------------------------------------- (1) disparar
 
-    private void start(ScheduledOccurrence o, LocalDate today, Instant now, int[] c) {
-        ScheduledPayment payment = schedules.findById(o.scheduledPaymentId()).orElseThrow();
-        if (o.dueDate().isBefore(today.minusDays(properties.maxLateDays()))) {
-            fail(payment, o, "MISSED", c);                                                  // o sistema ficou fora tempo demais: não paga fora de hora
+    private void start(ScheduledOccurrence occurrence, LocalDate today, Instant now, int[] counters) {
+        ScheduledPayment payment = schedules.findById(occurrence.scheduledPaymentId()).orElseThrow();
+        if (occurrence.dueDate().isBefore(today.minusDays(properties.maxLateDays()))) {
+            fail(payment, occurrence, "MISSED", counters);                                                  // o sistema ficou fora tempo demais: não paga fora de hora
             return;
         }
         CreatePaymentOrderUseCase.PreparedPaymentOrder prepared;
         try {
             prepared = createOrder.prepare(Caller.system("scheduler"), toCommand(payment));      // DICT (HTTP) FORA de transação
-        } catch (BusinessException e) {
-            fail(payment, o, e.getCode(), c);                                               // chave inexistente, CPF divergente...: não adianta retentar
+        } catch (BusinessException exception) {
+            fail(payment, occurrence, exception.getCode(), counters);                                               // chave inexistente, CPF divergente...: não adianta retentar
             return;
-        } catch (BadRequestException e) {
-            fail(payment, o, e.getCode(), c);
+        } catch (BadRequestException exception) {
+            fail(payment, occurrence, exception.getCode(), counters);
             return;
-        } catch (IntegrationException e) {
-            technical(payment, o, now, e, c);
+        } catch (IntegrationException exception) {
+            technical(payment, occurrence, now, exception, counters);
             return;
         }
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             PaymentOrderResult result = createOrder.submit(prepared);
-            ScheduledOccurrence linked = schedules.saveOccurrence(o.linkedTo(result.orderId()));
+            ScheduledOccurrence linked = schedules.saveOccurrence(occurrence.linkedTo(result.orderId()));
             if (result instanceof PaymentOrderResult.Rejected rejected) {                   // limite da data estourado, etc.
                 ScheduledOccurrence failed = schedules.saveOccurrence(linked.failed(rejected.errorCode()));
                 publish("ScheduledOccurrenceFailed", payment, failed, false);
-                c[3]++;
+                counters[3]++;
                 closeIfDone(payment);
             } else {
-                c[0]++;
+                counters[0]++;
             }
         });
     }
 
-    private void technical(ScheduledPayment payment, ScheduledOccurrence o, Instant now, IntegrationException e, int[] c) {
-        if (o.attemptCount() >= properties.maxTechnicalAttempts()) {
-            fail(payment, o, "TECHNICAL", c);
+    private void technical(ScheduledPayment payment, ScheduledOccurrence occurrence, Instant now, IntegrationException exception, int[] counters) {
+        if (occurrence.attemptCount() >= properties.maxTechnicalAttempts()) {
+            fail(payment, occurrence, "TECHNICAL", counters);
             return;
         }
-        Instant next = now.plus(properties.technicalBackoff().multipliedBy(Math.max(1, o.attemptCount())));
-        tx.inTransaction(() -> schedules.saveOccurrence(o.technicalRetry(next, e.getCode())));
-        log.warn("Ocorrência {} adiada por falha técnica [{}] até {}", o.id(), e.getCode(), next);
+        Instant next = now.plus(properties.technicalBackoff().multipliedBy(Math.max(1, occurrence.attemptCount())));
+        transactionRunner.inTransaction(() -> schedules.saveOccurrence(occurrence.technicalRetry(next, exception.getCode())));
+        log.warn("Ocorrência {} adiada por falha técnica [{}] até {}", occurrence.id(), exception.getCode(), next);
     }
 
     // ---------------------------------------------------------------- (2) acompanhar
 
-    private void follow(ScheduledOccurrence o, Instant now, int[] c) {
-        PaymentOrder order = orders.findById(o.paymentOrderId()).orElseThrow();
-        ScheduledPayment payment = schedules.findById(o.scheduledPaymentId()).orElseThrow();
+    private void follow(ScheduledOccurrence occurrence, Instant now, int[] counters) {
+        PaymentOrder order = orders.findById(occurrence.paymentOrderId()).orElseThrow();
+        ScheduledPayment payment = schedules.findById(occurrence.scheduledPaymentId()).orElseThrow();
         switch (order.status()) {
-            case SENT_TO_SPI, SETTLED -> tx.inTransaction(() -> {
-                publish("ScheduledOccurrenceExecuted", payment, schedules.saveOccurrence(o.executed()), false);
-                c[1]++;
+            case SENT_TO_SPI, SETTLED -> transactionRunner.inTransaction(() -> {
+                publish("ScheduledOccurrenceExecuted", payment, schedules.saveOccurrence(occurrence.executed()), false);
+                counters[1]++;
                 closeIfDone(payment);
             });
             case REJECTED -> {
                 if ("AM04".equals(order.rejectReasonCode())) {
-                    insufficientFunds(payment, o, now, c);
+                    insufficientFunds(payment, occurrence, now, counters);
                 } else {
-                    fail(payment, o, order.rejectReasonCode() == null ? "REJECTED" : order.rejectReasonCode(), c);
+                    fail(payment, occurrence, order.rejectReasonCode() == null ? "REJECTED" : order.rejectReasonCode(), counters);
                 }
             }
-            case FAILED_TECHNICAL, CANCELLED -> fail(payment, o, order.status() == br.com.pixmanager.core.domain.enums.PaymentStatus.CANCELLED ? "CANCELLED" : "TECHNICAL", c);
+            case FAILED_TECHNICAL, CANCELLED -> fail(payment, occurrence, order.status() == br.com.pixmanager.core.domain.enums.PaymentStatus.CANCELLED ? "CANCELLED" : "TECHNICAL", counters);
             default -> { }                                                                  // ainda andando (VALIDATED/RESERVED): volta no próximo ciclo
         }
     }
 
     /** Saldo insuficiente: nova tentativa no mesmo dia entre 18h e 21h e AVISO ao cliente; sem janela/tentativas ⇒ falha definitiva. */
-    private void insufficientFunds(ScheduledPayment payment, ScheduledOccurrence o, Instant now, int[] c) {
-        Instant retryAt = retryPolicy.nextAttempt(o.dueDate(), now, o.attemptCount(), jitter.getAsDouble());
-        tx.inTransaction(() -> {
-            ScheduledOccurrence saved = schedules.saveOccurrence(o.insufficientFunds(retryAt, now));
+    private void insufficientFunds(ScheduledPayment payment, ScheduledOccurrence occurrence, Instant now, int[] counters) {
+        Instant retryAt = retryPolicy.nextAttempt(occurrence.dueDate(), now, occurrence.attemptCount(), jitter.getAsDouble());
+        transactionRunner.inTransaction(() -> {
+            ScheduledOccurrence saved = schedules.saveOccurrence(occurrence.insufficientFunds(retryAt, now));
             publish(retryAt == null ? "ScheduledOccurrenceFailed" : "ScheduledOccurrenceRetryNotified", payment, saved, true);
             if (retryAt == null) {
-                c[3]++;
+                counters[3]++;
                 closeIfDone(payment);
             } else {
-                c[2]++;
+                counters[2]++;
             }
         });
     }
 
     // ---------------------------------------------------------------- apoio
 
-    private void fail(ScheduledPayment payment, ScheduledOccurrence o, String code, int[] c) {
-        tx.inTransaction(() -> {
-            publish("ScheduledOccurrenceFailed", payment, schedules.saveOccurrence(o.failed(code)), false);
-            c[3]++;
+    private void fail(ScheduledPayment payment, ScheduledOccurrence occurrence, String code, int[] counters) {
+        transactionRunner.inTransaction(() -> {
+            publish("ScheduledOccurrenceFailed", payment, schedules.saveOccurrence(occurrence.failed(code)), false);
+            counters[3]++;
             closeIfDone(payment);
         });
     }
@@ -186,22 +186,22 @@ public class ExecuteScheduledPaymentsService implements ExecuteScheduledPayments
         }
     }
 
-    private void publish(String type, ScheduledPayment payment, ScheduledOccurrence o, boolean notify) {
-        events.publish(new ScheduledPaymentEvent(type, payment.id(), o.id(), payment.payerAccountId(), o.status().name(), o.dueDate(),
-                payment.amount(), o.nextAttemptAt(), notify, o.paymentOrderId()));
+    private void publish(String type, ScheduledPayment payment, ScheduledOccurrence occurrence, boolean notify) {
+        events.publish(new ScheduledPaymentEvent(type, payment.id(), occurrence.id(), payment.payerAccountId(), occurrence.status().name(), occurrence.dueDate(),
+                payment.amount(), occurrence.nextAttemptAt(), notify, occurrence.paymentOrderId()));
     }
 
-    private static CreatePaymentOrderCommand toCommand(ScheduledPayment p) {
-        return new CreatePaymentOrderCommand(p.payerAccountId(), p.method(), PaymentOrigin.SCHEDULED, p.amount(), p.pixKeyType(), p.pixKey(),
-                null, p.ispb(), p.branch(), p.account(), p.accountType(), p.name(), p.document(), null, p.payerMessage(), null, true);
+    private static CreatePaymentOrderCommand toCommand(ScheduledPayment scheduledPayment) {
+        return new CreatePaymentOrderCommand(scheduledPayment.payerAccountId(), scheduledPayment.method(), PaymentOrigin.SCHEDULED, scheduledPayment.amount(), scheduledPayment.pixKeyType(), scheduledPayment.pixKey(),
+                null, scheduledPayment.ispb(), scheduledPayment.branch(), scheduledPayment.account(), scheduledPayment.accountType(), scheduledPayment.name(), scheduledPayment.document(), null, scheduledPayment.payerMessage(), null, true);
     }
 
     /** Uma ocorrência com defeito não pode travar o lote: registra e segue. */
-    private void guarded(ScheduledOccurrence o, Runnable action) {
+    private void guarded(ScheduledOccurrence occurrence, Runnable action) {
         try {
             action.run();
-        } catch (RuntimeException e) {
-            log.error("Erro ao processar a ocorrência {} do agendamento {}", o.id(), o.scheduledPaymentId(), e);
+        } catch (RuntimeException exception) {
+            log.error("Erro ao processar a ocorrência {} do agendamento {}", occurrence.id(), occurrence.scheduledPaymentId(), exception);
         }
     }
 }

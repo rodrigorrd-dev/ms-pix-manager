@@ -67,13 +67,13 @@ class CancelPaymentOrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
-        service = new CancelPaymentOrderService(persistence, ledger, limits, events, tx, SP);
+        service = new CancelPaymentOrderService(persistence, ledger, limits, events, transactionRunner, SP);
     }
 
     @ParameterizedTest

@@ -18,15 +18,15 @@ public final class ProblemDetails {
     private ProblemDetails() {}
 
     public static ProblemDetail of(ErrorProperties props, HttpStatusCode status, String title, String detail, String code) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail);
-        pd.setTitle(title);
-        pd.setType(URI.create(props.baseTypeUri() + code));
-        pd.setProperty("code", code);
-        pd.setProperty("timestamp", Instant.now().toString());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
+        problemDetail.setTitle(title);
+        problemDetail.setType(URI.create(props.baseTypeUri() + code));
+        problemDetail.setProperty("code", code);
+        problemDetail.setProperty("timestamp", Instant.now().toString());
         String traceId = MDC.get("traceId");
         if (traceId != null) {
-            pd.setProperty("traceId", traceId);
+            problemDetail.setProperty("traceId", traceId);
         }
-        return pd;
+        return problemDetail;
     }
 }

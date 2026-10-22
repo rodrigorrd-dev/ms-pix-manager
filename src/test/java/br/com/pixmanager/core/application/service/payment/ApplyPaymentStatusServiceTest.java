@@ -65,13 +65,13 @@ class ApplyPaymentStatusServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
-        service = new ApplyPaymentStatusService(persistence, ledger, limits, events, inbox, tx, SP);
+        service = new ApplyPaymentStatusService(persistence, ledger, limits, events, inbox, transactionRunner, SP);
     }
 
     @Test

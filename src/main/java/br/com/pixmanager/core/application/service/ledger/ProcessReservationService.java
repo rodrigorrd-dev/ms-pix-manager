@@ -22,14 +22,14 @@ public class ProcessReservationService implements ProcessReservationUseCase {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProcessReservationService.class);
 
     private final ExecuteReservationUseCase execute;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Map<LedgerPurpose, ReservationOutcomeHandler> handlers = new EnumMap<>(LedgerPurpose.class);
 
-    public ProcessReservationService(ExecuteReservationUseCase execute, TransactionRunnerPortOut tx,
+    public ProcessReservationService(ExecuteReservationUseCase execute, TransactionRunnerPortOut transactionRunner,
                                      List<ReservationOutcomeHandler> handlerList) {
         this.execute = execute;
-        this.tx = tx;
-        handlerList.forEach(h -> handlers.put(h.purpose(), h));
+        this.transactionRunner = transactionRunner;
+        handlerList.forEach(handler -> handlers.put(handler.purpose(), handler));
     }
 
     /**
@@ -46,7 +46,7 @@ public class ProcessReservationService implements ProcessReservationUseCase {
         if (decided.status() == LedgerStatus.PENDING) {
             return;                                     // já decidida por outro (corrida): nada a aplicar
         }
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             LedgerReservation after = execute.save(decided);
             ReservationOutcomeHandler handler = handlers.get(after.purpose());
             if (handler == null) {

@@ -103,8 +103,8 @@ public record AutomaticAuthorization(UUID id, String idRec, boolean allowRetry, 
         }
     }
 
-    private AutomaticAuthorization with(String s, String rs, String rejection, String by, Instant approved, Instant cancelled) {
+    private AutomaticAuthorization with(String status, String requestStatus, String rejection, String by, Instant approved, Instant cancelled) {
         return new AutomaticAuthorization(id, idRec, allowRetry, payerAccountId, receiverDocument, receiverName, contract, objectDescription, periodicity,
-                startDate, endDate, fixedAmount, receiverMinAmount, payerMaxAmount, s, rs, rejection, by, approved, cancelled, requestExpiresAt, version);
+                startDate, endDate, fixedAmount, receiverMinAmount, payerMaxAmount, status, requestStatus, rejection, by, approved, cancelled, requestExpiresAt, version);
     }
 }

@@ -40,10 +40,10 @@ public class AvroPayloadDecoder {
                 throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "Payload inesperado em " + topic + ": esperado " + type.getSimpleName());
             }
             return type.cast(value);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "Payload ilegível em " + topic + " (não é Avro válido)", e);
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "Payload ilegível em " + topic + " (não é Avro válido)", exception);
         }
     }
 }

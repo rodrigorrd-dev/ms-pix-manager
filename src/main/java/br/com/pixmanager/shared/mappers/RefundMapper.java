@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class RefundMapper {
 
-    public RefundResponse toResponse(Refund r) {
-        return new RefundResponse(r.clientRefundId(), r.rtrId(), r.amount().toBcb(), r.nature(), r.description(),
-                new RefundResponse.Times(r.requestedAt(), r.settledAt()), r.status(), r.statusReason());
+    public RefundResponse toResponse(Refund refund) {
+        return new RefundResponse(refund.clientRefundId(), refund.rtrId(), refund.amount().toBcb(), refund.nature(), refund.description(),
+                new RefundResponse.Times(refund.requestedAt(), refund.settledAt()), refund.status(), refund.statusReason());
     }
 }

@@ -47,9 +47,9 @@ public class RefundStatusConsumer {
     @AsyncListener(operation = @AsyncOperation(channelName = TOPIC, description = "Resultado do pacs.004 da devolução (spi-gateway)",
             payloadType = SpiRefundStatus.class))
     public void onRefundStatus(ConsumerRecord<String, byte[]> record) {
-        SpiRefundStatus m = decoder.decode(record.topic(), record.value(), SpiRefundStatus.class);
-        RetryableConflicts.retryOnConflict(() -> settle.apply(CONSUMER_GROUP, m.getMessageId(), record.topic(), record.partition(),
-                record.offset(), m.getRtrId(), "SETTLED".equals(m.getStatus()), m.getReasonCode(), m.getOccurredAt()));
+        SpiRefundStatus spiRefundStatus = decoder.decode(record.topic(), record.value(), SpiRefundStatus.class);
+        RetryableConflicts.retryOnConflict(() -> settle.apply(CONSUMER_GROUP, spiRefundStatus.getMessageId(), record.topic(), record.partition(),
+                record.offset(), spiRefundStatus.getRtrId(), "SETTLED".equals(spiRefundStatus.getStatus()), spiRefundStatus.getReasonCode(), spiRefundStatus.getOccurredAt()));
     }
 
     @DltHandler

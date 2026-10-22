@@ -20,13 +20,13 @@ class ErrorCodeCatalogTest {
     void errorCodeLiteralsMustLiveOnlyInCatalog() throws IOException {
         List<String> offenders;
         try (Stream<Path> files = Files.walk(Path.of("src/main/java"))) {
-            offenders = files.filter(p -> p.toString().endsWith(".java"))
-                    .filter(p -> !p.endsWith("ErrorCodes.java"))
-                    .filter(p -> {
+            offenders = files.filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.endsWith("ErrorCodes.java"))
+                    .filter(path -> {
                         try {
-                            return LITERAL.matcher(Files.readString(p)).find();
-                        } catch (IOException e) {
-                            throw new IllegalStateException(e);
+                            return LITERAL.matcher(Files.readString(path)).find();
+                        } catch (IOException exception) {
+                            throw new IllegalStateException(exception);
                         }
                     })
                     .map(Path::toString).toList();
@@ -39,9 +39,9 @@ class ErrorCodeCatalogTest {
         var seen = new java.util.HashSet<String>();
         for (var f : ErrorCodes.class.getDeclaredFields()) {
             if (f.getType() == String.class) {
-                String v = (String) f.get(null);
-                assertThat(v).matches("PIX-\\d{3}-\\d{3}");
-                assertThat(seen.add(v)).as("duplicado: " + v).isTrue();
+                String code = (String) f.get(null);
+                assertThat(code).matches("PIX-\\d{3}-\\d{3}");
+                assertThat(seen.add(code)).as("duplicado: " + code).isTrue();
             }
         }
     }

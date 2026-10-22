@@ -33,7 +33,7 @@ class IdGeneratorsTest {
     void uuidV7ShouldNotCollide() {
         UuidV7IdGeneratorAdapter gen = new UuidV7IdGeneratorAdapter(clock);
         Set<UUID> ids = new HashSet<>();
-        for (int i = 0; i < 20_000; i++) {
+        for (int index = 0; index < 20_000; index++) {
             assertThat(ids.add(gen.newId())).isTrue();
         }
     }

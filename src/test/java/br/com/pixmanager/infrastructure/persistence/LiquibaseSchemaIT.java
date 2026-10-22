@@ -32,8 +32,8 @@ class LiquibaseSchemaIT {
         }
         String url = pg.getJdbcUrl().replaceFirst("/[^/?]+(\\?|$)", "/liquibase_it$1");
         try (Connection conn = DriverManager.getConnection(url, pg.getUsername(), pg.getPassword())) {
-            Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(conn));
-            try (Liquibase liquibase = new Liquibase(MASTER, new ClassLoaderResourceAccessor(), db)) {
+            Database database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(conn));
+            try (Liquibase liquibase = new Liquibase(MASTER, new ClassLoaderResourceAccessor(), database)) {
                 liquibase.update("");
                 assertThat(count(conn, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name NOT LIKE 'databasechangelog%'"))
                         .as("tabelas de domínio/infra criadas").isGreaterThanOrEqualTo(37);
@@ -52,9 +52,9 @@ class LiquibaseSchemaIT {
     }
 
     private static int count(Connection conn, String sql) throws Exception {
-        try (var st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-            rs.next();
-            return rs.getInt(1);
+        try (var st = conn.createStatement(); ResultSet resultSet = st.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getInt(1);
         }
     }
 }

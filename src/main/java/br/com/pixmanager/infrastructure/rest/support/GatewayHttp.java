@@ -33,10 +33,10 @@ public final class GatewayHttp {
     public static <T> T call(CircuitBreaker breaker, String dependency, Supplier<T> action) {
         try {
             return breaker.executeSupplier(action);
-        } catch (CallNotPermittedException e) {
-            throw new DependencyUnavailableException("Circuito de " + dependency + " aberto", e);
-        } catch (ResourceAccessException e) {
-            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, dependency + " indisponível (timeout/IO)", e);
+        } catch (CallNotPermittedException exception) {
+            throw new DependencyUnavailableException("Circuito de " + dependency + " aberto", exception);
+        } catch (ResourceAccessException exception) {
+            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, dependency + " indisponível (timeout/IO)", exception);
         }
     }
 

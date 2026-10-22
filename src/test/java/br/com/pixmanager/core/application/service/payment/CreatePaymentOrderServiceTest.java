@@ -82,14 +82,14 @@ class CreatePaymentOrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
         service = new CreatePaymentOrderService(accounts, lookup, limits, reservations, persistence, devices, events, e2eIds,
-                new SequentialIds(), tx, FixedClock.at("2026-10-15T15:00:00Z"), dynamicQr);
+                new SequentialIds(), transactionRunner, FixedClock.at("2026-10-15T15:00:00Z"), dynamicQr);
     }
 
     @Test
@@ -184,7 +184,7 @@ class CreatePaymentOrderServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, byKey("10.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.BUSINESS_RULE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.BUSINESS_RULE));
 
         verifyNoInteractions(lookup, limits, persistence);
     }
@@ -196,7 +196,7 @@ class CreatePaymentOrderServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, byKey("10.00", null)))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
 
         verifyNoInteractions(limits, persistence);
     }
@@ -211,7 +211,7 @@ class CreatePaymentOrderServiceTest {
 
         assertThatThrownBy(() -> service.create(caller, cmd))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.DESTINATION_MISMATCH));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.DESTINATION_MISMATCH));
 
         verify(limits, never()).consume(any(), any(), any(), anyBoolean());
     }

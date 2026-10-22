@@ -55,10 +55,10 @@ class ScheduledOccurrenceTest {
         Instant retryAt = policy.nextAttempt(DAY, now, 1, 0.5);
         assertThat(retryAt.atZone(SP).toLocalDate()).isEqualTo(DAY);
         assertThat(retryAt.atZone(SP).toLocalTime()).isBetween(java.time.LocalTime.of(18, 0), java.time.LocalTime.of(21, 0));
-        ScheduledOccurrence r = occ().startProcessing(UUID.randomUUID()).insufficientFunds(retryAt, now);
-        assertThat(r.status()).isEqualTo(OccurrenceStatus.RETRY_PENDING);
-        assertThat(r.customerNotifiedAt()).isEqualTo(now);
-        ScheduledOccurrence second = r.startProcessing(UUID.randomUUID()).insufficientFunds(null, now.plusSeconds(9 * 3600));
+        ScheduledOccurrence occurrence = occ().startProcessing(UUID.randomUUID()).insufficientFunds(retryAt, now);
+        assertThat(occurrence.status()).isEqualTo(OccurrenceStatus.RETRY_PENDING);
+        assertThat(occurrence.customerNotifiedAt()).isEqualTo(now);
+        ScheduledOccurrence second = occurrence.startProcessing(UUID.randomUUID()).insufficientFunds(null, now.plusSeconds(9 * 3600));
         assertThat(second.status()).isEqualTo(OccurrenceStatus.FAILED_INSUFFICIENT_FUNDS);
         assertThat(second.customerNotifiedAt()).as("aviso só uma vez").isEqualTo(now);
         assertThat(second.attemptCount()).isEqualTo(2);
@@ -87,8 +87,8 @@ class ScheduledOccurrenceTest {
 
     @Test
     void otherFailuresAreDefinitive() {
-        ScheduledOccurrence f = occ().startProcessing(UUID.randomUUID()).failed("PIX-422-040");
-        assertThat(f.status()).isEqualTo(OccurrenceStatus.FAILED);
-        assertThat(f.lastErrorCode()).isEqualTo("PIX-422-040");
+        ScheduledOccurrence occurrence = occ().startProcessing(UUID.randomUUID()).failed("PIX-422-040");
+        assertThat(occurrence.status()).isEqualTo(OccurrenceStatus.FAILED);
+        assertThat(occurrence.lastErrorCode()).isEqualTo("PIX-422-040");
     }
 }

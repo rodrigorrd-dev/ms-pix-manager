@@ -72,45 +72,45 @@ public class ReceivedPixEntity {
 
     public UUID getId() { return id; }
     public String getEndToEndId() { return endToEndId; }
-    public void setEndToEndId(String v) { this.endToEndId = v; }
+    public void setEndToEndId(String endToEndId) { this.endToEndId = endToEndId; }
     public String getTxid() { return txid; }
-    public void setTxid(String v) { this.txid = v; }
+    public void setTxid(String txid) { this.txid = txid; }
     public UUID getChargeId() { return chargeId; }
-    public void setChargeId(UUID v) { this.chargeId = v; }
+    public void setChargeId(UUID chargeId) { this.chargeId = chargeId; }
     public UUID getReceiverAccountId() { return receiverAccountId; }
-    public void setReceiverAccountId(UUID v) { this.receiverAccountId = v; }
+    public void setReceiverAccountId(UUID receiverAccountId) { this.receiverAccountId = receiverAccountId; }
     public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal v) { this.amount = v; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
     public BigDecimal getRefundableAmount() { return refundableAmount; }
-    public void setRefundableAmount(BigDecimal v) { this.refundableAmount = v; }
+    public void setRefundableAmount(BigDecimal refundableAmount) { this.refundableAmount = refundableAmount; }
     public BigDecimal getRefundedTotal() { return refundedTotal; }
-    public void setRefundedTotal(BigDecimal v) { this.refundedTotal = v; }
+    public void setRefundedTotal(BigDecimal refundedTotal) { this.refundedTotal = refundedTotal; }
     public String getPayerType() { return payerType; }
-    public void setPayerType(String v) { this.payerType = v; }
+    public void setPayerType(String payerType) { this.payerType = payerType; }
     public String getPayerDocumentEnc() { return payerDocumentEnc; }
-    public void setPayerDocumentEnc(String v) { this.payerDocumentEnc = v; }
+    public void setPayerDocumentEnc(String payerDocumentEnc) { this.payerDocumentEnc = payerDocumentEnc; }
     public String getPayerDocumentHash() { return payerDocumentHash; }
-    public void setPayerDocumentHash(String v) { this.payerDocumentHash = v; }
+    public void setPayerDocumentHash(String payerDocumentHash) { this.payerDocumentHash = payerDocumentHash; }
     public String getPayerDocumentMasked() { return payerDocumentMasked; }
-    public void setPayerDocumentMasked(String v) { this.payerDocumentMasked = v; }
+    public void setPayerDocumentMasked(String payerDocumentMasked) { this.payerDocumentMasked = payerDocumentMasked; }
     public String getPayerName() { return payerName; }
-    public void setPayerName(String v) { this.payerName = v; }
+    public void setPayerName(String payerName) { this.payerName = payerName; }
     public String getPayerIspb() { return payerIspb; }
-    public void setPayerIspb(String v) { this.payerIspb = v; }
+    public void setPayerIspb(String payerIspb) { this.payerIspb = payerIspb; }
     public String getPayerBranch() { return payerBranch; }
-    public void setPayerBranch(String v) { this.payerBranch = v; }
+    public void setPayerBranch(String payerBranch) { this.payerBranch = payerBranch; }
     public String getPayerAccount() { return payerAccount; }
-    public void setPayerAccount(String v) { this.payerAccount = v; }
+    public void setPayerAccount(String payerAccount) { this.payerAccount = payerAccount; }
     public String getPayerAccountType() { return payerAccountType; }
-    public void setPayerAccountType(String v) { this.payerAccountType = v; }
+    public void setPayerAccountType(String payerAccountType) { this.payerAccountType = payerAccountType; }
     public String getPayerInfo() { return payerInfo; }
-    public void setPayerInfo(String v) { this.payerInfo = v; }
+    public void setPayerInfo(String payerInfo) { this.payerInfo = payerInfo; }
     public Instant getSettledAt() { return settledAt; }
-    public void setSettledAt(Instant v) { this.settledAt = v; }
+    public void setSettledAt(Instant settledAt) { this.settledAt = settledAt; }
     public String getReconciliationStatus() { return reconciliationStatus; }
-    public void setReconciliationStatus(String v) { this.reconciliationStatus = v; }
+    public void setReconciliationStatus(String reconciliationStatus) { this.reconciliationStatus = reconciliationStatus; }
     public String getSourceMessageId() { return sourceMessageId; }
-    public void setSourceMessageId(String v) { this.sourceMessageId = v; }
+    public void setSourceMessageId(String sourceMessageId) { this.sourceMessageId = sourceMessageId; }
     public Long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
 }

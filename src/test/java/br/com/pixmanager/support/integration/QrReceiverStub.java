@@ -47,17 +47,17 @@ public final class QrReceiverStub {
 
     public static String sign(String payloadJson) {
         try (InputStream in = QrReceiverStub.class.getResourceAsStream("/qr/leaf.p12")) {
-            KeyStore ks = KeyStore.getInstance("PKCS12");
-            ks.load(in, PW);
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(in, PW);
             var chain = new ArrayList<Base64>();
-            for (Certificate c : ks.getCertificateChain("leaf")) {
-                chain.add(Base64.encode(((X509Certificate) c).getEncoded()));
+            for (Certificate certificate : keyStore.getCertificateChain("leaf")) {
+                chain.add(Base64.encode(((X509Certificate) certificate).getEncoded()));
             }
             JWSObject jws = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.RS256).x509CertChain(chain).build(), new Payload(payloadJson));
-            jws.sign(new RSASSASigner((PrivateKey) ks.getKey("leaf", PW)));
+            jws.sign(new RSASSASigner((PrivateKey) keyStore.getKey("leaf", PW)));
             return jws.serialize();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
         }
     }
 

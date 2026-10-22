@@ -66,9 +66,9 @@ public class IdempotencyService {
                        FOR UPDATE
                     """)
                     .param("client", clientId).param("operation", operation).param("key", key)
-                    .query((rs, n) -> new Existing(rs.getObject("id", UUID.class), rs.getString("request_hash"),
-                            rs.getString("status"), rs.getTimestamp("locked_until"), rs.getInt("response_status"),
-                            rs.getString("body")))
+                    .query((resultSet, rowNumber) -> new Existing(resultSet.getObject("id", UUID.class), resultSet.getString("request_hash"),
+                            resultSet.getString("status"), resultSet.getTimestamp("locked_until"), resultSet.getInt("response_status"),
+                            resultSet.getString("body")))
                     .single();
             if (!existing.hash().equals(hash)) {
                 return new IdempotencyOutcome.Mismatch();

@@ -70,10 +70,10 @@ public record Cpf(String value) implements Document {
     }
 
     /** DV na posição {@code n} (9 ou 10): soma ponderada dos {@code n} primeiros dígitos, pesos {@code n+1..2}. */
-    private static int check(String digits, int n) {
+    private static int check(String digits, int digitCount) {
         int sum = 0;
-        for (int i = 0; i < n; i++) {
-            sum += digit(digits, i) * (n + 1 - i);
+        for (int index = 0; index < digitCount; index++) {
+            sum += digit(digits, index) * (digitCount + 1 - index);
         }
         return (sum * 10) % 11 % 10;
     }

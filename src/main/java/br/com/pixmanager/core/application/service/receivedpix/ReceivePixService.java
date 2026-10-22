@@ -83,11 +83,11 @@ public class ReceivePixService implements ReceivePixUseCase {
         ChargeSettlement settlement = cmd.txid() == null ? new ChargeSettlement.NotFound()
                 : charges.settle(receiver.id(), cmd.txid(), id, cmd.amount(), cmd.settledAt());
         ReceivedPix reconciled = switch (settlement) {
-            case ChargeSettlement.Settled s -> pix.reconciled(ReconciliationStatus.MATCHED, s.chargeId());
-            case ChargeSettlement.PaidAfterExpiration s -> pix.reconciled(ReconciliationStatus.MATCHED_AFTER_EXPIRATION, s.chargeId());
-            case ChargeSettlement.AmountMismatch s -> pix.reconciled(ReconciliationStatus.MISMATCH, s.chargeId());
-            case ChargeSettlement.NotPayable s -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
-            case ChargeSettlement.NotFound s -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
+            case ChargeSettlement.Settled settled -> pix.reconciled(ReconciliationStatus.MATCHED, settled.chargeId());
+            case ChargeSettlement.PaidAfterExpiration paidAfterExpiration -> pix.reconciled(ReconciliationStatus.MATCHED_AFTER_EXPIRATION, paidAfterExpiration.chargeId());
+            case ChargeSettlement.AmountMismatch amountMismatch -> pix.reconciled(ReconciliationStatus.MISMATCH, amountMismatch.chargeId());
+            case ChargeSettlement.NotPayable notPayable -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
+            case ChargeSettlement.NotFound notFound -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
         };
         ReceivedPix saved = persistence.save(reconciled);
         events.publish(new PixReceivedEvent(saved));
