@@ -90,10 +90,10 @@ class ScheduledPaymentApiIT extends AbstractApplicationIT {
     }
 
     JsonNode create(String body) throws Exception {
-        var cycleResult = mvc.perform(post("/v1/scheduled-payments").with(jwt("schedule.write")).header("Idempotency-Key", UUID.randomUUID().toString())
+        var mvcResult = mvc.perform(post("/v1/scheduled-payments").with(jwt("schedule.write")).header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn();
-        assertThat(cycleResult.getResponse().getStatus()).as(cycleResult.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(cycleResult.getResponse().getContentAsString());
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     String occurrenceStatus(String scheduleId) {

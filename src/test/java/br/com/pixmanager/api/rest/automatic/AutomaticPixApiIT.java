@@ -93,19 +93,19 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
     }
 
     JsonNode receive(String idRec, String extra) throws Exception {
-        var cycleResult = mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
+        var mvcResult = mvc.perform(post("/v1/automatic-authorizations").with(jwt("automatic.write")).contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"idRec":"%s","payerAccountId":"%s","payerDocument":"%s","receiverDocument":"%s","receiverName":"Academia Forma","contract":"CONTRATO-77",
                          "objectDescription":"mensalidade","periodicity":"MENSAL","startDate":"2026-10-01"%s}""".formatted(idRec, payer.id(), payerCpf, TestDocuments.randomCnpj(), extra))).andReturn();
-        assertThat(cycleResult.getResponse().getStatus()).as(cycleResult.getResponse().getContentAsString()).isEqualTo(201);
-        return json.readTree(cycleResult.getResponse().getContentAsString());
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(201);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     JsonNode approved(String idRec, String extra) throws Exception {
         String id = receive(idRec, extra).get("id").asText();
-        var cycleResult = mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andReturn();
-        assertThat(cycleResult.getResponse().getStatus()).as(cycleResult.getResponse().getContentAsString()).isEqualTo(200);
-        return json.readTree(cycleResult.getResponse().getContentAsString());
+        var mvcResult = mvc.perform(post("/v1/automatic-authorizations/{id}/approval", id).with(jwt("automatic.write"))).andReturn();
+        assertThat(mvcResult.getResponse().getStatus()).as(mvcResult.getResponse().getContentAsString()).isEqualTo(200);
+        return json.readTree(mvcResult.getResponse().getContentAsString());
     }
 
     org.springframework.test.web.servlet.ResultActions charge(String authId, String txid, String due, String amount) throws Exception {
