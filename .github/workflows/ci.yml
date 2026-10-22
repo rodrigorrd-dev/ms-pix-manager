@@ -220,7 +220,14 @@ jobs:
       - name: Testes de concorrência
         run: mvn -B -Pconcurrency test
       - name: OWASP dependency-check completo (NVD)
-        run: mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "$NVD_API_KEY" ]; then
+            echo "::warning::Segredo NVD_API_KEY não configurado: dependency-check ignorado (sem chave a NVD limita/rejeita a atualização da base)."
+          else
+            mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey="$NVD_API_KEY"
+          fi
       - name: Stack + carga de fumaça (Gatling, asserts p95/falhas)
         run: |
           docker compose up -d --build
