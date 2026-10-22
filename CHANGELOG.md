@@ -1,6 +1,24 @@
 # Changelog
 Formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.0](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.1.0...v0.2.0) (2026-10-17)
+
+
+### Funcionalidades
+
+* merge feature/contributing-git-flow em develop ([4bc5c6c](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/4bc5c6c5e720a8538f1035bd321d0b98ad3909ff))
+* merge feature/issue-taxonomy em develop ([75981e4](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/75981e4ae0624a48ade18515e06353149efcc277))
+* merge feature/quality-gates em develop ([dbc6e43](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/dbc6e430fd49521b6bdea33393984cdf1848e957))
+* **ops:** métricas e alertas de entregas de webhook DEAD e vencidas ([20fe1f7](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/20fe1f75051fa761475f4921bcb741a6e1d36975))
+* **pix:** adiciona pix agendado, pix automático e casos de MED ([7e7ae6a](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/7e7ae6a3e86fbcc645daaf14208872b532136c4f))
+* **security:** recusa insecure-tls e allow-unverified-chain em hml e prd ([a165fcb](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/a165fcb9275a6022e4933f404b869696df76d984))
+* **webhook:** exige https, valida TLS e restringe o reenvio ao escopo webhook.admin ([4a4307d](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/4a4307dc4c9a394a6474774fa2e6ec2c69cf1cb0))
+
+
+### Correções
+
+* **security:** remove o TrustManager que aceita todos os certificados ([e4585a1](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/e4585a182a8bb834f030fde0867321c4c32c7138))
+
 ## [Unreleased]
 
 ## [0.1.0] - 2026-10-16
