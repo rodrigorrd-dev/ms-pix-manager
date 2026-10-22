@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.AutomaticAttempt;
 import br.com.pixmanager.core.domain.entity.AutomaticAuthorization;
 import br.com.pixmanager.core.domain.entity.AutomaticCharge;
@@ -18,7 +19,6 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -56,11 +56,15 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
                     VALUES (:id, :idRec, :retry, :payer, (SELECT h.document_hash FROM payment_account pa JOIN account_holder h ON h.id = pa.holder_id WHERE pa.id = :payer),
                         :docEnc, :docHash, :docMasked, :name, :contract, :object, :periodicity, :start, :end, :fixed, :min, :max, :status, :requestStatus,
                         :expires, :actor, :actor)""")
-                    .param("id", authorization.id()).param("idRec", authorization.idRec()).param("retry", authorization.allowRetry()).param("payer", authorization.payerAccountId())
+                    .param("id", authorization.id()).param("idRec", authorization.idRec()).param("retry", authorization.allowRetry())
+                    .param("payer", authorization.payerAccountId())
                     .param("docEnc", crypto.encrypt(receiver.value())).param("docHash", crypto.blindIndex(receiver.value())).param("docMasked", receiver.masked())
-                    .param("name", authorization.receiverName()).param("contract", authorization.contract()).param("object", authorization.objectDescription()).param("periodicity", authorization.periodicity().name())
-                    .param("start", authorization.startDate()).param("end", authorization.endDate()).param("fixed", amount(authorization.fixedAmount())).param("min", amount(authorization.receiverMinAmount()))
-                    .param("max", amount(authorization.payerMaxAmount())).param("status", authorization.status()).param("requestStatus", authorization.requestStatus())
+                    .param("name", authorization.receiverName()).param("contract", authorization.contract())
+                    .param("object", authorization.objectDescription()).param("periodicity", authorization.periodicity().name())
+                    .param("start", authorization.startDate()).param("end", authorization.endDate())
+                    .param("fixed", Money.valueOrNull(authorization.fixedAmount())).param("min", Money.valueOrNull(authorization.receiverMinAmount()))
+                    .param("max", Money.valueOrNull(authorization.payerMaxAmount())).param("status", authorization.status())
+                    .param("requestStatus", authorization.requestStatus())
                     .param("expires", Timestamp.from(authorization.requestExpiresAt())).param("actor", ACTOR).update();
         } catch (DuplicateKeyException exception) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe uma autorização com este idRec.");
@@ -86,8 +90,10 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
                 UPDATE pix_automatic_authorization SET status = :status, request_status = :rs, rejection_code = :rej, cancelled_by = :by, approved_at = :ap,
                     cancelled_at = :ca, payer_max_amount = :max, version = version + 1, updated_at = now(), updated_by = :actor
                 WHERE id = :id AND version = :v""")
-                .param("status", authorization.status()).param("rs", authorization.requestStatus()).param("rej", authorization.rejectionCode()).param("by", authorization.cancelledBy())
-                .param("ap", ts(authorization.approvedAt())).param("ca", ts(authorization.cancelledAt())).param("max", amount(authorization.payerMaxAmount())).param("actor", ACTOR)
+                .param("status", authorization.status()).param("rs", authorization.requestStatus()).param("rej", authorization.rejectionCode())
+                .param("by", authorization.cancelledBy())
+                .param("ap", Timestamps.from(authorization.approvedAt())).param("ca", Timestamps.from(authorization.cancelledAt()))
+                .param("max", Money.valueOrNull(authorization.payerMaxAmount())).param("actor", ACTOR)
                 .param("id", authorization.id()).param("v", authorization.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A autorização foi alterada por outra requisição (versão desatualizada).");
@@ -131,8 +137,10 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
             jdbc.sql("""
                     INSERT INTO pix_automatic_charge (id, authorization_id, txid, due_date, amount, status, receiver_ispb, receiver_branch, receiver_account, receiver_account_type)
                     VALUES (:id, :auth, :txid, :due, :amount, :status, :ispb, :branch, :account, :type)""")
-                    .param("id", automaticCharge.id()).param("auth", automaticCharge.authorizationId()).param("txid", automaticCharge.txid()).param("due", automaticCharge.dueDate()).param("amount", automaticCharge.amount().value())
-                    .param("status", automaticCharge.status()).param("ispb", automaticCharge.receiverIspb()).param("branch", automaticCharge.receiverBranch()).param("account", automaticCharge.receiverAccount())
+                    .param("id", automaticCharge.id()).param("auth", automaticCharge.authorizationId()).param("txid", automaticCharge.txid())
+                    .param("due", automaticCharge.dueDate()).param("amount", automaticCharge.amount().value())
+                    .param("status", automaticCharge.status()).param("ispb", automaticCharge.receiverIspb())
+                    .param("branch", automaticCharge.receiverBranch()).param("account", automaticCharge.receiverAccount())
                     .param("type", automaticCharge.receiverAccountType()).update();
         } catch (DuplicateKeyException exception) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe uma cobrança com este txid nesta autorização.");
@@ -173,7 +181,8 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Transactional
     public void insertAttempt(AutomaticAttempt automaticAttempt) {
         jdbc.sql("INSERT INTO pix_automatic_attempt (id, charge_id, attempt_type, status, end_to_end_id, settlement_date, payment_order_id) VALUES (:id, :c, :t, :s, :e2e, :d, :o)")
-                .param("id", automaticAttempt.id()).param("c", automaticAttempt.chargeId()).param("t", automaticAttempt.type()).param("s", automaticAttempt.status()).param("e2e", automaticAttempt.endToEndId())
+                .param("id", automaticAttempt.id()).param("c", automaticAttempt.chargeId()).param("t", automaticAttempt.type())
+                .param("s", automaticAttempt.status()).param("e2e", automaticAttempt.endToEndId())
                 .param("d", automaticAttempt.settlementDate()).param("o", automaticAttempt.paymentOrderId()).update();
     }
 
@@ -181,7 +190,8 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Transactional
     public AutomaticAttempt saveAttempt(AutomaticAttempt automaticAttempt) {
         int rows = jdbc.sql("UPDATE pix_automatic_attempt SET status = :s, end_to_end_id = :e2e, payment_order_id = :o, last_error_code = :err, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
-                .param("s", automaticAttempt.status()).param("e2e", automaticAttempt.endToEndId()).param("o", automaticAttempt.paymentOrderId()).param("err", automaticAttempt.lastErrorCode()).param("id", automaticAttempt.id()).param("v", automaticAttempt.version()).update();
+                .param("s", automaticAttempt.status()).param("e2e", automaticAttempt.endToEndId()).param("o", automaticAttempt.paymentOrderId())
+                .param("err", automaticAttempt.lastErrorCode()).param("id", automaticAttempt.id()).param("v", automaticAttempt.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A tentativa foi alterada por outra requisição (versão desatualizada).");
         }
@@ -220,16 +230,18 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     // ---------------------------------------------------------------- mapeamento
 
     private AutomaticAuthorization authorization(ResultSet resultSet, int row) throws SQLException {
-        return new AutomaticAuthorization(resultSet.getObject("id", UUID.class), resultSet.getString("id_rec"), resultSet.getBoolean("allow_retry"), resultSet.getObject("payer_account_id", UUID.class),
+        return new AutomaticAuthorization(resultSet.getObject("id", UUID.class), resultSet.getString("id_rec"), resultSet.getBoolean("allow_retry"),
+                resultSet.getObject("payer_account_id", UUID.class),
                 crypto.decrypt(resultSet.getString("receiver_document_enc")), resultSet.getString("receiver_name"), resultSet.getString("contract"), resultSet.getString("object_description"),
                 AutomaticPeriodicity.valueOf(resultSet.getString("periodicity")), resultSet.getObject("start_date", LocalDate.class), resultSet.getObject("end_date", LocalDate.class),
-                money(resultSet.getBigDecimal("fixed_amount")), money(resultSet.getBigDecimal("receiver_min_amount")), money(resultSet.getBigDecimal("payer_max_amount")),
+                Money.ofNullable(resultSet.getBigDecimal("fixed_amount")), Money.ofNullable(resultSet.getBigDecimal("receiver_min_amount")), Money.ofNullable(resultSet.getBigDecimal("payer_max_amount")),
                 resultSet.getString("status"), resultSet.getString("request_status"), resultSet.getString("rejection_code"), resultSet.getString("cancelled_by"),
-                instant(resultSet.getTimestamp("approved_at")), instant(resultSet.getTimestamp("cancelled_at")), instant(resultSet.getTimestamp("request_expires_at")), resultSet.getLong("version"));
+                Timestamps.toInstant(resultSet.getTimestamp("approved_at")), Timestamps.toInstant(resultSet.getTimestamp("cancelled_at")), Timestamps.toInstant(resultSet.getTimestamp("request_expires_at")), resultSet.getLong("version"));
     }
 
     private AutomaticCharge charge(ResultSet resultSet, int row) throws SQLException {
-        return new AutomaticCharge(resultSet.getObject("id", UUID.class), resultSet.getObject("authorization_id", UUID.class), resultSet.getString("txid"), resultSet.getObject("due_date", LocalDate.class),
+        return new AutomaticCharge(resultSet.getObject("id", UUID.class), resultSet.getObject("authorization_id", UUID.class), resultSet.getString("txid"),
+                resultSet.getObject("due_date", LocalDate.class),
                 Money.of(resultSet.getBigDecimal("amount")), resultSet.getString("receiver_ispb"), resultSet.getString("receiver_branch"), resultSet.getString("receiver_account"),
                 resultSet.getString("receiver_account_type"), resultSet.getString("status"), resultSet.getLong("version"));
     }
@@ -240,19 +252,7 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
                 resultSet.getString("last_error_code"), resultSet.getLong("version"));
     }
 
-    private static BigDecimal amount(Money money) {
-        return money == null ? null : money.value();
-    }
 
-    private static Money money(BigDecimal amount) {
-        return amount == null ? null : Money.of(amount);
-    }
 
-    private static Timestamp ts(Instant instant) {
-        return instant == null ? null : Timestamp.from(instant);
-    }
 
-    private static Instant instant(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant();
-    }
 }

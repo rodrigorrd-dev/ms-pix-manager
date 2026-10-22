@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.OtpChallenge;
 import br.com.pixmanager.core.domain.enums.OtpChannel;
 import br.com.pixmanager.core.port.out.persistence.OtpChallengePortOut;
@@ -32,7 +33,7 @@ public class OtpChallengePersistenceAdapter implements OtpChallengePortOut {
                 """)
                 .param("id", otpChallenge.id()).param("key", otpChallenge.pixKeyId()).param("channel", otpChallenge.channel().name()).param("hash", otpChallenge.codeHash())
                 .param("attempts", otpChallenge.attempts()).param("expires", Timestamp.from(otpChallenge.expiresAt()))
-                .param("verified", otpChallenge.verifiedAt() == null ? null : Timestamp.from(otpChallenge.verifiedAt())).param("created", Timestamp.from(otpChallenge.createdAt()))
+                .param("verified", Timestamps.from(otpChallenge.verifiedAt())).param("created", Timestamp.from(otpChallenge.createdAt()))
                 .update();
         return otpChallenge;
     }
@@ -44,7 +45,7 @@ public class OtpChallengePersistenceAdapter implements OtpChallengePortOut {
                 .query((resultSet, rowNumber) -> new OtpChallenge(resultSet.getObject("id", UUID.class), resultSet.getObject("pix_key_id", UUID.class),
                         OtpChannel.valueOf(resultSet.getString("channel")), resultSet.getString("code_hash"), resultSet.getInt("attempts"),
                         resultSet.getTimestamp("expires_at").toInstant(),
-                        resultSet.getTimestamp("verified_at") == null ? null : resultSet.getTimestamp("verified_at").toInstant(),
+                        Timestamps.toInstant(resultSet.getTimestamp("verified_at")),
                         resultSet.getTimestamp("created_at").toInstant()))
                 .optional();
     }

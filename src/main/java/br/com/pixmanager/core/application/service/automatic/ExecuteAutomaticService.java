@@ -67,14 +67,14 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
     public Result runCycle() {
         Instant now = clock.instant();
         LocalDate today = LocalDate.now(clock.withZone(properties.zone()));
-        int[] counters = new int[6];                                                          // expired, started, paid, retried, failed, released
+        CycleCounters counters = new CycleCounters();
         for (AutomaticAuthorization authorization : persistence.findExpiredRequests(now, properties.batch())) {
             guarded(authorization.id(), () -> {
                 transactionRunner.inTransaction(() -> {
                     AutomaticAuthorization saved = persistence.saveAuthorization(authorization.expired());
                     events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationExpired", saved));
                 });
-                counters[0]++;
+                counters.expired();
             });
         }
         for (AutomaticAttempt attempt : persistence.claimDue(today, now.minusSeconds(60), properties.batch())) {
@@ -86,13 +86,13 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
         for (AutomaticAttempt attempt : persistence.inProgressWithoutOrderSince(now.minus(properties.stuckAfter()), properties.batch())) {
             guarded(attempt.id(), () -> {
                 transactionRunner.inTransaction(() -> persistence.saveAttempt(attempt.with("AGENDADA", "STUCK")));
-                counters[5]++;
+                counters.released();
             });
         }
-        return new Result(counters[0], counters[1], counters[2], counters[3], counters[4], counters[5]);
+        return counters.toResult();
     }
 
-    private void start(AutomaticAttempt attempt, LocalDate today, int[] counters) {
+    private void start(AutomaticAttempt attempt, LocalDate today, CycleCounters counters) {
         AutomaticCharge charge = persistence.findCharge(attempt.chargeId()).orElseThrow();
         AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
         if (!authorization.isApproved() || !charge.isLive()) {
@@ -126,20 +126,20 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
             AutomaticAttempt linked = persistence.saveAttempt(attempt.linkedTo(result.orderId(), result.order().endToEndId().value()));
             if (result instanceof PaymentOrderResult.Rejected rejected) {                     // limite da data estourado
                 finishRows(linked, persistence.findCharge(charge.id()).orElseThrow(), "REJEITADA", "REJEITADA", rejected.errorCode());
-                counters[4]++;
+                counters.failed();
             } else {
-                counters[1]++;
+                counters.started();
             }
         });
     }
 
-    private void follow(AutomaticAttempt attempt, LocalDate today, int[] counters) {
+    private void follow(AutomaticAttempt attempt, LocalDate today, CycleCounters counters) {
         PaymentOrder order = orders.findById(attempt.paymentOrderId()).orElseThrow();
         AutomaticCharge charge = persistence.findCharge(attempt.chargeId()).orElseThrow();
         switch (order.status()) {
             case SENT_TO_SPI, SETTLED -> {
                 transactionRunner.inTransaction(() -> finishRows(attempt, charge, "PAGA", "CONCLUIDA", null));
-                counters[2]++;
+                counters.paid();
             }
             case REJECTED -> {
                 AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
@@ -150,7 +150,7 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
                         persistence.insertAttempt(new AutomaticAttempt(ids.newId(), charge.id(), "NTAG", "AGENDADA", endToEndIdGenerator.nextEndToEndId(),
                                 today.plusDays(1), null, null, 0));
                     });
-                    counters[3]++;
+                    counters.retried();
                 } else {
                     finish(attempt, charge, "REJEITADA", "REJEITADA", order.rejectReasonCode() == null ? "REJECTED" : order.rejectReasonCode(), counters);
                 }
@@ -160,9 +160,9 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
         }
     }
 
-    private void finish(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error, int[] counters) {
+    private void finish(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error, CycleCounters counters) {
         transactionRunner.inTransaction(() -> finishRows(attempt, charge, attemptStatus, chargeStatus, error));
-        counters[4]++;
+        counters.failed();
     }
 
     private void finishRows(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error) {
@@ -175,6 +175,21 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
             action.run();
         } catch (RuntimeException exception) {
             log.error("Erro no Pix Automático ao processar {}", id, exception);
+        }
+    }
+
+    /** Acumulador do ciclo: cada contador tem nome, em vez de um índice mágico num {@code int[]}. */
+    private static final class CycleCounters {
+        private int expired, started, paid, retried, failed, released;
+        void expired() { expired++; }
+        void started() { started++; }
+        void paid() { paid++; }
+        void retried() { retried++; }
+        void failed() { failed++; }
+        void released() { released++; }
+
+        Result toResult() {
+            return new Result(expired, started, paid, retried, failed, released);
         }
     }
 }

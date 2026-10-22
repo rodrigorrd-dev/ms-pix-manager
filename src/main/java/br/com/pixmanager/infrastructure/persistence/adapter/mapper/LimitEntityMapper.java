@@ -11,8 +11,8 @@ public class LimitEntityMapper {
 
     public AccountLimit toDomain(LimitEntity entity) {
         return new AccountLimit(entity.getId(), entity.getAccountId(), LimitScope.valueOf(entity.getScope()), Money.of(entity.getAmount()),
-                entity.getCeilingAmount() == null ? null : Money.of(entity.getCeilingAmount()),
-                entity.getPendingAmount() == null ? null : Money.of(entity.getPendingAmount()), entity.getPendingRequestedAt(),
+                Money.ofNullable(entity.getCeilingAmount()),
+                Money.ofNullable(entity.getPendingAmount()), entity.getPendingRequestedAt(),
                 entity.getPendingEffectiveAt(), entity.getVersion());
     }
 
@@ -22,8 +22,8 @@ public class LimitEntityMapper {
             entity.setScope(accountLimit.scope().name());
         }
         entity.setAmount(accountLimit.amount().value());
-        entity.setCeilingAmount(accountLimit.ceiling() == null ? null : accountLimit.ceiling().value());
-        entity.setPendingAmount(accountLimit.pendingAmount() == null ? null : accountLimit.pendingAmount().value());
+        entity.setCeilingAmount(Money.valueOrNull(accountLimit.ceiling()));
+        entity.setPendingAmount(Money.valueOrNull(accountLimit.pendingAmount()));
         entity.setPendingRequestedAt(accountLimit.pendingRequestedAt());
         entity.setPendingEffectiveAt(accountLimit.pendingEffectiveAt());
     }

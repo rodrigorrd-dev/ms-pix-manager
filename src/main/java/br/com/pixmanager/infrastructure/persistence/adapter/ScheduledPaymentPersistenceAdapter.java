@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.ScheduledOccurrence;
 import br.com.pixmanager.core.domain.entity.ScheduledPayment;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -59,7 +59,7 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                 .param("keyHash", scheduledPayment.pixKey() == null ? null : crypto.blindIndex(scheduledPayment.pixKey()))
                 .param("keyEnc", scheduledPayment.pixKey() == null ? null : crypto.encrypt(scheduledPayment.pixKey()))
                 .param("docType", document == null ? null : document.type()).param("docEnc", document == null ? null : crypto.encrypt(document.value()))
-                .param("docHash", document == null ? null : crypto.blindIndex(document.value())).param("docMasked", document == null ? null : document.masked())
+                .param("docHash", document == null ? null : crypto.blindIndex(document.value())).param("docMasked", Document.maskedOrNull(document))
                 .param("name", scheduledPayment.name()).param("ispb", scheduledPayment.ispb()).param("branch", scheduledPayment.branch()).param("account", scheduledPayment.account())
                 .param("accountType", scheduledPayment.accountType()).param("amount", scheduledPayment.amount().value()).param("message", scheduledPayment.payerMessage())
                 .param("first", scheduledPayment.firstDate()).param("end", scheduledPayment.endDate()).param("total", scheduledPayment.occurrencesTotal())
@@ -117,8 +117,8 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                 UPDATE scheduled_payment_occurrence SET status = :status, attempt_count = :attempts, next_attempt_at = :next,
                     customer_notified_at = :notified, payment_order_id = :order, last_error_code = :error, version = version + 1, updated_at = now()
                 WHERE id = :id AND version = :v""")
-                .param("status", occurrence.status().name()).param("attempts", occurrence.attemptCount()).param("next", ts(occurrence.nextAttemptAt()))
-                .param("notified", ts(occurrence.customerNotifiedAt())).param("order", occurrence.paymentOrderId()).param("error", occurrence.lastErrorCode())
+                .param("status", occurrence.status().name()).param("attempts", occurrence.attemptCount()).param("next", Timestamps.from(occurrence.nextAttemptAt()))
+                .param("notified", Timestamps.from(occurrence.customerNotifiedAt())).param("order", occurrence.paymentOrderId()).param("error", occurrence.lastErrorCode())
                 .param("id", occurrence.id()).param("v", occurrence.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A ocorrência foi alterada por outra requisição (versão desatualizada).");
@@ -145,7 +145,7 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                                  FOR UPDATE OF o2 SKIP LOCKED)
                 RETURNING o.id, o.scheduled_payment_id, o.sequence_no, o.due_date, o.status, o.attempt_count, o.next_attempt_at,
                           o.customer_notified_at, o.payment_order_id, o.last_error_code, o.version""")
-                .param("today", today).param("now", ts(now)).param("limit", limit).query(this::occurrence).list();
+                .param("today", today).param("now", Timestamps.from(now)).param("limit", limit).query(this::occurrence).list();
     }
 
     @Override
@@ -159,7 +159,7 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Transactional(readOnly = true)
     public List<ScheduledOccurrence> processingWithoutOrderSince(Instant olderThan, int limit) {
         return jdbc.sql("SELECT " + OCCURRENCE_COLUMNS + " FROM scheduled_payment_occurrence WHERE status = 'PROCESSING' AND payment_order_id IS NULL AND updated_at < :t ORDER BY updated_at LIMIT :l")
-                .param("t", ts(olderThan)).param("l", limit).query(this::occurrence).list();
+                .param("t", Timestamps.from(olderThan)).param("l", limit).query(this::occurrence).list();
     }
 
     @Override
@@ -188,15 +188,9 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     private ScheduledOccurrence occurrence(ResultSet resultSet, int row) throws SQLException {
         return new ScheduledOccurrence(resultSet.getObject("id", UUID.class), resultSet.getObject("scheduled_payment_id", UUID.class), resultSet.getInt("sequence_no"),
                 resultSet.getObject("due_date", LocalDate.class), OccurrenceStatus.valueOf(resultSet.getString("status")), resultSet.getInt("attempt_count"),
-                instant(resultSet.getTimestamp("next_attempt_at")), instant(resultSet.getTimestamp("customer_notified_at")),
+                Timestamps.toInstant(resultSet.getTimestamp("next_attempt_at")), Timestamps.toInstant(resultSet.getTimestamp("customer_notified_at")),
                 resultSet.getObject("payment_order_id", UUID.class), resultSet.getString("last_error_code"), resultSet.getLong("version"));
     }
 
-    private static Timestamp ts(Instant instant) {
-        return instant == null ? null : Timestamp.from(instant);
-    }
 
-    private static Instant instant(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant();
-    }
 }

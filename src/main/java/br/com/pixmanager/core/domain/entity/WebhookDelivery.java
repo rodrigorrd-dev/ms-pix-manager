@@ -1,5 +1,6 @@
 package br.com.pixmanager.core.domain.entity;
 
+import br.com.pixmanager.shared.util.Text;
 import br.com.pixmanager.core.domain.enums.DeliveryStatus;
 import br.com.pixmanager.shared.constant.ErrorCodes;
 import br.com.pixmanager.shared.exception.InvalidTransitionException;
@@ -28,7 +29,7 @@ public record WebhookDelivery(UUID id, UUID subscriptionId, UUID sourceEventId, 
     public WebhookDelivery failed(Integer httpStatus, String error, Instant now, WebhookRetryPolicy policy, double random01) {
         requireOpen();
         int made = attempts + 1;
-        String trimmed = error == null ? null : error.substring(0, Math.min(500, error.length()));
+        String trimmed = Text.truncate(error, 500);
         if (policy.exhausted(made)) {
             return new WebhookDelivery(id, subscriptionId, sourceEventId, eventType, DeliveryStatus.DEAD, made, null, httpStatus, trimmed, null, version);
         }

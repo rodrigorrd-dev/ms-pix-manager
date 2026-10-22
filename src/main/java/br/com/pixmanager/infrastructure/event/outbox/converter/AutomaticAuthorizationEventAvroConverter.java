@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.AutomaticAuthorization;
 import br.com.pixmanager.core.domain.entity.event.AutomaticAuthorizationEvent;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
@@ -30,7 +31,7 @@ public class AutomaticAuthorizationEventAvroConverter implements EventAvroConver
                 .setRejectionCode(authorization.rejectionCode())
                 .setCancelledBy(authorization.cancelledBy())
                 .setPayerAccountId(authorization.payerAccountId())
-                .setPayerMaxAmount(authorization.payerMaxAmount() == null ? null : authorization.payerMaxAmount().value())
+                .setPayerMaxAmount(Money.valueOrNull(authorization.payerMaxAmount()))
                 .setReceiverDocumentMasked(authorization.receiverDocument() == null ? null : Document.of(authorization.receiverDocument()).masked())
                 .build();
     }

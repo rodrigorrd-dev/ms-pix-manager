@@ -31,5 +31,13 @@ public record CreatePaymentOrderRequest(
             @Size(max = 20) String account,
             @Pattern(regexp = "CACC|SVGS|TRAN|SLRY") String accountType,
             @Size(max = 200) String name,
-            @Size(max = 18) String document) {}
+            @Size(max = 18) String document) {
+
+        private static final Destination EMPTY = new Destination(null, null, null, null, null, null, null, null, null);
+
+        /** Destino ausente no JSON equivale a um destino sem nenhum campo: evita um {@code == null} por campo no mapeamento. */
+        public static Destination orEmpty(Destination destination) {
+            return destination == null ? EMPTY : destination;
+        }
+    }
 }

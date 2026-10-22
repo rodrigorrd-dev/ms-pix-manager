@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter.mapper;
 
+import br.com.pixmanager.shared.util.Text;
 import br.com.pixmanager.infrastructure.persistence.entity.LedgerReservationEntity;
 
 import br.com.pixmanager.core.domain.enums.LedgerPurpose;
@@ -33,7 +34,7 @@ public final class LedgerReservationEntityMapper {
         entity.setLedgerRef(reservation.ledgerRef());
         entity.setAttempts((short) reservation.attempts());
         entity.setNextAttemptAt(reservation.nextAttemptAt());
-        entity.setLastError(reservation.lastError() == null ? null : reservation.lastError().substring(0, Math.min(500, reservation.lastError().length())));
+        entity.setLastError(Text.truncate(reservation.lastError(), 500));
         entity.setUpdatedAt(now);
     }
 }

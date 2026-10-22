@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.WebhookDelivery;
 import br.com.pixmanager.core.domain.enums.DeliveryStatus;
 import br.com.pixmanager.core.port.out.persistence.WebhookDeliveryPortOut;
@@ -68,9 +69,9 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
                  WHERE id = :id AND version = :version
                 """)
                 .param("status", delivery.status().name()).param("attempts", delivery.attempts())
-                .param("next", delivery.nextAttemptAt() == null ? null : Timestamp.from(delivery.nextAttemptAt()))
+                .param("next", Timestamps.from(delivery.nextAttemptAt()))
                 .param("http", delivery.lastHttpStatus()).param("error", delivery.lastError())
-                .param("delivered", delivery.deliveredAt() == null ? null : Timestamp.from(delivery.deliveredAt()))
+                .param("delivered", Timestamps.from(delivery.deliveredAt()))
                 .param("id", delivery.id()).param("version", delivery.version()).update();
         if (updated == 0) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Entrega alterada por outra instância.");
@@ -93,7 +94,7 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
         boolean httpIsNull = resultSet.wasNull();                  // wasNull() só vale logo após ler a coluna
         return new WebhookDelivery(resultSet.getObject("id", UUID.class), resultSet.getObject("subscription_id", UUID.class),
                 resultSet.getObject("source_event_id", UUID.class), resultSet.getString("event_type"), DeliveryStatus.valueOf(resultSet.getString("status")),
-                resultSet.getInt("attempts"), next == null ? null : next.toInstant(), httpIsNull ? null : http, resultSet.getString("last_error"),
-                delivered == null ? null : delivered.toInstant(), resultSet.getLong("version"));
+                resultSet.getInt("attempts"), Timestamps.toInstant(next), httpIsNull ? null : http, resultSet.getString("last_error"),
+                Timestamps.toInstant(delivered), resultSet.getLong("version"));
     }
 }

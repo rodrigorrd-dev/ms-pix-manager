@@ -18,6 +18,11 @@ public sealed interface Document permits Cpf, Cnpj {
 
     String masked();
 
+    /** Máscara de um documento opcional ({@code null} quando ausente). */
+    static String maskedOrNull(Document document) {
+        return document == null ? null : document.masked();
+    }
+
     /** 11 caracteres numéricos = CPF; 14 = CNPJ. Devolve vazio se nenhum dos dois for válido. */
     static Optional<Document> tryParse(String raw) {
         Optional<Cpf> cpf = Cpf.tryParse(raw);

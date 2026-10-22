@@ -44,6 +44,26 @@ public record Money(BigDecimal value) implements Comparable<Money> {
         return of(amount);
     }
 
+    /** {@link #parseBcb} tolerante a ausência: campo opcional do request vira {@code null}. */
+    public static Money parseBcbOrNull(String amount) {
+        return amount == null ? null : parseBcb(amount);
+    }
+
+    /** {@link #of(BigDecimal)} tolerante a ausência: coluna {@code NULL} vira {@code null}. */
+    public static Money ofNullable(BigDecimal amount) {
+        return amount == null ? null : of(amount);
+    }
+
+    /** Valor numérico de um {@code Money} opcional (coluna/campo {@code NULL} quando ausente). */
+    public static BigDecimal valueOrNull(Money money) {
+        return money == null ? null : money.value();
+    }
+
+    /** Formato BCB de um {@code Money} opcional. */
+    public static String bcbOrNull(Money money) {
+        return money == null ? null : money.toBcb();
+    }
+
     public Money plus(Money other) {
         return new Money(value.add(other.value));
     }

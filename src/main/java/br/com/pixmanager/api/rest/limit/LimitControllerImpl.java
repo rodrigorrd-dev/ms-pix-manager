@@ -31,8 +31,8 @@ public class LimitControllerImpl implements LimitController {
     @Override
     public ResponseEntity<LimitsResponse> list(UUID accountId) {
         var views = manage.list(CallerContext.current(), accountId).stream()
-                .map(limitView -> new LimitResponse(limitView.scope(), limitView.effective().toBcb(), limitView.ceiling() == null ? null : limitView.ceiling().toBcb(),
-                        limitView.pendingAmount() == null ? null : limitView.pendingAmount().toBcb(), limitView.pendingEffectiveAt(), limitView.isDefault()))
+                .map(limitView -> new LimitResponse(limitView.scope(), limitView.effective().toBcb(), Money.bcbOrNull(limitView.ceiling()),
+                        Money.bcbOrNull(limitView.pendingAmount()), limitView.pendingEffectiveAt(), limitView.isDefault()))
                 .toList();
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new LimitsResponse(accountId, views));
     }
@@ -43,7 +43,7 @@ public class LimitControllerImpl implements LimitController {
         AccountLimit saved = manage.change(CallerContext.current(), accountId, scope, Money.parseBcb(request.amount()), expected);
         var now = clock.instant();
         return ResponseEntity.ok().eTag(String.valueOf(saved.version())).cacheControl(CacheControl.noStore())
-                .body(new LimitResponse(saved.scope(), saved.effective(now).toBcb(), saved.ceiling() == null ? null : saved.ceiling().toBcb(),
-                        saved.pendingAmount() == null ? null : saved.pendingAmount().toBcb(), saved.pendingEffectiveAt(), false));
+                .body(new LimitResponse(saved.scope(), saved.effective(now).toBcb(), Money.bcbOrNull(saved.ceiling()),
+                        Money.bcbOrNull(saved.pendingAmount()), saved.pendingEffectiveAt(), false));
     }
 }

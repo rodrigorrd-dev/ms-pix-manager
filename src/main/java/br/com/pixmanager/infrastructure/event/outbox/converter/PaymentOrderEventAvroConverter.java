@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.core.domain.entity.PaymentOrder;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.PaymentOrderEvent;
@@ -28,7 +29,7 @@ public class PaymentOrderEventAvroConverter implements EventAvroConverter {
                 .setAmount(paymentOrder.amount().value())
                 .setEndToEndId(paymentOrder.endToEndId().value())
                 .setRejectReasonCode(paymentOrder.rejectReasonCode())
-                .setDestinationDocumentMasked(paymentOrder.destination().document() == null ? null : paymentOrder.destination().document().masked())
+                .setDestinationDocumentMasked(Document.maskedOrNull(paymentOrder.destination().document()))
                 .build();
     }
 }

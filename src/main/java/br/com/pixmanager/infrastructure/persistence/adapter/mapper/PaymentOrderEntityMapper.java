@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter.mapper;
 
+import br.com.pixmanager.shared.util.Text;
 import br.com.pixmanager.core.domain.entity.EndToEndId;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.PaymentDestination;
@@ -61,7 +62,7 @@ public class PaymentOrderEntityMapper {
         }
         entity.setStatus(paymentOrder.status().name());
         entity.setRejectReasonCode(paymentOrder.rejectReasonCode());
-        entity.setRejectReasonDetail(paymentOrder.rejectReasonDetail() == null ? null : paymentOrder.rejectReasonDetail().substring(0, Math.min(255, paymentOrder.rejectReasonDetail().length())));
+        entity.setRejectReasonDetail(Text.truncate(paymentOrder.rejectReasonDetail(), 255));
         entity.setLedgerReservationId(paymentOrder.ledgerReservationId());
         entity.setSentAt(paymentOrder.sentAt());
         entity.setSettledAt(paymentOrder.settledAt());

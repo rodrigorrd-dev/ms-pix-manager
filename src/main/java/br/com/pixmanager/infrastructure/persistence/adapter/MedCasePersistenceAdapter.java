@@ -1,5 +1,7 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.shared.util.Text;
+import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.MedCase;
 import br.com.pixmanager.core.domain.entity.MedContestation;
 import br.com.pixmanager.core.domain.entity.Money;
@@ -22,7 +24,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,8 +49,10 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
                     layer, description, reported_at, analysis_deadline_at, tracked_amount, blocked_amount, created_by, updated_by)
                 VALUES (:id, :dict, :e2e, :received, :order, :account, :type, :role, :status, :layer, :desc, :reported, :deadline, :tracked, :blocked, :actor, :actor)""")
                 .param("id", medCase.id()).param("dict", medCase.dictFundsRecoveryId()).param("e2e", medCase.endToEndId()).param("received", medCase.receivedId())
-                .param("order", medCase.paymentOrderId()).param("account", medCase.accountId()).param("type", medCase.caseType().name()).param("role", medCase.role().name())
-                .param("status", medCase.status().name()).param("layer", medCase.layer()).param("desc", medCase.description()).param("reported", Timestamp.from(medCase.reportedAt()))
+                .param("order", medCase.paymentOrderId()).param("account", medCase.accountId()).param("type", medCase.caseType().name())
+                .param("role", medCase.role().name())
+                .param("status", medCase.status().name()).param("layer", medCase.layer()).param("desc", medCase.description())
+                .param("reported", Timestamp.from(medCase.reportedAt()))
                 .param("deadline", Timestamp.from(medCase.analysisDeadlineAt())).param("tracked", medCase.trackedAmount().value())
                 .param("blocked", medCase.blockedAmount().value()).param("actor", ACTOR).update();
     }
@@ -106,15 +109,14 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     public void appendHistory(UUID caseId, MedStatus from, MedStatus to, String actor, String note, Instant at) {
         jdbc.sql("INSERT INTO med_case_history (id, case_id, from_status, to_status, actor, note, occurred_at) VALUES (:id, :c, :f, :t, :a, :n, :at)")
                 .param("id", UUID.randomUUID()).param("c", caseId).param("f", from == null ? null : from.name()).param("t", to.name())
-                .param("a", actor).param("n", note == null ? null : note.substring(0, Math.min(note.length(), 500))).param("at", Timestamp.from(at)).update();
+                .param("a", actor).param("n", Text.truncate(note, 500)).param("at", Timestamp.from(at)).update();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<HistoryEntry> history(UUID caseId) {
         return jdbc.sql("SELECT from_status, to_status, actor, note, occurred_at FROM med_case_history WHERE case_id = :c ORDER BY occurred_at, id")
-                .param("c", caseId).query((resultSet, rowNumber) -> new HistoryEntry(resultSet.getString("from_status") == null ? null : MedStatus.valueOf(resultSet.getString("from_status")),
-                        MedStatus.valueOf(resultSet.getString("to_status")), resultSet.getString("actor"), resultSet.getString("note"), resultSet.getTimestamp("occurred_at").toInstant())).list();
+                .param("c", caseId).query((resultSet, rowNumber) -> new HistoryEntry(resultSet.getString("from_status") == null ? null : MedStatus.valueOf(resultSet.getString("from_status")), MedStatus.valueOf(resultSet.getString("to_status")), resultSet.getString("actor"), resultSet.getString("note"), resultSet.getTimestamp("occurred_at").toInstant())).list();
     }
 
     @Override
@@ -141,7 +143,8 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     public void insertContestation(MedContestation medContestation) {
         try {
             jdbc.sql("INSERT INTO med_contestation (id, case_id, refund_id, status, reason, refunded_at, deadline_at, created_by) VALUES (:id, :c, :r, 'OPEN', :reason, :ra, :d, :actor)")
-                    .param("id", medContestation.id()).param("c", medContestation.caseId()).param("r", medContestation.refundId()).param("reason", medContestation.reason()).param("ra", Timestamp.from(medContestation.refundedAt()))
+                    .param("id", medContestation.id()).param("c", medContestation.caseId()).param("r", medContestation.refundId())
+                    .param("reason", medContestation.reason()).param("ra", Timestamp.from(medContestation.refundedAt()))
                     .param("d", Timestamp.from(medContestation.deadlineAt())).param("actor", ACTOR).update();
         } catch (DuplicateKeyException exception) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe uma contestação aberta para esta devolução.");
@@ -158,7 +161,8 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     @Transactional
     public MedContestation saveContestation(MedContestation medContestation) {
         int rows = jdbc.sql("UPDATE med_contestation SET status = :s, decided_at = :d, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
-                .param("s", medContestation.status()).param("d", medContestation.decidedAt() == null ? null : Timestamp.from(medContestation.decidedAt())).param("id", medContestation.id()).param("v", medContestation.version()).update();
+                .param("s", medContestation.status()).param("d", Timestamps.from(medContestation.decidedAt())).param("id", medContestation.id())
+                .param("v", medContestation.version()).update();
         if (rows == 0) {
             throw new PreconditionFailedException("A contestação foi alterada por outra requisição (versão desatualizada).");
         }
@@ -178,6 +182,6 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
         Timestamp decided = resultSet.getTimestamp("decided_at");
         return new MedContestation(resultSet.getObject("id", UUID.class), resultSet.getObject("case_id", UUID.class), resultSet.getObject("refund_id", UUID.class), resultSet.getString("status"),
                 resultSet.getString("reason"), resultSet.getTimestamp("refunded_at").toInstant(), resultSet.getTimestamp("deadline_at").toInstant(),
-                decided == null ? null : decided.toInstant(), resultSet.getLong("version"));
+                Timestamps.toInstant(decided), resultSet.getLong("version"));
     }
 }

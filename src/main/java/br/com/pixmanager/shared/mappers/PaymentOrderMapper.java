@@ -1,5 +1,6 @@
 package br.com.pixmanager.shared.mappers;
 
+import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.api.rest.payment.dto.request.CreatePaymentOrderRequest;
 import br.com.pixmanager.api.rest.payment.dto.response.BrCodeResponse;
 import br.com.pixmanager.api.rest.payment.dto.response.PaymentOrderResponse;
@@ -14,18 +15,18 @@ import org.springframework.stereotype.Component;
 public class PaymentOrderMapper {
 
     public CreatePaymentOrderCommand toCommand(CreatePaymentOrderRequest request) {
-        var destination = request.destination();
-        return new CreatePaymentOrderCommand(request.payerAccountId(), request.method(), null, request.amount() == null ? null : Money.parseBcb(request.amount()),
-                destination == null ? null : destination.pixKeyType(), destination == null ? null : destination.pixKey(), destination == null ? null : destination.documentHint(),
-                destination == null ? null : destination.ispb(), destination == null ? null : destination.branch(), destination == null ? null : destination.account(),
-                destination == null ? null : destination.accountType(), destination == null ? null : destination.name(), destination == null ? null : destination.document(), request.qrPayload(),
+        var destination = CreatePaymentOrderRequest.Destination.orEmpty(request.destination());
+        return new CreatePaymentOrderCommand(request.payerAccountId(), request.method(), null, Money.parseBcbOrNull(request.amount()),
+                destination.pixKeyType(), destination.pixKey(), destination.documentHint(),
+                destination.ispb(), destination.branch(), destination.account(),
+                destination.accountType(), destination.name(), destination.document(), request.qrPayload(),
                 request.payerMessage(), request.deviceId(), false);
     }
 
     public PaymentOrderResponse toResponse(PaymentOrder paymentOrder) {
         var destination = paymentOrder.destination();
         return new PaymentOrderResponse(paymentOrder.id(), paymentOrder.payerAccountId(), paymentOrder.method(), paymentOrder.origin(), paymentOrder.status(), paymentOrder.amount().toBcb(),
-                paymentOrder.endToEndId().value(), paymentOrder.rejectReasonCode(), destination.name(), destination.document() == null ? null : destination.document().masked(),
+                paymentOrder.endToEndId().value(), paymentOrder.rejectReasonCode(), destination.name(), Document.maskedOrNull(destination.document()),
                 paymentOrder.requestedAt(), paymentOrder.settledAt());
     }
 

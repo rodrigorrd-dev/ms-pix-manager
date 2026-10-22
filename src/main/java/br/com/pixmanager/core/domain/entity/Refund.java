@@ -1,5 +1,6 @@
 package br.com.pixmanager.core.domain.entity;
 
+import br.com.pixmanager.shared.util.Text;
 import br.com.pixmanager.core.domain.enums.RefundNature;
 import br.com.pixmanager.core.domain.enums.RefundStatus;
 import br.com.pixmanager.shared.constant.ErrorCodes;
@@ -44,7 +45,7 @@ public record Refund(UUID id, String clientRefundId, UUID receivedId, EndToEndId
     }
 
     public Refund failed(String reason) {
-        return moveTo(RefundStatus.NAO_REALIZADO, reason == null ? null : reason.substring(0, Math.min(140, reason.length())), null);
+        return moveTo(RefundStatus.NAO_REALIZADO, Text.truncate(reason, 140), null);
     }
 
     /** Mesmo pedido? Repetição idêntica devolve o mesmo recurso; corpo diferente ⇒ 422 (BR-REF-01). */

@@ -32,9 +32,10 @@ public class AutomaticControllerImpl implements AutomaticController {
 
     @Override
     public ResponseEntity<AutomaticDtos.AuthorizationResponse> receive(AutomaticDtos.ReceiveAuthorization receiveAuthorization) {
-        AutomaticAuthorization authorization = automatic.receiveAuthorization(CallerContext.current(), new ReceiveAuthorizationCommand(receiveAuthorization.idRec(), receiveAuthorization.payerAccountId(), receiveAuthorization.payerDocument(),
-                receiveAuthorization.receiverDocument(), receiveAuthorization.receiverName(), receiveAuthorization.contract(), receiveAuthorization.objectDescription(), receiveAuthorization.periodicity(), receiveAuthorization.startDate(), receiveAuthorization.endDate(), money(receiveAuthorization.fixedAmount()),
-                money(receiveAuthorization.receiverMinAmount())));
+        AutomaticAuthorization authorization = automatic.receiveAuthorization(CallerContext.current(),
+                new ReceiveAuthorizationCommand(receiveAuthorization.idRec(), receiveAuthorization.payerAccountId(), receiveAuthorization.payerDocument(),
+                receiveAuthorization.receiverDocument(), receiveAuthorization.receiverName(), receiveAuthorization.contract(), receiveAuthorization.objectDescription(), receiveAuthorization.periodicity(), receiveAuthorization.startDate(), receiveAuthorization.endDate(), Money.parseBcbOrNull(receiveAuthorization.fixedAmount()),
+                Money.parseBcbOrNull(receiveAuthorization.receiverMinAmount())));
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
                 .location(ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(authorization.id()).toUri()).body(toResponse(authorization));
     }
@@ -52,7 +53,7 @@ public class AutomaticControllerImpl implements AutomaticController {
 
     @Override
     public ResponseEntity<AutomaticDtos.AuthorizationResponse> approve(UUID id, AutomaticDtos.Approve body) {
-        return ok(automatic.approve(CallerContext.current(), id, body == null ? null : money(body.payerMaxAmount())));
+        return ok(automatic.approve(CallerContext.current(), id, body == null ? null : Money.parseBcbOrNull(body.payerMaxAmount())));
     }
 
     @Override
@@ -67,12 +68,13 @@ public class AutomaticControllerImpl implements AutomaticController {
 
     @Override
     public ResponseEntity<AutomaticDtos.AuthorizationResponse> adjustLimit(UUID id, AutomaticDtos.Limit body) {
-        return ok(automatic.adjustLimit(CallerContext.current(), id, money(body.payerMaxAmount())));
+        return ok(automatic.adjustLimit(CallerContext.current(), id, Money.parseBcbOrNull(body.payerMaxAmount())));
     }
 
     @Override
     public ResponseEntity<AutomaticDtos.ChargeResponse> registerCharge(UUID id, AutomaticDtos.RegisterCharge registerCharge) {
-        AutomaticCharge automaticCharge = automatic.registerCharge(CallerContext.current(), id, new RegisterChargeCommand(registerCharge.txid(), registerCharge.dueDate(), money(registerCharge.amount()), registerCharge.receiverIspb(),
+        AutomaticCharge automaticCharge = automatic.registerCharge(CallerContext.current(), id, new RegisterChargeCommand(registerCharge.txid(),
+                registerCharge.dueDate(), Money.parseBcbOrNull(registerCharge.amount()), registerCharge.receiverIspb(),
                 registerCharge.receiverBranch(), registerCharge.receiverAccount(), registerCharge.receiverAccountType()));
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(toResponse(automaticCharge));
     }
@@ -97,22 +99,21 @@ public class AutomaticControllerImpl implements AutomaticController {
         return ResponseEntity.ok().eTag(String.valueOf(authorization.version())).cacheControl(CacheControl.noStore()).body(toResponse(authorization));
     }
 
-    private static Money money(String amount) {
-        return amount == null ? null : Money.parseBcb(amount);
-    }
-
     private AutomaticDtos.AuthorizationResponse toResponse(AutomaticAuthorization authorization) {
-        return new AutomaticDtos.AuthorizationResponse(authorization.id(), authorization.idRec(), authorization.allowRetry(), authorization.payerAccountId(), Document.of(authorization.receiverDocument()).masked(), authorization.receiverName(),
-                authorization.contract(), authorization.periodicity(), authorization.startDate(), authorization.endDate(), authorization.fixedAmount() == null ? null : authorization.fixedAmount().toBcb(),
-                authorization.receiverMinAmount() == null ? null : authorization.receiverMinAmount().toBcb(), authorization.payerMaxAmount() == null ? null : authorization.payerMaxAmount().toBcb(), authorization.status(),
+        return new AutomaticDtos.AuthorizationResponse(authorization.id(), authorization.idRec(), authorization.allowRetry(), authorization.payerAccountId(),
+                Document.of(authorization.receiverDocument()).masked(), authorization.receiverName(),
+                authorization.contract(), authorization.periodicity(), authorization.startDate(), authorization.endDate(), Money.bcbOrNull(authorization.fixedAmount()),
+                Money.bcbOrNull(authorization.receiverMinAmount()), Money.bcbOrNull(authorization.payerMaxAmount()), authorization.status(),
                 authorization.requestStatus(), authorization.rejectionCode(), authorization.cancelledBy(), authorization.approvedAt(), authorization.requestExpiresAt(), authorization.version());
     }
 
     private AutomaticDtos.ChargeResponse toResponse(AutomaticCharge automaticCharge) {
-        return new AutomaticDtos.ChargeResponse(automaticCharge.id(), automaticCharge.authorizationId(), automaticCharge.txid(), automaticCharge.dueDate(), automaticCharge.amount().toBcb(), automaticCharge.status());
+        return new AutomaticDtos.ChargeResponse(automaticCharge.id(), automaticCharge.authorizationId(), automaticCharge.txid(), automaticCharge.dueDate(),
+                automaticCharge.amount().toBcb(), automaticCharge.status());
     }
 
     private AutomaticDtos.AttemptResponse toResponse(AutomaticAttempt automaticAttempt) {
-        return new AutomaticDtos.AttemptResponse(automaticAttempt.id(), automaticAttempt.type(), automaticAttempt.status(), automaticAttempt.endToEndId(), automaticAttempt.settlementDate(), automaticAttempt.paymentOrderId(), automaticAttempt.lastErrorCode());
+        return new AutomaticDtos.AttemptResponse(automaticAttempt.id(), automaticAttempt.type(), automaticAttempt.status(), automaticAttempt.endToEndId(),
+                automaticAttempt.settlementDate(), automaticAttempt.paymentOrderId(), automaticAttempt.lastErrorCode());
     }
 }

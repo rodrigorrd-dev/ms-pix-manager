@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.MedCase;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.MedCaseEvent;
@@ -29,9 +30,9 @@ public class MedCaseEventAvroConverter implements EventAvroConverter {
                 .setLayer(medCase.layer())
                 .setStatus(medCase.status().name())
                 .setAction(medCaseEvent.action())
-                .setTrackedAmount(medCase.trackedAmount() == null ? null : medCase.trackedAmount().value())
-                .setBlockedAmount(medCase.blockedAmount() == null ? null : medCase.blockedAmount().value())
-                .setRefundedAmount(medCaseEvent.refundedAmount() == null ? null : medCaseEvent.refundedAmount().value())
+                .setTrackedAmount(Money.valueOrNull(medCase.trackedAmount()))
+                .setBlockedAmount(Money.valueOrNull(medCase.blockedAmount()))
+                .setRefundedAmount(Money.valueOrNull(medCaseEvent.refundedAmount()))
                 .setWindowEndsAt(null)
                 .setContestationDeadlineAt(medCaseEvent.contestationDeadlineAt())
                 .build();

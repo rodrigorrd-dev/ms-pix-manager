@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.event.outbox.converter;
 
+import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.core.domain.entity.ReceivedPix;
 import br.com.pixmanager.core.domain.entity.event.DomainEvent;
 import br.com.pixmanager.core.domain.entity.event.PixReceivedEvent;
@@ -36,7 +37,7 @@ public class PixReceivedEventAvroConverter implements EventAvroConverter {
                 .setReceiverAccountId(receivedPix.receiverAccountId())
                 .setAmount(receivedPix.amount().value())
                 .setSettledAt(receivedPix.settledAt())
-                .setPayerDocumentMasked(payerDoc == null ? null : payerDoc.masked())
+                .setPayerDocumentMasked(Document.maskedOrNull(payerDoc))
                 .setPayerDocumentHash(payerDoc == null ? null : crypto.blindIndex(payerDoc.value()))
                 .setReconciliationStatus(receivedPix.reconciliationStatus().name())
                 .build();

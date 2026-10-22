@@ -106,11 +106,13 @@ public class MedCaseControllerImpl implements MedCaseController {
     }
 
     private MedResponses.Case toResponse(MedCase medCase) {
-        return new MedResponses.Case(medCase.id(), medCase.endToEndId(), medCase.accountId(), medCase.caseType(), medCase.role(), medCase.status(), medCase.layer(), medCase.description(), medCase.reportedAt(),
+        return new MedResponses.Case(medCase.id(), medCase.endToEndId(), medCase.accountId(), medCase.caseType(), medCase.role(), medCase.status(),
+                medCase.layer(), medCase.description(), medCase.reportedAt(),
                 medCase.analysisDeadlineAt(), medCase.trackedAmount().toBcb(), medCase.blockedAmount().toBcb(), medCase.refundId(), medCase.dictFundsRecoveryId(), medCase.version());
     }
 
     private MedResponses.Contestation toResponse(MedContestation medContestation) {
-        return new MedResponses.Contestation(medContestation.id(), medContestation.caseId(), medContestation.refundId(), medContestation.status(), medContestation.reason(), medContestation.refundedAt(), medContestation.deadlineAt(), medContestation.decidedAt());
+        return new MedResponses.Contestation(medContestation.id(), medContestation.caseId(), medContestation.refundId(), medContestation.status(),
+                medContestation.reason(), medContestation.refundedAt(), medContestation.deadlineAt(), medContestation.decidedAt());
     }
 }
