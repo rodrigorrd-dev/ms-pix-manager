@@ -10,7 +10,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -Dmaven.test.skip=true -Djacoc
 
 # Runtime: só JRE, usuário sem privilégios.
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S pix && adduser -S pix -G pix
+RUN apk upgrade --no-cache \
+ && addgroup -S pix && adduser -S pix -G pix
 WORKDIR /app
 COPY --from=build /build/app.jar app.jar
 USER pix
