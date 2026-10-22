@@ -1,6 +1,15 @@
 # Changelog
 Formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.1](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.0...v0.2.1) (2026-10-22)
+
+
+### Correções
+
+* **docker:** atualiza pacotes do Alpine para corrigir ([6c7f515](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/6c7f51501c79414f28fa7deef3a9046c1149877e))
+* **docker:** atualiza pacotes do Alpine para corrigir CVE-2026-77214 do libexpat ([4942c04](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/4942c042b1c5d1c03dc61bb176147c09407eebe3))
+* **docker:** corrige a CVE do libexpat e torna o AutomaticPixApiIT independente da data ([88bf61a](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/88bf61af0965d11e8aa84fcf994f91426d30fe8f))
+
 ## [0.2.0](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.1.0...v0.2.0) (2026-10-17)
 
 
