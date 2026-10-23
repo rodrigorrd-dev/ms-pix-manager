@@ -24,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,12 +48,14 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
     private final ChargeRepository repository;
     private final ChargeEntityMapper mapper;
     private final JdbcClient jdbc;
+    private final JdbcTemplate jdbcTemplate;
 
     private final com.fasterxml.jackson.databind.ObjectMapper json;
 
-    public ChargePersistenceAdapter(ChargeRepository repository, ChargeEntityMapper mapper, JdbcClient jdbc,
+    public ChargePersistenceAdapter(ChargeRepository repository, ChargeEntityMapper mapper, JdbcClient jdbc, JdbcTemplate jdbcTemplate,
                                     com.fasterxml.jackson.databind.ObjectMapper json) {
         this.json = json;
+        this.jdbcTemplate = jdbcTemplate;
         this.repository = repository;
         this.mapper = mapper;
         this.jdbc = jdbc;
@@ -138,12 +141,14 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
 
     private void replaceAdditionalInfo(UUID chargeId, List<AdditionalInfo> info) {
         // só roda para cobrança NOVA (sem filhos): não há o que apagar
-        int position = 1;
-        for (AdditionalInfo item : info) {
-            jdbc.sql("INSERT INTO pix_charge_additional_info (charge_id, position, name, value) VALUES (:id, :pos, :name, :value)")
-                    .param("id", chargeId).param("pos", (short) position++).param("name", item.name()).param("value", item.value())
-                    .update();
+        if (info.isEmpty()) {
+            return;
         }
+        List<Object[]> rows = new ArrayList<>(info.size());
+        for (int index = 0; index < info.size(); index++) {
+            rows.add(new Object[]{chargeId, (short) (index + 1), info.get(index).name(), info.get(index).value()});
+        }
+        jdbcTemplate.batchUpdate("INSERT INTO pix_charge_additional_info (charge_id, position, name, value) VALUES (?, ?, ?, ?)", rows);
     }
 
     private Map<UUID, List<AdditionalInfo>> readAdditionalInfo(List<UUID> chargeIds) {
