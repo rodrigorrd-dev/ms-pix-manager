@@ -86,19 +86,17 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Override
     @Transactional
     public AutomaticAuthorization saveAuthorization(AutomaticAuthorization authorization) {
-        int rows = jdbc.sql("""
+        return jdbc.sql("""
                 UPDATE pix_automatic_authorization SET status = :status, request_status = :rs, rejection_code = :rej, cancelled_by = :by, approved_at = :ap,
                     cancelled_at = :ca, payer_max_amount = :max, version = version + 1, updated_at = now(), updated_by = :actor
-                WHERE id = :id AND version = :v""")
+                WHERE id = :id AND version = :v
+                RETURNING *""")
                 .param("status", authorization.status()).param("rs", authorization.requestStatus()).param("rej", authorization.rejectionCode())
                 .param("by", authorization.cancelledBy())
                 .param("ap", Timestamps.from(authorization.approvedAt())).param("ca", Timestamps.from(authorization.cancelledAt()))
                 .param("max", Money.valueOrNull(authorization.payerMaxAmount())).param("actor", ACTOR)
-                .param("id", authorization.id()).param("v", authorization.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("A autorização foi alterada por outra requisição (versão desatualizada).");
-        }
-        return findAuthorization(authorization.id()).orElseThrow();
+                .param("id", authorization.id()).param("v", authorization.version()).query(this::authorization).optional()
+                .orElseThrow(() -> new PreconditionFailedException("A autorização foi alterada por outra requisição (versão desatualizada)."));
     }
 
     @Override
@@ -157,12 +155,9 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Override
     @Transactional
     public AutomaticCharge saveCharge(AutomaticCharge automaticCharge) {
-        int rows = jdbc.sql("UPDATE pix_automatic_charge SET status = :s, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
-                .param("s", automaticCharge.status()).param("id", automaticCharge.id()).param("v", automaticCharge.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("A cobrança foi alterada por outra requisição (versão desatualizada).");
-        }
-        return findCharge(automaticCharge.id()).orElseThrow();
+        return jdbc.sql("UPDATE pix_automatic_charge SET status = :s, version = version + 1, updated_at = now() WHERE id = :id AND version = :v RETURNING *")
+                .param("s", automaticCharge.status()).param("id", automaticCharge.id()).param("v", automaticCharge.version()).query(this::charge).optional()
+                .orElseThrow(() -> new PreconditionFailedException("A cobrança foi alterada por outra requisição (versão desatualizada)."));
     }
 
     @Override
@@ -189,16 +184,11 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Override
     @Transactional
     public AutomaticAttempt saveAttempt(AutomaticAttempt automaticAttempt) {
-        int rows = jdbc.sql("UPDATE pix_automatic_attempt SET status = :s, end_to_end_id = :e2e, payment_order_id = :o, last_error_code = :err, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
+        return jdbc.sql("UPDATE pix_automatic_attempt SET status = :s, end_to_end_id = :e2e, payment_order_id = :o, last_error_code = :err, version = version + 1, updated_at = now() "
+                        + "WHERE id = :id AND version = :v RETURNING " + ATTEMPT_COLUMNS)
                 .param("s", automaticAttempt.status()).param("e2e", automaticAttempt.endToEndId()).param("o", automaticAttempt.paymentOrderId())
-                .param("err", automaticAttempt.lastErrorCode()).param("id", automaticAttempt.id()).param("v", automaticAttempt.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("A tentativa foi alterada por outra requisição (versão desatualizada).");
-        }
-        if (automaticAttempt.paymentOrderId() != null) {
-            jdbc.sql("UPDATE pix_automatic_attempt SET payment_order_id = :o WHERE id = :id").param("o", automaticAttempt.paymentOrderId()).param("id", automaticAttempt.id()).update();
-        }
-        return jdbc.sql("SELECT " + ATTEMPT_COLUMNS + " FROM pix_automatic_attempt WHERE id = :id").param("id", automaticAttempt.id()).query(this::attempt).single();
+                .param("err", automaticAttempt.lastErrorCode()).param("id", automaticAttempt.id()).param("v", automaticAttempt.version()).query(this::attempt).optional()
+                .orElseThrow(() -> new PreconditionFailedException("A tentativa foi alterada por outra requisição (versão desatualizada)."));
     }
 
     @Override

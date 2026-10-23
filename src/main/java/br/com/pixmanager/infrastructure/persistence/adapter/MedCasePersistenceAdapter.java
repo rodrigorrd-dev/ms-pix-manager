@@ -60,13 +60,10 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     @Override
     @Transactional
     public MedCase save(MedCase medCase) {
-        int rows = jdbc.sql("UPDATE med_case SET status = :status, blocked_amount = :blocked, refund_id = :refund, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v")
+        return jdbc.sql("UPDATE med_case SET status = :status, blocked_amount = :blocked, refund_id = :refund, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v RETURNING *")
                 .param("status", medCase.status().name()).param("blocked", medCase.blockedAmount().value()).param("refund", medCase.refundId()).param("actor", ACTOR)
-                .param("id", medCase.id()).param("v", medCase.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("O caso MED foi alterado por outra requisição (versão desatualizada).");
-        }
-        return findById(medCase.id()).orElseThrow();
+                .param("id", medCase.id()).param("v", medCase.version()).query(this::map).optional()
+                .orElseThrow(() -> new PreconditionFailedException("O caso MED foi alterado por outra requisição (versão desatualizada)."));
     }
 
     @Override
@@ -160,13 +157,10 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
     @Override
     @Transactional
     public MedContestation saveContestation(MedContestation medContestation) {
-        int rows = jdbc.sql("UPDATE med_contestation SET status = :s, decided_at = :d, version = version + 1, updated_at = now() WHERE id = :id AND version = :v")
+        return jdbc.sql("UPDATE med_contestation SET status = :s, decided_at = :d, version = version + 1, updated_at = now() WHERE id = :id AND version = :v RETURNING *")
                 .param("s", medContestation.status()).param("d", Timestamps.from(medContestation.decidedAt())).param("id", medContestation.id())
-                .param("v", medContestation.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("A contestação foi alterada por outra requisição (versão desatualizada).");
-        }
-        return findContestation(medContestation.id()).orElseThrow();
+                .param("v", medContestation.version()).query(this::contestation).optional()
+                .orElseThrow(() -> new PreconditionFailedException("A contestação foi alterada por outra requisição (versão desatualizada)."));
     }
 
     private MedCase map(ResultSet resultSet, int row) throws SQLException {
