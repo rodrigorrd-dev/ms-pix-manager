@@ -63,20 +63,16 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
 
     @Override
     public WebhookDelivery save(WebhookDelivery delivery) {
-        int updated = jdbc.sql("""
-                UPDATE webhook_delivery SET status = :status, attempts = :attempts, next_attempt_at = COALESCE(:next, next_attempt_at),
+        return jdbc.sql("""
+                UPDATE webhook_delivery d SET status = :status, attempts = :attempts, next_attempt_at = COALESCE(:next, next_attempt_at),
                        last_http_status = :http, last_error = :error, delivered_at = :delivered, version = version + 1, updated_at = now()
-                 WHERE id = :id AND version = :version
-                """)
+                 WHERE d.id = :id AND d.version = :version""" + " RETURNING " + COLUMNS)
                 .param("status", delivery.status().name()).param("attempts", delivery.attempts())
                 .param("next", Timestamps.from(delivery.nextAttemptAt()))
                 .param("http", delivery.lastHttpStatus()).param("error", delivery.lastError())
                 .param("delivered", Timestamps.from(delivery.deliveredAt()))
-                .param("id", delivery.id()).param("version", delivery.version()).update();
-        if (updated == 0) {
-            throw new ConflictException(ErrorCodes.CONFLICT, "Entrega alterada por outra instância.");
-        }
-        return findById(delivery.id()).orElseThrow();
+                .param("id", delivery.id()).param("version", delivery.version()).query((resultSet, rowNumber) -> map(resultSet)).optional()
+                .orElseThrow(() -> new ConflictException(ErrorCodes.CONFLICT, "Entrega alterada por outra instância."));
     }
 
     private String toJson(Map<String, Object> payload) {
