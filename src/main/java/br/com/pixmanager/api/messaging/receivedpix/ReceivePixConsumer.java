@@ -10,6 +10,7 @@ import br.com.pixmanager.core.port.in.receivedpix.ReceivePixUseCase.ReceivePixRe
 import br.com.pixmanager.events.v1.SpiPaymentSettled;
 import br.com.pixmanager.events.v1.SpiValueComponent;
 import br.com.pixmanager.api.messaging.DltMetrics;
+import br.com.pixmanager.api.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.util.AvroPayloadDecoder;
 import br.com.pixmanager.shared.exception.BusinessException;
 import io.github.springwolf.bindings.kafka.annotations.KafkaAsyncOperationBinding;
@@ -20,11 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.kafka.annotation.DltHandler;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.annotation.RetryableTopic;
-import org.springframework.kafka.retrytopic.TopicSuffixingStrategy;
-import org.springframework.kafka.support.serializer.DeserializationException;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -55,14 +51,7 @@ public class ReceivePixConsumer {
         this.dltMetrics = dltMetrics;
     }
 
-    @RetryableTopic(attempts = "${pix.kafka.retry.attempts:4}", numPartitions = "${pix.kafka.retry.partitions:12}",
-            backoff = @Backoff(delayExpression = "${pix.kafka.retry.delay-ms:5000}", multiplierExpression = "${pix.kafka.retry.multiplier:6}",
-                    maxDelayExpression = "${pix.kafka.retry.max-delay-ms:180000}", random = true),
-            exclude = {BusinessException.class, DeserializationException.class},
-            topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
-            retryTopicSuffix = "-retry", dltTopicSuffix = ".dlt",
-            autoCreateTopics = "${pix.kafka.auto-create-retry-topics:false}")
-    @KafkaListener(topics = TOPIC, groupId = CONSUMER_GROUP)
+    @PixKafkaListener(topic = TOPIC, group = CONSUMER_GROUP)
     @AsyncListener(operation = @AsyncOperation(channelName = TOPIC, description = "Pix liquidado no SPI (pacs.008) traduzido pelo spi-gateway",
             payloadType = SpiPaymentSettled.class))
     @KafkaAsyncOperationBinding
@@ -82,10 +71,7 @@ public class ReceivePixConsumer {
 
     @DltHandler
     public void onDeadLetter(ConsumerRecord<String, byte[]> record) {
-        dltMetrics.count(record.topic());
-        // Alerta: pix_dlt_messages_total > 0. Reprocesso é manual (replay preserva o eventId; o inbox decide).
-        log.error("Mensagem na DLT: topic={} partition={} offset={} key={}", record.topic(), record.partition(), record.offset(),
-                record.key());
+        dltMetrics.onDeadLetter(record);
     }
 
     private static ReceivePixCommand toCommand(String topic, int partition, long offset, org.apache.kafka.common.header.Headers headers,

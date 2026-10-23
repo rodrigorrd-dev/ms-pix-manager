@@ -86,12 +86,10 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Override
     @Transactional
     public ScheduledPayment save(ScheduledPayment scheduledPayment) {
-        int rows = jdbc.sql("UPDATE scheduled_payment SET status = :status, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v")
-                .param("status", scheduledPayment.status().name()).param("actor", ACTOR).param("id", scheduledPayment.id()).param("v", scheduledPayment.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("O agendamento foi alterado por outra requisição (versão desatualizada).");
-        }
-        return findById(scheduledPayment.id()).orElseThrow();
+        return jdbc.sql("UPDATE scheduled_payment SET status = :status, version = version + 1, updated_at = now(), updated_by = :actor WHERE id = :id AND version = :v RETURNING *")
+                .param("status", scheduledPayment.status().name()).param("actor", ACTOR).param("id", scheduledPayment.id()).param("v", scheduledPayment.version())
+                .query(this::payment).optional()
+                .orElseThrow(() -> new PreconditionFailedException("O agendamento foi alterado por outra requisição (versão desatualizada)."));
     }
 
     @Override
@@ -119,21 +117,19 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Override
     @Transactional
     public ScheduledOccurrence saveOccurrence(ScheduledOccurrence occurrence) {
-        int rows = jdbc.sql("""
+        ScheduledOccurrence saved = jdbc.sql("""
                 UPDATE scheduled_payment_occurrence SET status = :status, attempt_count = :attempts, next_attempt_at = :next,
                     customer_notified_at = :notified, payment_order_id = :order, last_error_code = :error, version = version + 1, updated_at = now()
-                WHERE id = :id AND version = :v""")
+                WHERE id = :id AND version = :v""" + " RETURNING " + OCCURRENCE_COLUMNS)
                 .param("status", occurrence.status().name()).param("attempts", occurrence.attemptCount()).param("next", Timestamps.from(occurrence.nextAttemptAt()))
                 .param("notified", Timestamps.from(occurrence.customerNotifiedAt())).param("order", occurrence.paymentOrderId()).param("error", occurrence.lastErrorCode())
-                .param("id", occurrence.id()).param("v", occurrence.version()).update();
-        if (rows == 0) {
-            throw new PreconditionFailedException("A ocorrência foi alterada por outra requisição (versão desatualizada).");
-        }
+                .param("id", occurrence.id()).param("v", occurrence.version()).query(this::occurrence).optional()
+                .orElseThrow(() -> new PreconditionFailedException("A ocorrência foi alterada por outra requisição (versão desatualizada)."));
         if (occurrence.paymentOrderId() != null) {                                                    // rastreabilidade ordem → ocorrência
             jdbc.sql("UPDATE payment_order SET scheduled_occurrence_id = :o WHERE id = :order AND scheduled_occurrence_id IS DISTINCT FROM :o")
                     .param("o", occurrence.id()).param("order", occurrence.paymentOrderId()).update();
         }
-        return findOccurrence(occurrence.id()).orElseThrow();
+        return saved;
     }
 
     @Override

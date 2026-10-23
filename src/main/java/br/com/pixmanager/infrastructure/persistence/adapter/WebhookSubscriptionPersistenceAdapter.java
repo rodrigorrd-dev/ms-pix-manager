@@ -35,15 +35,15 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
 
     @Override
     public WebhookSubscription save(WebhookSubscription webhookSubscription) {
-        jdbc.sql("""
-                INSERT INTO webhook_subscription (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
+        return jdbc.sql("""
+                INSERT INTO webhook_subscription AS s (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
                 SELECT :id, k.id, k.key_hash, :url, :status, 0, :created, :by, now(), :by FROM pix_key k WHERE k.id = :key
                 ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, status = EXCLUDED.status,
-                    version = webhook_subscription.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
-                """)
+                    version = s.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
+                RETURNING """ + " " + COLUMNS)
                 .param("id", webhookSubscription.id()).param("key", webhookSubscription.pixKeyId()).param("url", webhookSubscription.url()).param("status", webhookSubscription.status().name())
-                .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy()).update();
-        return findByPixKeyId(webhookSubscription.pixKeyId()).orElseThrow();
+                .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy())
+                .query(WebhookSubscriptionPersistenceAdapter::map).optional().orElseThrow();
     }
 
     @Override
