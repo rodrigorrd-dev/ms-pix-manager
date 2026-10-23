@@ -35,7 +35,7 @@
         <resilience4j.version>2.3.0</resilience4j.version>
         <shedlock.version>6.9.2</shedlock.version>
         <logstash-encoder.version>7.4</logstash-encoder.version>
-        <archunit.version>1.3.0</archunit.version>
+        <archunit.version>1.5.1</archunit.version>
         <wiremock.version>3.9.2</wiremock.version>
         <jacoco.version>0.8.12</jacoco.version>
         <gatling.version>3.11.5</gatling.version>
