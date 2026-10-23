@@ -31,9 +31,9 @@ public class WebhookControllerImpl implements WebhookController {
 
     @Override
     public ResponseEntity<WebhookResponse> put(String key, WebhookRequest request) {
-        Registered r = webhooks.put(CallerContext.current(), key, request.webhookUrl());
-        return ResponseEntity.status(r.created() ? HttpStatus.CREATED : HttpStatus.OK).cacheControl(CacheControl.noStore())
-                .body(new WebhookResponse(r.subscription().url(), r.keyValue(), r.subscription().createdAt()));
+        Registered registered = webhooks.put(CallerContext.current(), key, request.webhookUrl());
+        return ResponseEntity.status(registered.created() ? HttpStatus.CREATED : HttpStatus.OK).cacheControl(CacheControl.noStore())
+                .body(new WebhookResponse(registered.subscription().url(), registered.keyValue(), registered.subscription().createdAt()));
     }
 
     @Override
@@ -64,7 +64,7 @@ public class WebhookControllerImpl implements WebhookController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }
 
-    private static WebhookResponse toResponse(WebhookView v) {
-        return new WebhookResponse(v.subscription().url(), v.keyValue(), v.subscription().createdAt());
+    private static WebhookResponse toResponse(WebhookView webhookView) {
+        return new WebhookResponse(webhookView.subscription().url(), webhookView.keyValue(), webhookView.subscription().createdAt());
     }
 }

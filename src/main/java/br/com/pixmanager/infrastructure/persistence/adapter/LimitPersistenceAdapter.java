@@ -50,7 +50,7 @@ public class LimitPersistenceAdapter implements LimitPersistencePortOut {
         mapper.apply(limit, entity, isNew);
         try {
             return mapper.toDomain(repository.saveAndFlush(entity));
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException exception) {
             throw new PreconditionFailedException("O limite foi alterado por outra requisição (versão desatualizada).");
         }
     }

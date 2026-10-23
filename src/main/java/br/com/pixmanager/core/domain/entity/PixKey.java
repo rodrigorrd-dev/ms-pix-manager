@@ -28,8 +28,8 @@ public record PixKey(UUID id, UUID accountId, PixKeyValue value, PixKeyStatus st
         return transition(PixKeyStatus.PENDING_DICT, dictCid, dictRegisteredAt, null, null);
     }
 
-    public PixKey activated(String cid, Instant at) {
-        return transition(PixKeyStatus.ACTIVE, cid, at, null, null);
+    public PixKey activated(String dictCid, Instant at) {
+        return transition(PixKeyStatus.ACTIVE, dictCid, at, null, null);
     }
 
     public PixKey rejected() {
@@ -44,11 +44,11 @@ public record PixKey(UUID id, UUID accountId, PixKeyValue value, PixKeyStatus st
         return status == PixKeyStatus.ACTIVE;
     }
 
-    private PixKey transition(PixKeyStatus target, String cid, Instant registeredAt, DeletionReason reason, Instant deletedAt) {
+    private PixKey transition(PixKeyStatus target, String dictCid, Instant registeredAt, DeletionReason reason, Instant deletedAt) {
         if (!status.canTransitionTo(target)) {
             throw new InvalidTransitionException(ErrorCodes.BUSINESS_RULE,
                     "Transição de chave inválida: " + status + " -> " + target);
         }
-        return new PixKey(id, accountId, value, target, cid, registeredAt, reason, deletedAt, version, createdAt);
+        return new PixKey(id, accountId, value, target, dictCid, registeredAt, reason, deletedAt, version, createdAt);
     }
 }

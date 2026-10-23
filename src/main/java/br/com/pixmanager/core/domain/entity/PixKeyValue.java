@@ -52,22 +52,22 @@ public record PixKeyValue(PixKeyType type, String value) {
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
         }
-        String s = raw.trim();
+        String trimmed = raw.trim();
         PixKeyType type;
-        if (s.startsWith("+")) {
+        if (trimmed.startsWith("+")) {
             type = PixKeyType.PHONE;
-        } else if (s.contains("@")) {
+        } else if (trimmed.contains("@")) {
             type = PixKeyType.EMAIL;
-        } else if (s.contains("-") && s.length() == 36) {
+        } else if (trimmed.contains("-") && trimmed.length() == 36) {
             type = PixKeyType.EVP;
-        } else if (Cpf.tryParse(s).isPresent()) {
+        } else if (Cpf.tryParse(trimmed).isPresent()) {
             type = PixKeyType.CPF;
-        } else if (Cnpj.tryParse(s).isPresent()) {
+        } else if (Cnpj.tryParse(trimmed).isPresent()) {
             type = PixKeyType.CNPJ;
         } else {
             return Optional.empty();
         }
-        return tryParse(type, s);
+        return tryParse(type, trimmed);
     }
 
     /** {@code null} = inválido (sem exceção, sem eco do valor). */

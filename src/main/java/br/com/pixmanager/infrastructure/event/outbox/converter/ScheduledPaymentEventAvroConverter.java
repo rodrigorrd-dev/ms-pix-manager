@@ -18,18 +18,18 @@ public class ScheduledPaymentEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        ScheduledPaymentEvent e = (ScheduledPaymentEvent) event;
+        ScheduledPaymentEvent scheduledPaymentEvent = (ScheduledPaymentEvent) event;
         return br.com.pixmanager.events.v1.ScheduledPaymentEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setScheduledPaymentId(e.scheduledPaymentId())
-                .setOccurrenceId(e.occurrenceId())
-                .setPayerAccountId(e.payerAccountId())
-                .setStatus(e.status())
-                .setDueDate(e.dueDate())
-                .setAmount(e.amount().value())
-                .setNextAttemptAt(e.nextAttemptAt())
-                .setCustomerNotificationRequired(e.customerNotificationRequired())
-                .setPaymentOrderId(e.paymentOrderId())
+                .setScheduledPaymentId(scheduledPaymentEvent.scheduledPaymentId())
+                .setOccurrenceId(scheduledPaymentEvent.occurrenceId())
+                .setPayerAccountId(scheduledPaymentEvent.payerAccountId())
+                .setStatus(scheduledPaymentEvent.status())
+                .setDueDate(scheduledPaymentEvent.dueDate())
+                .setAmount(scheduledPaymentEvent.amount().value())
+                .setNextAttemptAt(scheduledPaymentEvent.nextAttemptAt())
+                .setCustomerNotificationRequired(scheduledPaymentEvent.customerNotificationRequired())
+                .setPaymentOrderId(scheduledPaymentEvent.paymentOrderId())
                 .build();
     }
 }

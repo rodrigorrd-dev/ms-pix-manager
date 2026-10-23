@@ -34,16 +34,16 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
     }
 
     @Override
-    public WebhookSubscription save(WebhookSubscription s) {
+    public WebhookSubscription save(WebhookSubscription webhookSubscription) {
         jdbc.sql("""
                 INSERT INTO webhook_subscription (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
                 SELECT :id, k.id, k.key_hash, :url, :status, 0, :created, :by, now(), :by FROM pix_key k WHERE k.id = :key
                 ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, status = EXCLUDED.status,
                     version = webhook_subscription.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
                 """)
-                .param("id", s.id()).param("key", s.pixKeyId()).param("url", s.url()).param("status", s.status().name())
-                .param("created", Timestamp.from(s.createdAt())).param("by", s.createdBy()).update();
-        return findByPixKeyId(s.pixKeyId()).orElseThrow();
+                .param("id", webhookSubscription.id()).param("key", webhookSubscription.pixKeyId()).param("url", webhookSubscription.url()).param("status", webhookSubscription.status().name())
+                .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy()).update();
+        return findByPixKeyId(webhookSubscription.pixKeyId()).orElseThrow();
     }
 
     @Override
@@ -74,13 +74,13 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
             rows = rows.param("accounts", accountIds);
         }
         long total = count.query(Long.class).single();
-        List<WebhookView> content = rows.query((rs, i) -> new WebhookView(map(rs, i), rs.getObject("account_id", UUID.class),
-                crypto.decrypt(rs.getString("key_value_enc")))).list();
+        List<WebhookView> content = rows.query((resultSet, rowNumber) -> new WebhookView(map(resultSet, rowNumber), resultSet.getObject("account_id", UUID.class),
+                crypto.decrypt(resultSet.getString("key_value_enc")))).list();
         return new PageResult<>(content, page.page(), page.size(), total);
     }
 
-    private static WebhookSubscription map(ResultSet rs, int row) throws SQLException {
-        return new WebhookSubscription(rs.getObject("id", UUID.class), rs.getObject("pix_key_id", UUID.class), rs.getString("url"),
-                WebhookStatus.valueOf(rs.getString("status")), rs.getLong("version"), rs.getTimestamp("created_at").toInstant(), rs.getString("created_by"));
+    private static WebhookSubscription map(ResultSet resultSet, int row) throws SQLException {
+        return new WebhookSubscription(resultSet.getObject("id", UUID.class), resultSet.getObject("pix_key_id", UUID.class), resultSet.getString("url"),
+                WebhookStatus.valueOf(resultSet.getString("status")), resultSet.getLong("version"), resultSet.getTimestamp("created_at").toInstant(), resultSet.getString("created_by"));
     }
 }

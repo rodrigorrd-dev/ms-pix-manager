@@ -51,13 +51,13 @@ class ActivatePendingKeysServiceTest {
 
     @BeforeEach
     void setUp() {
-        TransactionRunnerPortOut tx = new TransactionRunnerPortOut() {
+        TransactionRunnerPortOut transactionRunner = new TransactionRunnerPortOut() {
             @Override
             public <T> T inTransaction(Supplier<T> action) {
                 return action.get();
             }
         };
-        service = new ActivatePendingKeysService(persistence, dict, events, tx, FixedClock.at("2026-10-15T15:00:00Z"), MIN_AGE);
+        service = new ActivatePendingKeysService(persistence, dict, events, transactionRunner, FixedClock.at("2026-10-15T15:00:00Z"), MIN_AGE);
     }
 
     @Test
@@ -65,7 +65,7 @@ class ActivatePendingKeysServiceTest {
         PixKey pending = pending(1);
         when(persistence.findPendingDict(NOW.minus(MIN_AGE), 10)).thenReturn(List.of(pending));
         when(dict.register(pending)).thenReturn(new DictRegistration("cid-1", NOW));
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 
@@ -83,7 +83,7 @@ class ActivatePendingKeysServiceTest {
         PixKey pending = pending(1);
         when(persistence.findPendingDict(any(), eq(10))).thenReturn(List.of(pending));
         when(dict.register(pending)).thenThrow(new BusinessException("PIX-422-012", "chave inválida no DICT"));
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 
@@ -118,7 +118,7 @@ class ActivatePendingKeysServiceTest {
         when(dict.register(healthy)).thenReturn(new DictRegistration("cid-2", NOW));
         when(persistence.save(any(PixKey.class)))
                 .thenThrow(new IllegalStateException("banco caiu"))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         int activated = service.activatePending(10);
 
@@ -138,8 +138,8 @@ class ActivatePendingKeysServiceTest {
 
     // ------------------------------------------------------------------ helpers
 
-    private static PixKey pending(long n) {
-        return PixKey.register(SequentialIds.id(n), SequentialIds.id(10), PixKeyValue.of(PixKeyType.EVP, "0000000" + n + "-0000-0000-0000-000000000000"), NOW);
+    private static PixKey pending(long index) {
+        return PixKey.register(SequentialIds.id(index), SequentialIds.id(10), PixKeyValue.of(PixKeyType.EVP, "0000000" + index + "-0000-0000-0000-000000000000"), NOW);
     }
 
     private List<String> publishedEvents() {

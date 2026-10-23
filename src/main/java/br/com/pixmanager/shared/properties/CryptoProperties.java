@@ -21,7 +21,7 @@ public record CryptoProperties(String aesKeyBase64, String hmacKeyBase64, String
         }
         // entradas em branco (placeholders do application.yml sem valor) não são chave: ignoradas
         previousAesKeys = previousAesKeys == null ? Map.of() : previousAesKeys.entrySet().stream()
-                .filter(e -> e.getValue() != null && !e.getValue().isBlank())
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isBlank())
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         reencrypt = reencrypt == null ? new Reencrypt(false, 500) : reencrypt;
     }

@@ -36,7 +36,7 @@ public class FindChargeService implements FindChargeUseCase {
 
     /** Pacote privado ao módulo (também usado pela revisão). */
     Optional<Charge> visible(Caller caller, TxId txid) {
-        List<Charge> mine = persistence.findByTxid(txid).stream().filter(c -> caller.canAccess(c.receiverAccountId())).toList();
+        List<Charge> mine = persistence.findByTxid(txid).stream().filter(charge -> caller.canAccess(charge.receiverAccountId())).toList();
         if (mine.size() > 1) {
             throw new ConflictException(ErrorCodes.CONFLICT, "txid ambíguo entre contas do chamador; informe a conta.");
         }

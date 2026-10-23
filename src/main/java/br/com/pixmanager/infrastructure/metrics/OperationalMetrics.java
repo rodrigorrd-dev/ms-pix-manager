@@ -64,7 +64,7 @@ public class OperationalMetrics implements MeterBinder {
         this.clock = clock;
         this.stuckAfter = stuckAfter;
         this.slotName = slotName;
-        PAYMENT_STATUSES.forEach(s -> paymentsStuck.put(s, new AtomicLong()));
+        PAYMENT_STATUSES.forEach(status -> paymentsStuck.put(status, new AtomicLong()));
     }
 
     @Override
@@ -100,8 +100,8 @@ public class OperationalMetrics implements MeterBinder {
             automaticOverdue.set(jdbc.sql("SELECT count(*) FROM pix_automatic_attempt WHERE status = 'AGENDADA' AND settlement_date < (now() AT TIME ZONE 'America/Sao_Paulo')::date AND updated_at < :c")
                     .param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
             outboxRows.set(jdbc.sql("SELECT count(*) FROM outbox_event").query(Long.class).single());
-        } catch (RuntimeException e) {
-            log.warn("Falha ao atualizar métricas operacionais: {}", e.getMessage());
+        } catch (RuntimeException exception) {
+            log.warn("Falha ao atualizar métricas operacionais: {}", exception.getMessage());
         }
         refreshSlotLag();
     }
@@ -115,7 +115,7 @@ public class OperationalMetrics implements MeterBinder {
             Long lag = jdbc.sql("SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)::bigint FROM pg_replication_slots WHERE slot_name = :n")
                     .param("n", slotName).query(Long.class).optional().orElse(-1L);
             slotLag.set(lag);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException exception) {
             slotLag.set(-1);                 // sem permissão para ler o WAL (usuário não privilegiado): use o postgres_exporter
         }
     }

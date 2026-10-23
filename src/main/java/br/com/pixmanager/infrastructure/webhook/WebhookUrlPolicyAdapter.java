@@ -60,35 +60,35 @@ public class WebhookUrlPolicyAdapter implements WebhookUrlPolicyPortOut {
         InetAddress[] addresses;
         try {
             addresses = InetAddress.getAllByName(host);
-        } catch (UnknownHostException e) {
+        } catch (UnknownHostException exception) {
             return new Verdict.Unresolvable(host);
         }
         if (!allowPrivateHosts) {
-            for (InetAddress a : addresses) {
-                if (isInternal(a)) {
-                    return new Verdict.Forbidden("o host resolve para um endereço interno (" + a.getHostAddress() + ")");
+            for (InetAddress address : addresses) {
+                if (isInternal(address)) {
+                    return new Verdict.Forbidden("o host resolve para um endereço interno (" + address.getHostAddress() + ")");
                 }
             }
         }
         return new Verdict.Allowed();
     }
 
-    static boolean isInternal(InetAddress a) {
-        if (a.isAnyLocalAddress() || a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isSiteLocalAddress() || a.isMulticastAddress()) {
+    static boolean isInternal(InetAddress address) {
+        if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress() || address.isSiteLocalAddress() || address.isMulticastAddress()) {
             return true;
         }
-        byte[] b = a.getAddress();
-        if (a instanceof Inet4Address) {
-            int b0 = b[0] & 0xff;
-            int b1 = b[1] & 0xff;
-            return b0 == 0                                   // 0.0.0.0/8
-                    || (b0 == 100 && b1 >= 64 && b1 <= 127)  // 100.64.0.0/10 (CGNAT)
-                    || (b0 == 192 && b1 == 0 && (b[2] & 0xff) == 0)   // 192.0.0.0/24
-                    || (b0 == 198 && (b1 == 18 || b1 == 19)) // 198.18.0.0/15 (benchmark)
-                    || b0 >= 240;                            // reservado/broadcast
+        byte[] addressBytes = address.getAddress();
+        if (address instanceof Inet4Address) {
+            int firstOctet = addressBytes[0] & 0xff;
+            int secondOctet = addressBytes[1] & 0xff;
+            return firstOctet == 0                                   // 0.0.0.0/8
+                    || (firstOctet == 100 && secondOctet >= 64 && secondOctet <= 127)  // 100.64.0.0/10 (CGNAT)
+                    || (firstOctet == 192 && secondOctet == 0 && (addressBytes[2] & 0xff) == 0)   // 192.0.0.0/24
+                    || (firstOctet == 198 && (secondOctet == 18 || secondOctet == 19)) // 198.18.0.0/15 (benchmark)
+                    || firstOctet >= 240;                            // reservado/broadcast
         }
-        if (a instanceof Inet6Address) {
-            return (b[0] & 0xfe) == 0xfc;                   // fc00::/7 (ULA); IPv4 mapeado já vem como Inet4Address
+        if (address instanceof Inet6Address) {
+            return (addressBytes[0] & 0xfe) == 0xfc;                   // fc00::/7 (ULA); IPv4 mapeado já vem como Inet4Address
         }
         return false;
     }

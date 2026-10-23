@@ -38,18 +38,18 @@ public class CryptoService {
     private final SecureRandom random = new SecureRandom();
 
     public CryptoService(CryptoProperties properties) {
-        byte[] aes = decode(properties.aesKeyBase64(), "pix.crypto.aes-key-base64");
+        byte[] aesKeyBytes = decode(properties.aesKeyBase64(), "pix.crypto.aes-key-base64");
         byte[] hmac = decode(properties.hmacKeyBase64(), "pix.crypto.hmac-key-base64");
-        if (aes.length != 32) {
+        if (aesKeyBytes.length != 32) {
             throw new IllegalStateException("pix.crypto.aes-key-base64 deve ter 32 bytes (AES-256)");
         }
         if (hmac.length < 32) {
             throw new IllegalStateException("pix.crypto.hmac-key-base64 deve ter ao menos 32 bytes");
         }
-        if (MessageDigest.isEqual(aes, hmac)) {
+        if (MessageDigest.isEqual(aesKeyBytes, hmac)) {
             throw new IllegalStateException("As chaves AES e HMAC devem ser distintas");
         }
-        this.aesKey = new SecretKeySpec(aes, "AES");
+        this.aesKey = new SecretKeySpec(aesKeyBytes, "AES");
         this.hmacKey = new SecretKeySpec(hmac, HMAC);
         this.version = properties.keyVersion();
         this.aesByVersion.put(version, aesKey);
@@ -61,7 +61,7 @@ public class CryptoService {
             if (old.length != 32) {
                 throw new IllegalStateException("pix.crypto.previous-aes-keys." + v + " deve ter 32 bytes (AES-256)");
             }
-            if (MessageDigest.isEqual(old, aes) || MessageDigest.isEqual(old, hmac)) {
+            if (MessageDigest.isEqual(old, aesKeyBytes) || MessageDigest.isEqual(old, hmac)) {
                 throw new IllegalStateException("A chave antiga " + v + " não pode ser igual à AES atual nem à HMAC");
             }
             aesByVersion.put(v, new SecretKeySpec(old, "AES"));
@@ -73,17 +73,17 @@ public class CryptoService {
             return null;
         }
         try {
-            byte[] iv = new byte[IV_SIZE];
-            random.nextBytes(iv);
+            byte[] initializationVector = new byte[IV_SIZE];
+            random.nextBytes(initializationVector);
             Cipher cipher = Cipher.getInstance(AES_GCM);
-            cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(TAG_BITS, iv));
-            byte[] ct = cipher.doFinal(text.getBytes(StandardCharsets.UTF_8));
-            byte[] out = new byte[iv.length + ct.length];
-            System.arraycopy(iv, 0, out, 0, iv.length);
-            System.arraycopy(ct, 0, out, iv.length, ct.length);
+            cipher.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(TAG_BITS, initializationVector));
+            byte[] cipherText = cipher.doFinal(text.getBytes(StandardCharsets.UTF_8));
+            byte[] out = new byte[initializationVector.length + cipherText.length];
+            System.arraycopy(initializationVector, 0, out, 0, initializationVector.length);
+            System.arraycopy(cipherText, 0, out, initializationVector.length, cipherText.length);
             return version + ":" + Base64.getEncoder().encodeToString(out);
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao cifrar dado sensível", e);
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao cifrar dado sensível", exception);
         }
     }
 
@@ -101,19 +101,19 @@ public class CryptoService {
             return null;
         }
         try {
-            int sep = encrypted.indexOf(':');
-            SecretKeySpec key = sep < 0 ? null : aesByVersion.get(encrypted.substring(0, sep));
+            int separatorIndex = encrypted.indexOf(':');
+            SecretKeySpec key = separatorIndex < 0 ? null : aesByVersion.get(encrypted.substring(0, separatorIndex));
             if (key == null) {
                 throw new CryptoException("Versão de chave desconhecida para o dado cifrado");
             }
-            byte[] data = Base64.getDecoder().decode(encrypted.substring(sep + 1));
+            byte[] data = Base64.getDecoder().decode(encrypted.substring(separatorIndex + 1));
             Cipher cipher = Cipher.getInstance(AES_GCM);
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, data, 0, IV_SIZE));
             return new String(cipher.doFinal(data, IV_SIZE, data.length - IV_SIZE), StandardCharsets.UTF_8);
-        } catch (CryptoException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao decifrar dado sensível", e);
+        } catch (CryptoException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao decifrar dado sensível", exception);
         }
     }
 
@@ -126,8 +126,8 @@ public class CryptoService {
             Mac mac = Mac.getInstance(HMAC);
             mac.init(hmacKey);
             return HexFormat.of().formatHex(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new CryptoException("Falha ao calcular índice cego", e);
+        } catch (Exception exception) {
+            throw new CryptoException("Falha ao calcular índice cego", exception);
         }
     }
 
@@ -137,7 +137,7 @@ public class CryptoService {
         }
         try {
             return Base64.getDecoder().decode(base64);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("Propriedade não é Base64 válido: " + property);
         }
     }

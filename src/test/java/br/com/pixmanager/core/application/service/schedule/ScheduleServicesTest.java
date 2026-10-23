@@ -82,7 +82,7 @@ class ScheduleServicesTest {
 
     final UUID payerId = SequentialIds.id(100);
     final Caller caller = Caller.forAccounts("cli", payerId);
-    final ScheduleProperties props = new ScheduleProperties(null, null, null, null, null, null, null);
+    final ScheduleProperties scheduleProperties = new ScheduleProperties(null, null, null, null, null, null, null);
     FixedClock clock;
     ManageScheduledPaymentService manage;
     ExecuteScheduledPaymentsService worker;
@@ -90,19 +90,19 @@ class ScheduleServicesTest {
     @BeforeEach
     void setUp() {
         clock = FixedClock.at("2026-10-15T15:00:00Z");
-        manage = new ManageScheduledPaymentService(schedules, accounts, events, new SequentialIds(), clock, props);
-        worker = new ExecuteScheduledPaymentsService(schedules, orders, createOrder, events, TX, clock, props, ScheduleRetryPolicy.standard(props.zone()), () -> 0.5);
+        manage = new ManageScheduledPaymentService(schedules, accounts, events, new SequentialIds(), clock, scheduleProperties);
+        worker = new ExecuteScheduledPaymentsService(schedules, orders, createOrder, events, TX, clock, scheduleProperties, ScheduleRetryPolicy.standard(scheduleProperties.zone()), () -> 0.5);
         when(accounts.findById(payerId)).thenReturn(Optional.of(account(AccountStatus.ACTIVE)));
-        when(schedules.save(any(ScheduledPayment.class))).thenAnswer(i -> i.getArgument(0));
-        when(schedules.saveOccurrence(any())).thenAnswer(i -> i.getArgument(0));
+        when(schedules.save(any(ScheduledPayment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     AccountInfo account(AccountStatus status) {
         return new AccountInfo(payerId, SequentialIds.id(200), HolderType.INDIVIDUAL, Cpf.of("11144477735"), "h", "Pagador", "12345678", "0001", "1", "CACC", status);
     }
 
-    CreateScheduledPaymentCommand cmd(Recurrence r, LocalDate first, Integer total) {
-        return new CreateScheduledPaymentCommand(payerId, r, PaymentMethod.KEY, PixKeyType.EMAIL, "alguem@exemplo.com.br", null, null, null, null, null, null,
+    CreateScheduledPaymentCommand cmd(Recurrence recurrence, LocalDate first, Integer total) {
+        return new CreateScheduledPaymentCommand(payerId, recurrence, PaymentMethod.KEY, PixKeyType.EMAIL, "alguem@exemplo.com.br", null, null, null, null, null, null,
                 Money.of("10.00"), null, first, null, total);
     }
 
@@ -123,12 +123,12 @@ class ScheduleServicesTest {
         ScheduledPayment created = manage.create(caller, cmd(Recurrence.WEEKLY, LocalDate.parse("2026-10-20"), 3));
 
         assertThat(created.status()).isEqualTo(ScheduleStatus.ACTIVE);
-        @SuppressWarnings("unchecked") ArgumentCaptor<List<ScheduledOccurrence>> occ = ArgumentCaptor.forClass(List.class);
-        verify(schedules).insert(eq(created), occ.capture());
-        assertThat(occ.getValue()).extracting(ScheduledOccurrence::dueDate).containsExactly(LocalDate.parse("2026-10-20"), LocalDate.parse("2026-10-27"), LocalDate.parse("2026-11-03"));
-        ArgumentCaptor<DomainEvent> ev = ArgumentCaptor.forClass(DomainEvent.class);
-        verify(events).publish(ev.capture());
-        assertThat(ev.getValue().eventType()).isEqualTo("ScheduledPaymentCreated");
+        @SuppressWarnings("unchecked") ArgumentCaptor<List<ScheduledOccurrence>> occurrencesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(schedules).insert(eq(created), occurrencesCaptor.capture());
+        assertThat(occurrencesCaptor.getValue()).extracting(ScheduledOccurrence::dueDate).containsExactly(LocalDate.parse("2026-10-20"), LocalDate.parse("2026-10-27"), LocalDate.parse("2026-11-03"));
+        ArgumentCaptor<DomainEvent> domainEventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(events).publish(domainEventCaptor.capture());
+        assertThat(domainEventCaptor.getValue().eventType()).isEqualTo("ScheduledPaymentCreated");
     }
 
     @Test
@@ -189,21 +189,21 @@ class ScheduleServicesTest {
 
     // ------------------------------------------------------------------ worker
 
-    void claim(ScheduledOccurrence o) {
-        when(schedules.claimDue(any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(o));
+    void claim(ScheduledOccurrence occurrence) {
+        when(schedules.claimDue(any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(occurrence));
         when(schedules.findById(SequentialIds.id(1))).thenReturn(Optional.of(payment(ScheduleStatus.ACTIVE)));
         when(schedules.countOpen(any())).thenReturn(1L);
     }
 
-    PaymentOrder order(String e2e) {
+    PaymentOrder order(String endToEndId) {
         return PaymentOrder.create(SequentialIds.id(70), payerId, PaymentMethod.KEY, PaymentOrigin.SCHEDULED, null, Money.of("10.00"), null, null,
-                new br.com.pixmanager.core.domain.entity.EndToEndId(e2e), true, NOON);
+                new br.com.pixmanager.core.domain.entity.EndToEndId(endToEndId), true, NOON);
     }
 
     String lastStatus() {
-        ArgumentCaptor<ScheduledOccurrence> c = ArgumentCaptor.forClass(ScheduledOccurrence.class);
-        verify(schedules, org.mockito.Mockito.atLeastOnce()).saveOccurrence(c.capture());
-        ScheduledOccurrence last = c.getAllValues().get(c.getAllValues().size() - 1);
+        ArgumentCaptor<ScheduledOccurrence> scheduledOccurrenceCaptor = ArgumentCaptor.forClass(ScheduledOccurrence.class);
+        verify(schedules, org.mockito.Mockito.atLeastOnce()).saveOccurrence(scheduledOccurrenceCaptor.capture());
+        ScheduledOccurrence last = scheduledOccurrenceCaptor.getAllValues().get(scheduledOccurrenceCaptor.getAllValues().size() - 1);
         return last.status() + (last.lastErrorCode() == null ? "" : ":" + last.lastErrorCode());
     }
 
@@ -214,9 +214,9 @@ class ScheduleServicesTest {
         when(createOrder.prepare(any(), any())).thenThrow(new BusinessException("PIX-422-012", "Chave não encontrada"));
         when(schedules.countOpen(any())).thenReturn(0L);
 
-        var r = worker.runCycle();
+        var cycleResult = worker.runCycle();
 
-        assertThat(r.failed()).isEqualTo(1);
+        assertThat(cycleResult.failed()).isEqualTo(1);
         assertThat(lastStatus()).isEqualTo("FAILED:PIX-422-012");
         verify(createOrder, never()).submit(any());
     }
@@ -231,7 +231,7 @@ class ScheduleServicesTest {
         assertThat(lastStatus()).startsWith("SCHEDULED");
 
         org.mockito.Mockito.reset(schedules);
-        when(schedules.saveOccurrence(any())).thenAnswer(i -> i.getArgument(0));
+        when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
         claim(occurrence(OccurrenceStatus.PROCESSING, 5, null));
         worker.runCycle();
         assertThat(lastStatus()).isEqualTo("FAILED:TECHNICAL");
@@ -260,29 +260,29 @@ class ScheduleServicesTest {
         assertThat(lastStatus()).isEqualTo("PROCESSING");
 
         org.mockito.Mockito.reset(schedules);
-        when(schedules.saveOccurrence(any())).thenAnswer(i -> i.getArgument(0));
+        when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
         claim(occurrence(OccurrenceStatus.PROCESSING, 1, null));
         when(createOrder.submit(any())).thenReturn(new PaymentOrderResult.Rejected(created, "PIX-422-050", "limite"));
         assertThat(worker.runCycle().failed()).isEqualTo(1);
         assertThat(lastStatus()).isEqualTo("FAILED:PIX-422-050");
     }
 
-    PaymentOrder progressed(String how) {
-        PaymentOrder o = order("E12345678202610151403abcdefghij0").validated(SequentialIds.id(80)).reserved();
-        return switch (how) {
-            case "SENT" -> o.sentToSpi(NOON);
-            case "AM04" -> o.rejected("AM04", "sem saldo");
-            case "AC03" -> o.rejected("AC03", "conta inválida");
-            default -> o;
+    PaymentOrder progressed(String progression) {
+        PaymentOrder paymentOrder = order("E12345678202610151403abcdefghij0").validated(SequentialIds.id(80)).reserved();
+        return switch (progression) {
+            case "SENT" -> paymentOrder.sentToSpi(NOON);
+            case "AM04" -> paymentOrder.rejected("AM04", "sem saldo");
+            case "AC03" -> paymentOrder.rejected("AC03", "conta inválida");
+            default -> paymentOrder;
         };
     }
 
     ScheduledOccurrence followed(int attempts) {
-        ScheduledOccurrence o = occurrence(OccurrenceStatus.PROCESSING, attempts, SequentialIds.id(70));
-        when(schedules.processingWithOrder(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(o));
+        ScheduledOccurrence occurrence = occurrence(OccurrenceStatus.PROCESSING, attempts, SequentialIds.id(70));
+        when(schedules.processingWithOrder(org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(occurrence));
         when(schedules.findById(SequentialIds.id(1))).thenReturn(Optional.of(payment(ScheduleStatus.ACTIVE)));
         when(schedules.countOpen(any())).thenReturn(0L);
-        return o;
+        return occurrence;
     }
 
     @Test
@@ -313,15 +313,15 @@ class ScheduleServicesTest {
         assertThat(retry.getValue().status()).isEqualTo(OccurrenceStatus.RETRY_PENDING);
         assertThat(retry.getValue().customerNotifiedAt()).isNotNull();
         assertThat(retry.getValue().nextAttemptAt()).isBetween(Instant.parse("2026-10-15T21:00:00Z"), Instant.parse("2026-10-16T00:00:00Z"));
-        ArgumentCaptor<DomainEvent> ev = ArgumentCaptor.forClass(DomainEvent.class);
-        verify(events).publish(ev.capture());
-        assertThat(ev.getValue()).isInstanceOfSatisfying(ScheduledPaymentEvent.class, e -> {
-            assertThat(e.eventType()).isEqualTo("ScheduledOccurrenceRetryNotified");
-            assertThat(e.customerNotificationRequired()).isTrue();
+        ArgumentCaptor<DomainEvent> domainEventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(events).publish(domainEventCaptor.capture());
+        assertThat(domainEventCaptor.getValue()).isInstanceOfSatisfying(ScheduledPaymentEvent.class, event -> {
+            assertThat(event.eventType()).isEqualTo("ScheduledOccurrenceRetryNotified");
+            assertThat(event.customerNotificationRequired()).isTrue();
         });
 
         org.mockito.Mockito.reset(schedules);
-        when(schedules.saveOccurrence(any())).thenAnswer(i -> i.getArgument(0));
+        when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
         followed(2);
         worker.runCycle();
         assertThat(lastStatus()).isEqualTo("FAILED_INSUFFICIENT_FUNDS:AM04");
@@ -336,7 +336,7 @@ class ScheduleServicesTest {
         assertThat(lastStatus()).isEqualTo("FAILED:AC03");
 
         org.mockito.Mockito.reset(schedules);
-        when(schedules.saveOccurrence(any())).thenAnswer(i -> i.getArgument(0));
+        when(schedules.saveOccurrence(any())).thenAnswer(invocation -> invocation.getArgument(0));
         followed(1);
         when(orders.findById(SequentialIds.id(70))).thenReturn(Optional.of(order("E12345678202610151403abcdefghij0").cancelled()));
         worker.runCycle();

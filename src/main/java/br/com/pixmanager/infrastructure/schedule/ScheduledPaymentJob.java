@@ -22,9 +22,9 @@ public class ScheduledPaymentJob {
     @Scheduled(initialDelayString = "${pix.schedule.dispatch-delay:PT30S}", fixedDelayString = "${pix.schedule.dispatch-delay:PT30S}")   // 1ª execução também só depois do atraso: não corre junto com o início dos ITs
     @SchedulerLock(name = "scheduled-payments", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1S")
     void run() {
-        var r = execute.runCycle();
-        if (r.started() + r.settled() + r.retried() + r.failed() + r.released() > 0) {
-            log.info("Pix agendado: disparados={} executados={} retentativas={} falhas={} liberados={}", r.started(), r.settled(), r.retried(), r.failed(), r.released());
+        var cycleResult = execute.runCycle();
+        if (cycleResult.started() + cycleResult.settled() + cycleResult.retried() + cycleResult.failed() + cycleResult.released() > 0) {
+            log.info("Pix agendado: disparados={} executados={} retentativas={} falhas={} liberados={}", cycleResult.started(), cycleResult.settled(), cycleResult.retried(), cycleResult.failed(), cycleResult.released());
         }
     }
 }

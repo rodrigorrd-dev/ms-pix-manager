@@ -16,19 +16,19 @@ public class InsecureTlsGuard {
 
     private static final List<String> FLAGS = List.of("pix.qr.allow-unverified-chain");
 
-    private final Environment env;
+    private final Environment environment;
 
-    public InsecureTlsGuard(Environment env) {
-        this.env = env;
+    public InsecureTlsGuard(Environment environment) {
+        this.environment = environment;
     }
 
     @PostConstruct
     void validate() {
-        if (!env.acceptsProfiles(Profiles.of("hml", "prd"))) {
+        if (!environment.acceptsProfiles(Profiles.of("hml", "prd"))) {
             return;
         }
         for (String flag : FLAGS) {
-            if (env.getProperty(flag, Boolean.class, false)) {
+            if (environment.getProperty(flag, Boolean.class, false)) {
                 throw new IllegalStateException(flag + "=true é permitido só em dev/teste: desligue-o em hml/prd");
             }
         }

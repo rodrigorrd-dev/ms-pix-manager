@@ -76,7 +76,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, type, rawValueFor(type));
 
@@ -93,7 +93,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, PixKeyType.EVP, "valor-do-cliente");
 
@@ -105,7 +105,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.BUSINESS, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn(0L);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PixKey key = service.register(caller, accountId, PixKeyType.CNPJ, HOLDER_CNPJ);
 
@@ -124,7 +124,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, type, value))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_OWNED));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_OWNED));
 
         verify(persistence, never()).save(any());
         verifyNoInteractions(events);
@@ -139,7 +139,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.EVP, null))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_LIMIT_EXCEEDED));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_LIMIT_EXCEEDED));
 
         verify(persistence, never()).save(any());
     }
@@ -150,7 +150,7 @@ class RegisterPixKeyServiceTest {
         account(HolderType.INDIVIDUAL, AccountStatus.ACTIVE);
         when(persistence.countLiveByAccount(accountId)).thenReturn((long) MAX_INDIVIDUAL - 1);
         when(persistence.findLiveByValue(any(PixKeyValue.class))).thenReturn(Optional.empty());
-        when(persistence.save(any(PixKey.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(persistence.save(any(PixKey.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(service.register(caller, accountId, PixKeyType.CPF, HOLDER_CPF)).isNotNull();
     }
@@ -195,7 +195,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.CPF, HOLDER_CPF))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.KEY_NOT_ACTIVE));
 
         verifyNoInteractions(persistence, events);
     }
@@ -206,7 +206,7 @@ class RegisterPixKeyServiceTest {
 
         assertThatThrownBy(() -> service.register(caller, accountId, PixKeyType.EMAIL, "Nao-e-Email"))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
+                .satisfies(exception -> assertThat(((BusinessException) exception).getCode()).isEqualTo(ErrorCodes.INVALID_PIX_KEY));
 
         verifyNoInteractions(events);
     }

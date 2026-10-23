@@ -71,44 +71,44 @@ public class ChargeEntity extends AuditableEntity {
 
     public UUID getId() { return id; }
     public String getChargeType() { return chargeType; }
-    public void setChargeType(String v) { this.chargeType = v; }
+    public void setChargeType(String chargeType) { this.chargeType = chargeType; }
     public String getTxid() { return txid; }
-    public void setTxid(String v) { this.txid = v; }
+    public void setTxid(String txid) { this.txid = txid; }
     public UUID getReceiverAccountId() { return receiverAccountId; }
-    public void setReceiverAccountId(UUID v) { this.receiverAccountId = v; }
+    public void setReceiverAccountId(UUID receiverAccountId) { this.receiverAccountId = receiverAccountId; }
     public String getReceiverDocumentHash() { return receiverDocumentHash; }
-    public void setReceiverDocumentHash(String v) { this.receiverDocumentHash = v; }
+    public void setReceiverDocumentHash(String receiverDocumentHash) { this.receiverDocumentHash = receiverDocumentHash; }
     public UUID getPixKeyId() { return pixKeyId; }
-    public void setPixKeyId(UUID v) { this.pixKeyId = v; }
+    public void setPixKeyId(UUID pixKeyId) { this.pixKeyId = pixKeyId; }
     public String getStatus() { return status; }
-    public void setStatus(String v) { this.status = v; }
+    public void setStatus(String status) { this.status = status; }
     public BigDecimal getOriginalAmount() { return originalAmount; }
-    public void setOriginalAmount(BigDecimal v) { this.originalAmount = v; }
+    public void setOriginalAmount(BigDecimal originalAmount) { this.originalAmount = originalAmount; }
     public Integer getExpirationSeconds() { return expirationSeconds; }
-    public void setExpirationSeconds(Integer v) { this.expirationSeconds = v; }
+    public void setExpirationSeconds(Integer expirationSeconds) { this.expirationSeconds = expirationSeconds; }
     public Instant getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(Instant v) { this.expiresAt = v; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
     public LocalDate getDueDate() { return dueDate; }
-    public void setDueDate(LocalDate v) { this.dueDate = v; }
+    public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
     public Integer getValidityAfterDueDays() { return validityAfterDueDays; }
-    public void setValidityAfterDueDays(Integer v) { this.validityAfterDueDays = v; }
+    public void setValidityAfterDueDays(Integer validityAfterDueDays) { this.validityAfterDueDays = validityAfterDueDays; }
     public String getDebtorType() { return debtorType; }
-    public void setDebtorType(String v) { this.debtorType = v; }
+    public void setDebtorType(String debtorType) { this.debtorType = debtorType; }
     public String getDebtorDocumentEnc() { return debtorDocumentEnc; }
-    public void setDebtorDocumentEnc(String v) { this.debtorDocumentEnc = v; }
+    public void setDebtorDocumentEnc(String debtorDocumentEnc) { this.debtorDocumentEnc = debtorDocumentEnc; }
     public String getDebtorDocumentHash() { return debtorDocumentHash; }
-    public void setDebtorDocumentHash(String v) { this.debtorDocumentHash = v; }
+    public void setDebtorDocumentHash(String debtorDocumentHash) { this.debtorDocumentHash = debtorDocumentHash; }
     public String getDebtorName() { return debtorName; }
-    public void setDebtorName(String v) { this.debtorName = v; }
+    public void setDebtorName(String debtorName) { this.debtorName = debtorName; }
     public String getPayerRequest() { return payerRequest; }
-    public void setPayerRequest(String v) { this.payerRequest = v; }
+    public void setPayerRequest(String payerRequest) { this.payerRequest = payerRequest; }
     public UUID getLocationId() { return locationId; }
-    public void setLocationId(UUID v) { this.locationId = v; }
+    public void setLocationId(UUID locationId) { this.locationId = locationId; }
     public int getRevision() { return revision; }
-    public void setRevision(int v) { this.revision = v; }
+    public void setRevision(int revision) { this.revision = revision; }
     public UUID getPaidReceivedId() { return paidReceivedId; }
-    public void setPaidReceivedId(UUID v) { this.paidReceivedId = v; }
+    public void setPaidReceivedId(UUID paidReceivedId) { this.paidReceivedId = paidReceivedId; }
     public Instant getRemovedAt() { return removedAt; }
-    public void setRemovedAt(Instant v) { this.removedAt = v; }
+    public void setRemovedAt(Instant removedAt) { this.removedAt = removedAt; }
     public Long getVersion() { return version; }
 }

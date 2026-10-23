@@ -43,60 +43,60 @@ public class ChargeMapper {
     }
 
     // ---------------------------------------------------------------- request → comando
-    public CreateChargeCommand toCommand(String txid, CobRequest r) {
-        return new CreateChargeCommand(ChargeType.IMMEDIATE, txid, r.pixKey(), Money.parseBcb(r.value().original()),
-                r.calendar() == null ? null : r.calendar().expiration(), null, null, toDebtor(r.debtor()), r.payerRequest(),
-                toInfo(r.additionalInfo()));
+    public CreateChargeCommand toCommand(String txid, CobRequest request) {
+        return new CreateChargeCommand(ChargeType.IMMEDIATE, txid, request.pixKey(), Money.parseBcb(request.value().original()),
+                request.calendar() == null ? null : request.calendar().expiration(), null, null, toDebtor(request.debtor()), request.payerRequest(),
+                toInfo(request.additionalInfo()));
     }
 
-    public CreateChargeCommand toCommand(String txid, CobvRequest r) {
-        return new CreateChargeCommand(ChargeType.DUE, txid, r.pixKey(), Money.parseBcb(r.value().original()), null,
-                r.calendar().dueDate(), r.calendar().validityAfterDueDays(), toDebtor(r.debtor()), r.payerRequest(),
-                toInfo(r.additionalInfo()));
+    public CreateChargeCommand toCommand(String txid, CobvRequest request) {
+        return new CreateChargeCommand(ChargeType.DUE, txid, request.pixKey(), Money.parseBcb(request.value().original()), null,
+                request.calendar().dueDate(), request.calendar().validityAfterDueDays(), toDebtor(request.debtor()), request.payerRequest(),
+                toInfo(request.additionalInfo()));
     }
 
-    public ReviseChargeCommand toCommand(CobRevisionRequest r) {
-        boolean remove = r.status() != null;
-        if (remove && r.status() != ChargeStatus.REMOVIDA_PELO_USUARIO_RECEBEDOR) {
+    public ReviseChargeCommand toCommand(CobRevisionRequest request) {
+        boolean remove = request.status() != null;
+        if (remove && request.status() != ChargeStatus.REMOVIDA_PELO_USUARIO_RECEBEDOR) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "Somente REMOVIDA_PELO_USUARIO_RECEBEDOR é aceito em status.");
         }
-        return new ReviseChargeCommand(remove, r.value() == null ? null : Money.parseBcb(r.value().original()),
-                toDebtor(r.debtor()), r.payerRequest(), r.calendar() == null ? null : r.calendar().expiration());
+        return new ReviseChargeCommand(remove, request.value() == null ? null : Money.parseBcb(request.value().original()),
+                toDebtor(request.debtor()), request.payerRequest(), request.calendar() == null ? null : request.calendar().expiration());
     }
 
     /** {@code cpf} XOR {@code cnpj}; o VO valida o dígito verificador (422 sem eco do valor). */
-    public Debtor toDebtor(DebtorRequest r) {
-        if (r == null) {
+    public Debtor toDebtor(DebtorRequest request) {
+        if (request == null) {
             return null;
         }
-        boolean hasCpf = r.cpf() != null && !r.cpf().isBlank();
-        boolean hasCnpj = r.cnpj() != null && !r.cnpj().isBlank();
+        boolean hasCpf = request.cpf() != null && !request.cpf().isBlank();
+        boolean hasCnpj = request.cnpj() != null && !request.cnpj().isBlank();
         if (hasCpf == hasCnpj) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "O devedor exige exatamente um entre cpf e cnpj.");
         }
-        Document document = hasCpf ? Cpf.of(r.cpf()) : Cnpj.of(r.cnpj());
-        return new Debtor(document, r.name());
+        Document document = hasCpf ? Cpf.of(request.cpf()) : Cnpj.of(request.cnpj());
+        return new Debtor(document, request.name());
     }
 
     private List<AdditionalInfo> toInfo(List<AdditionalInfoRequest> items) {
-        return items == null ? List.of() : items.stream().map(i -> new AdditionalInfo(i.name(), i.value())).toList();
+        return items == null ? List.of() : items.stream().map(info -> new AdditionalInfo(info.name(), info.value())).toList();
     }
 
     // ---------------------------------------------------------------- domínio → response
     public ChargeResponse toResponse(ChargeDetails details, boolean fullDocument) {
-        Charge c = details.charge();
-        PixLocation loc = c.location();
-        ChargeResponse.Calendar calendar = c.type() == ChargeType.IMMEDIATE
-                ? new ChargeResponse.Calendar(c.createdAt(), c.expirationSeconds(), null, null)
-                : new ChargeResponse.Calendar(c.createdAt(), null, c.dueDate(), c.validityAfterDueDays());
-        String locationUrl = loc == null ? null : locationBase + loc.urlPath();
-        return new ChargeResponse(calendar, c.txid().value(), c.revision(),
-                loc == null ? null : new ChargeResponse.Location(loc.locationId(), locationUrl,
-                        c.type() == ChargeType.IMMEDIATE ? "cob" : "cobv", c.createdAt()),
-                locationUrl, c.status(), toDebtorResponse(c.debtor(), fullDocument),
-                new ChargeResponse.Value(c.originalAmount().toBcb()), details.pixKey(), c.payerRequest(),
-                c.additionalInfo().isEmpty() ? null
-                        : c.additionalInfo().stream().map(i -> new ChargeResponse.Info(i.name(), i.value())).toList());
+        Charge charge = details.charge();
+        PixLocation location = charge.location();
+        ChargeResponse.Calendar calendar = charge.type() == ChargeType.IMMEDIATE
+                ? new ChargeResponse.Calendar(charge.createdAt(), charge.expirationSeconds(), null, null)
+                : new ChargeResponse.Calendar(charge.createdAt(), null, charge.dueDate(), charge.validityAfterDueDays());
+        String locationUrl = location == null ? null : locationBase + location.urlPath();
+        return new ChargeResponse(calendar, charge.txid().value(), charge.revision(),
+                location == null ? null : new ChargeResponse.Location(location.locationId(), locationUrl,
+                        charge.type() == ChargeType.IMMEDIATE ? "cob" : "cobv", charge.createdAt()),
+                locationUrl, charge.status(), toDebtorResponse(charge.debtor(), fullDocument),
+                new ChargeResponse.Value(charge.originalAmount().toBcb()), details.pixKey(), charge.payerRequest(),
+                charge.additionalInfo().isEmpty() ? null
+                        : charge.additionalInfo().stream().map(info -> new ChargeResponse.Info(info.name(), info.value())).toList());
     }
 
     private ChargeResponse.Debtor toDebtorResponse(Debtor debtor, boolean fullDocument) {
@@ -113,6 +113,6 @@ public class ChargeMapper {
         return new ChargePageResponse(
                 new ChargePageResponse.Parameters(from, to, new ChargePageResponse.Pagination(page.page(), page.size(),
                         page.totalPages(), page.totalElements())),
-                page.content().stream().map(d -> toResponse(d, fullDocument)).toList());
+                page.content().stream().map(charge -> toResponse(charge, fullDocument)).toList());
     }
 }

@@ -23,7 +23,7 @@ class OutboxCleanupJobIT extends AbstractApplicationIT {
     @DisplayName("linhas antigas somem (vários lotes); recentes ficam")
     void shouldDeleteOnlyExpiredRows() {
         String marker = "cleanup-" + UUID.randomUUID();
-        for (int i = 0; i < 7; i++) {
+        for (int index = 0; index < 7; index++) {
             insert(marker, Duration.ofDays(8));            // fora da retenção de 7 dias
         }
         UUID fresh = insert(marker, Duration.ofDays(1));    // dentro

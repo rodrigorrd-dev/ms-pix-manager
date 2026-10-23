@@ -178,7 +178,7 @@ class ChargeApiIT extends AbstractApplicationIT {
     @DisplayName("GET /cob?inicio&fim → formato oficial parametros.paginacao e só as cobranças das contas do chamador")
     void shouldSearchWithOfficialPaginationFormat() throws Exception {
         var jwt = TestJwt.client("cli", List.of(account.id()), "cob.write", "cob.read");
-        for (int i = 0; i < 3; i++) {
+        for (int index = 0; index < 3; index++) {
             mvc.perform(put("/api/pix/v2/cob/{txid}", txid()).with(jwt).contentType(MediaType.APPLICATION_JSON).content(body("2.00")))
                     .andExpect(status().isCreated());
         }

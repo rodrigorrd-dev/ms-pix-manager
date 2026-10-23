@@ -18,17 +18,17 @@ public class RefundEventAvroConverter implements EventAvroConverter {
 
     @Override
     public SpecificRecord toAvro(DomainEvent event, EventEnvelope envelope) {
-        Refund r = ((RefundEvent) event).refund();
+        Refund refund = ((RefundEvent) event).refund();
         return br.com.pixmanager.events.v1.RefundEvent.newBuilder()
                 .setEnvelope(envelope)
-                .setRefundId(r.id())
-                .setClientRefundId(r.clientRefundId())
-                .setEndToEndId(r.endToEndId().value())
-                .setRtrId(r.rtrId())
-                .setAmount(r.amount().value())
-                .setNature(r.nature().name())
-                .setStatus(r.status().name())
-                .setReason(r.statusReason())
+                .setRefundId(refund.id())
+                .setClientRefundId(refund.clientRefundId())
+                .setEndToEndId(refund.endToEndId().value())
+                .setRtrId(refund.rtrId())
+                .setAmount(refund.amount().value())
+                .setNature(refund.nature().name())
+                .setStatus(refund.status().name())
+                .setReason(refund.statusReason())
                 .build();
     }
 }

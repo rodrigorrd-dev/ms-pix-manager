@@ -20,7 +20,7 @@ public class FindReceivedPixService implements FindReceivedPixUseCase {
 
     @Override
     public Optional<ReceivedPix> findByEndToEndId(Caller caller, String endToEndId) {
-        return persistence.findByEndToEndId(endToEndId).filter(p -> caller.canAccess(p.receiverAccountId()));
+        return persistence.findByEndToEndId(endToEndId).filter(receivedPix -> caller.canAccess(receivedPix.receiverAccountId()));
     }
 
     @Override

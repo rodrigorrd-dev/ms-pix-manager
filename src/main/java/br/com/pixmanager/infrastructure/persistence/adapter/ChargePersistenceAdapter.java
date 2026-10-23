@@ -72,9 +72,9 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         ChargeEntity saved;
         try {
             saved = repository.saveAndFlush(entity);
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException exception) {
             throw new PreconditionFailedException("A cobrança foi alterada por outra requisição (versão desatualizada).");
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException exception) {
             // corrida entre dois PUT do mesmo txid: o índice único por (documento do recebedor, txid) decide
             throw new ConflictException(ErrorCodes.TXID_CONFLICT, "Já existe cobrança com este txid para o recebedor.");
         }
@@ -112,8 +112,8 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         return new PageResult<>(loadAll(result.getContent()), page.page(), page.size(), result.getTotalElements());
     }
 
-    private Charge load(ChargeEntity e) {
-        return load(e, readAdditionalInfo(e.getId()), readLocation(e.getLocationId()).orElse(null));
+    private Charge load(ChargeEntity entity) {
+        return load(entity, readAdditionalInfo(entity.getId()), readLocation(entity.getLocationId()).orElse(null));
     }
 
     /** Carrega os filhos da lista INTEIRA em 2 queries (info adicional + localizações), em vez de 2 por cobrança. */
@@ -126,14 +126,14 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         Map<UUID, List<AdditionalInfo>> infoByCharge = readAdditionalInfo(chargeIds);
         Map<UUID, PixLocation> locations = readLocations(locationIds);
         return entities.stream()
-                .map(e -> mapper.toDomain(e, infoByCharge.getOrDefault(e.getId(), List.of()), locations.get(e.getLocationId())))
+                .map(entity -> mapper.toDomain(entity, infoByCharge.getOrDefault(entity.getId(), List.of()), locations.get(entity.getLocationId())))
                 .toList();
     }
 
-    private Charge load(ChargeEntity e, List<AdditionalInfo> info, PixLocation location) {
-        PixLocation effective = location != null && location.id().equals(e.getLocationId()) ? location
-                : readLocation(e.getLocationId()).orElse(null);
-        return mapper.toDomain(e, info, effective);
+    private Charge load(ChargeEntity entity, List<AdditionalInfo> info, PixLocation location) {
+        PixLocation effective = location != null && location.id().equals(entity.getLocationId()) ? location
+                : readLocation(entity.getLocationId()).orElse(null);
+        return mapper.toDomain(entity, info, effective);
     }
 
     private void replaceAdditionalInfo(UUID chargeId, List<AdditionalInfo> info) {
@@ -150,9 +150,9 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         Map<UUID, List<AdditionalInfo>> byCharge = new HashMap<>();
         jdbc.sql("SELECT charge_id, name, value FROM pix_charge_additional_info WHERE charge_id IN (:ids) ORDER BY charge_id, position")
                 .param("ids", chargeIds)
-                .query((rs, n) -> {
-                    byCharge.computeIfAbsent(rs.getObject("charge_id", UUID.class), k -> new ArrayList<>())
-                            .add(new AdditionalInfo(rs.getString("name"), rs.getString("value")));
+                .query((resultSet, rowNumber) -> {
+                    byCharge.computeIfAbsent(resultSet.getObject("charge_id", UUID.class), chargeId -> new ArrayList<>())
+                            .add(new AdditionalInfo(resultSet.getString("name"), resultSet.getString("value")));
                     return null;
                 }).list();
         return byCharge;
@@ -165,9 +165,9 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         Map<UUID, PixLocation> byId = new HashMap<>();
         jdbc.sql("SELECT id, location_id, location_type, url_path FROM pix_location WHERE id IN (:ids)")
                 .param("ids", locationIds)
-                .query((rs, n) -> {
-                    PixLocation location = new PixLocation(rs.getObject("id", UUID.class), rs.getLong("location_id"),
-                            "COB".equals(rs.getString("location_type")) ? ChargeType.IMMEDIATE : ChargeType.DUE, rs.getString("url_path"));
+                .query((resultSet, rowNumber) -> {
+                    PixLocation location = new PixLocation(resultSet.getObject("id", UUID.class), resultSet.getLong("location_id"),
+                            "COB".equals(resultSet.getString("location_type")) ? ChargeType.IMMEDIATE : ChargeType.DUE, resultSet.getString("url_path"));
                     byId.put(location.id(), location);
                     return null;
                 }).list();
@@ -177,16 +177,16 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
     private List<AdditionalInfo> readAdditionalInfo(UUID chargeId) {
         return jdbc.sql("SELECT name, value FROM pix_charge_additional_info WHERE charge_id = :id ORDER BY position")
                 .param("id", chargeId)
-                .query((rs, n) -> new AdditionalInfo(rs.getString("name"), rs.getString("value"))).list();
+                .query((resultSet, rowNumber) -> new AdditionalInfo(resultSet.getString("name"), resultSet.getString("value"))).list();
     }
 
     /** Snapshot SEM PII (sem devedor): quem/quando/o quê mudou, para auditoria da revisão (BR-COB-08). */
-    private void snapshotRevision(Charge c) {
+    private void snapshotRevision(Charge charge) {
         java.util.Map<String, Object> snapshot = new java.util.LinkedHashMap<>();       // ObjectMapper escapa todo caractere de controle
-        snapshot.put("status", c.status().name());
-        snapshot.put("originalAmount", c.originalAmount().toBcb());
-        snapshot.put("expiresAt", c.expiresAt() == null ? null : c.expiresAt().toString());
-        snapshot.put("payerRequest", c.payerRequest());
+        snapshot.put("status", charge.status().name());
+        snapshot.put("originalAmount", charge.originalAmount().toBcb());
+        snapshot.put("expiresAt", charge.expiresAt() == null ? null : charge.expiresAt().toString());
+        snapshot.put("payerRequest", charge.payerRequest());
         String snapshotJson;
         try {
             snapshotJson = json.writeValueAsString(snapshot);
@@ -197,7 +197,7 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
                 INSERT INTO pix_charge_revision (charge_id, revision, snapshot, changed_by, changed_at)
                 VALUES (:id, :rev, CAST(:snap AS jsonb), :by, now())
                 """)
-                .param("id", c.id()).param("rev", c.revision()).param("snap", snapshotJson)
+                .param("id", charge.id()).param("rev", charge.revision()).param("snap", snapshotJson)
                 .param("by", br.com.pixmanager.shared.util.AuthenticatedClient.clientId()).update();
     }
 
@@ -207,8 +207,8 @@ public class ChargePersistenceAdapter implements ChargePersistencePortOut, Charg
         }
         return jdbc.sql("SELECT id, location_id, location_type, url_path FROM pix_location WHERE id = :id")
                 .param("id", locationId)
-                .query((rs, n) -> new PixLocation(rs.getObject("id", UUID.class), rs.getLong("location_id"),
-                        "COB".equals(rs.getString("location_type")) ? ChargeType.IMMEDIATE : ChargeType.DUE, rs.getString("url_path")))
+                .query((resultSet, rowNumber) -> new PixLocation(resultSet.getObject("id", UUID.class), resultSet.getLong("location_id"),
+                        "COB".equals(resultSet.getString("location_type")) ? ChargeType.IMMEDIATE : ChargeType.DUE, resultSet.getString("url_path")))
                 .optional();
     }
 }

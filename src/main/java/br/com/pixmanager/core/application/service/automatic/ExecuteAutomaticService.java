@@ -43,22 +43,22 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
     private final PaymentOrderPersistencePortOut orders;
     private final CreatePaymentOrderUseCase createOrder;
     private final DomainEventPublisherPortOut events;
-    private final EndToEndIdGeneratorPortOut e2eIds;
+    private final EndToEndIdGeneratorPortOut endToEndIdGenerator;
     private final IdGeneratorPortOut ids;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final AutomaticProperties properties;
 
     public ExecuteAutomaticService(AutomaticPersistencePortOut persistence, PaymentOrderPersistencePortOut orders, CreatePaymentOrderUseCase createOrder,
-                                   DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids,
-                                   TransactionRunnerPortOut tx, Clock clock, AutomaticProperties properties) {
+                                   DomainEventPublisherPortOut events, EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids,
+                                   TransactionRunnerPortOut transactionRunner, Clock clock, AutomaticProperties properties) {
         this.persistence = persistence;
         this.orders = orders;
         this.createOrder = createOrder;
         this.events = events;
-        this.e2eIds = e2eIds;
+        this.endToEndIdGenerator = endToEndIdGenerator;
         this.ids = ids;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.properties = properties;
     }
@@ -67,102 +67,102 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
     public Result runCycle() {
         Instant now = clock.instant();
         LocalDate today = LocalDate.now(clock.withZone(properties.zone()));
-        int[] c = new int[6];                                                          // expired, started, paid, retried, failed, released
-        for (AutomaticAuthorization a : persistence.findExpiredRequests(now, properties.batch())) {
-            guarded(a.id(), () -> {
-                tx.inTransaction(() -> {
-                    AutomaticAuthorization saved = persistence.saveAuthorization(a.expired());
+        CycleCounters counters = new CycleCounters();
+        for (AutomaticAuthorization authorization : persistence.findExpiredRequests(now, properties.batch())) {
+            guarded(authorization.id(), () -> {
+                transactionRunner.inTransaction(() -> {
+                    AutomaticAuthorization saved = persistence.saveAuthorization(authorization.expired());
                     events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationExpired", saved));
                 });
-                c[0]++;
+                counters.expired();
             });
         }
         for (AutomaticAttempt attempt : persistence.claimDue(today, now.minusSeconds(60), properties.batch())) {
-            guarded(attempt.id(), () -> start(attempt, today, c));
+            guarded(attempt.id(), () -> start(attempt, today, counters));
         }
         for (AutomaticAttempt attempt : persistence.inProgressWithOrder(properties.batch())) {
-            guarded(attempt.id(), () -> follow(attempt, today, c));
+            guarded(attempt.id(), () -> follow(attempt, today, counters));
         }
         for (AutomaticAttempt attempt : persistence.inProgressWithoutOrderSince(now.minus(properties.stuckAfter()), properties.batch())) {
             guarded(attempt.id(), () -> {
-                tx.inTransaction(() -> persistence.saveAttempt(attempt.with("AGENDADA", "STUCK")));
-                c[5]++;
+                transactionRunner.inTransaction(() -> persistence.saveAttempt(attempt.with("AGENDADA", "STUCK")));
+                counters.released();
             });
         }
-        return new Result(c[0], c[1], c[2], c[3], c[4], c[5]);
+        return counters.toResult();
     }
 
-    private void start(AutomaticAttempt attempt, LocalDate today, int[] c) {
+    private void start(AutomaticAttempt attempt, LocalDate today, CycleCounters counters) {
         AutomaticCharge charge = persistence.findCharge(attempt.chargeId()).orElseThrow();
-        AutomaticAuthorization auth = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
-        if (!auth.isApproved() || !charge.isLive()) {
-            log.error("Débito automático sem autorização aprovada recusado [{}]: cobrança {} autorização {} ({})", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED, charge.id(), auth.id(), auth.status());
-            tx.inTransaction(() -> persistence.saveAttempt(attempt.with("CANCELADA", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED)));
+        AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
+        if (!authorization.isApproved() || !charge.isLive()) {
+            log.error("Débito automático sem autorização aprovada recusado [{}]: cobrança {} autorização {} ({})", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED, charge.id(), authorization.id(), authorization.status());
+            transactionRunner.inTransaction(() -> persistence.saveAttempt(attempt.with("CANCELADA", ErrorCodes.AUTOMATIC_NOT_AUTHORIZED)));
             return;
         }
         if (attempt.settlementDate().isBefore(today.minusDays(properties.maxLateDays()))) {
-            finish(attempt, charge, "EXPIRADA", "EXPIRADA", "MISSED", c);
+            finish(attempt, charge, "EXPIRADA", "EXPIRADA", "MISSED", counters);
             return;
         }
-        if (auth.payerMaxAmount() != null && charge.amount().compareTo(auth.payerMaxAmount()) > 0) {
-            finish(attempt, charge, "REJEITADA", "REJEITADA", "LIMIT", c);                  // o pagador baixou o teto depois da cobrança
+        if (authorization.payerMaxAmount() != null && charge.amount().compareTo(authorization.payerMaxAmount()) > 0) {
+            finish(attempt, charge, "REJEITADA", "REJEITADA", "LIMIT", counters);                  // o pagador baixou o teto depois da cobrança
             return;
         }
         CreatePaymentOrderUseCase.PreparedPaymentOrder prepared;
         try {
-            prepared = createOrder.prepare(Caller.system("automatic"), new CreatePaymentOrderCommand(auth.payerAccountId(), PaymentMethod.MANUAL,
+            prepared = createOrder.prepare(Caller.system("automatic"), new CreatePaymentOrderCommand(authorization.payerAccountId(), PaymentMethod.MANUAL,
                     PaymentOrigin.AUTOMATIC, charge.amount(), null, null, null, charge.receiverIspb(), charge.receiverBranch(), charge.receiverAccount(),
-                    charge.receiverAccountType(), auth.receiverName(), auth.receiverDocument(), null, auth.contract(), null, true));
-        } catch (BusinessException | BadRequestException e) {
-            finish(attempt, charge, "REJEITADA", "REJEITADA", e instanceof BusinessException b ? b.getCode() : "BAD_REQUEST", c);
+                    charge.receiverAccountType(), authorization.receiverName(), authorization.receiverDocument(), null, authorization.contract(), null, true));
+        } catch (BusinessException | BadRequestException exception) {
+            finish(attempt, charge, "REJEITADA", "REJEITADA", exception instanceof BusinessException b ? b.getCode() : "BAD_REQUEST", counters);
             return;
-        } catch (IntegrationException e) {
-            tx.inTransaction(() -> persistence.saveAttempt(attempt.with("AGENDADA", e.getCode())));    // técnica: volta e espera, sem queimar tentativa
-            log.warn("Tentativa {} adiada por falha técnica [{}]", attempt.id(), e.getCode());
+        } catch (IntegrationException exception) {
+            transactionRunner.inTransaction(() -> persistence.saveAttempt(attempt.with("AGENDADA", exception.getCode())));    // técnica: volta e espera, sem queimar tentativa
+            log.warn("Tentativa {} adiada por falha técnica [{}]", attempt.id(), exception.getCode());
             return;
         }
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             PaymentOrderResult result = createOrder.submit(prepared);
             AutomaticAttempt linked = persistence.saveAttempt(attempt.linkedTo(result.orderId(), result.order().endToEndId().value()));
             if (result instanceof PaymentOrderResult.Rejected rejected) {                     // limite da data estourado
                 finishRows(linked, persistence.findCharge(charge.id()).orElseThrow(), "REJEITADA", "REJEITADA", rejected.errorCode());
-                c[4]++;
+                counters.failed();
             } else {
-                c[1]++;
+                counters.started();
             }
         });
     }
 
-    private void follow(AutomaticAttempt attempt, LocalDate today, int[] c) {
+    private void follow(AutomaticAttempt attempt, LocalDate today, CycleCounters counters) {
         PaymentOrder order = orders.findById(attempt.paymentOrderId()).orElseThrow();
         AutomaticCharge charge = persistence.findCharge(attempt.chargeId()).orElseThrow();
         switch (order.status()) {
             case SENT_TO_SPI, SETTLED -> {
-                tx.inTransaction(() -> finishRows(attempt, charge, "PAGA", "CONCLUIDA", null));
-                c[2]++;
+                transactionRunner.inTransaction(() -> finishRows(attempt, charge, "PAGA", "CONCLUIDA", null));
+                counters.paid();
             }
             case REJECTED -> {
-                AutomaticAuthorization auth = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
+                AutomaticAuthorization authorization = persistence.findAuthorization(charge.authorizationId()).orElseThrow();
                 int made = persistence.attemptsOf(charge.id()).size();
-                if ("AM04".equals(order.rejectReasonCode()) && auth.allowRetry() && auth.isApproved() && made <= properties.retryDays()) {
-                    tx.inTransaction(() -> {
+                if ("AM04".equals(order.rejectReasonCode()) && authorization.allowRetry() && authorization.isApproved() && made <= properties.retryDays()) {
+                    transactionRunner.inTransaction(() -> {
                         persistence.saveAttempt(attempt.with("REJEITADA", "AM04"));
-                        persistence.insertAttempt(new AutomaticAttempt(ids.newId(), charge.id(), "NTAG", "AGENDADA", e2eIds.nextEndToEndId(),
+                        persistence.insertAttempt(new AutomaticAttempt(ids.newId(), charge.id(), "NTAG", "AGENDADA", endToEndIdGenerator.nextEndToEndId(),
                                 today.plusDays(1), null, null, 0));
                     });
-                    c[3]++;
+                    counters.retried();
                 } else {
-                    finish(attempt, charge, "REJEITADA", "REJEITADA", order.rejectReasonCode() == null ? "REJECTED" : order.rejectReasonCode(), c);
+                    finish(attempt, charge, "REJEITADA", "REJEITADA", order.rejectReasonCode() == null ? "REJECTED" : order.rejectReasonCode(), counters);
                 }
             }
-            case FAILED_TECHNICAL, CANCELLED -> finish(attempt, charge, "REJEITADA", "REJEITADA", order.status().name(), c);
+            case FAILED_TECHNICAL, CANCELLED -> finish(attempt, charge, "REJEITADA", "REJEITADA", order.status().name(), counters);
             default -> { }
         }
     }
 
-    private void finish(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error, int[] c) {
-        tx.inTransaction(() -> finishRows(attempt, charge, attemptStatus, chargeStatus, error));
-        c[4]++;
+    private void finish(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error, CycleCounters counters) {
+        transactionRunner.inTransaction(() -> finishRows(attempt, charge, attemptStatus, chargeStatus, error));
+        counters.failed();
     }
 
     private void finishRows(AutomaticAttempt attempt, AutomaticCharge charge, String attemptStatus, String chargeStatus, String error) {
@@ -173,8 +173,23 @@ public class ExecuteAutomaticService implements ExecuteAutomaticUseCase {
     private void guarded(java.util.UUID id, Runnable action) {
         try {
             action.run();
-        } catch (RuntimeException e) {
-            log.error("Erro no Pix Automático ao processar {}", id, e);
+        } catch (RuntimeException exception) {
+            log.error("Erro no Pix Automático ao processar {}", id, exception);
+        }
+    }
+
+    /** Acumulador do ciclo: cada contador tem nome, em vez de um índice mágico num {@code int[]}. */
+    private static final class CycleCounters {
+        private int expired, started, paid, retried, failed, released;
+        void expired() { expired++; }
+        void started() { started++; }
+        void paid() { paid++; }
+        void retried() { retried++; }
+        void failed() { failed++; }
+        void released() { released++; }
+
+        Result toResult() {
+            return new Result(expired, started, paid, retried, failed, released);
         }
     }
 }

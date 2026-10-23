@@ -20,7 +20,7 @@ class CorrelationIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Request-ID", "abc-123_X.9");
         MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = (req, res) -> seen.set(MDC.get("correlationId"));
+        FilterChain chain = (chainRequest, chainResponse) -> seen.set(MDC.get("correlationId"));
 
         filter.doFilter(request, response, chain);
 
@@ -37,7 +37,7 @@ class CorrelationIdFilterTest {
                 request.addHeader("X-Request-ID", bad);
             }
             MockHttpServletResponse response = new MockHttpServletResponse();
-            filter.doFilter(request, response, (req, res) -> { });
+            filter.doFilter(request, response, (chainRequest, chainResponse) -> { });
             assertThat(response.getHeader("X-Request-ID")).matches("[0-9a-f-]{36}");
         }
     }

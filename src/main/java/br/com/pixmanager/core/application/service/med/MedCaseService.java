@@ -68,14 +68,14 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     private final RequestRefundUseCase refundUseCase;
     private final DomainEventPublisherPortOut events;
     private final IdGeneratorPortOut ids;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final PixPolicyProperties.Med policy;
 
     public MedCaseService(MedCasePersistencePortOut cases, ReceivedPixPersistencePortOut receivedPix, PaymentOrderPersistencePortOut orders,
                           RefundPersistencePortOut refunds, MedGatewayPortOut gateway, RequestReservationUseCase reservations,
                           ExecuteReservationUseCase ledger, RequestRefundUseCase refundUseCase, DomainEventPublisherPortOut events,
-                          IdGeneratorPortOut ids, TransactionRunnerPortOut tx, Clock clock, PixPolicyProperties.Med policy) {
+                          IdGeneratorPortOut ids, TransactionRunnerPortOut transactionRunner, Clock clock, PixPolicyProperties.Med policy) {
         this.cases = cases;
         this.receivedPix = receivedPix;
         this.orders = orders;
@@ -86,7 +86,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
         this.refundUseCase = refundUseCase;
         this.events = events;
         this.ids = ids;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.policy = policy;
     }
@@ -94,11 +94,11 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     // ---------------------------------------------------------------- abertura
 
     @Override
-    public MedCase open(Caller caller, OpenMedCaseCommand c) {
-        if (c.role() == null || c.caseType() == null || c.endToEndId() == null || c.description() == null || c.description().isBlank()) {
+    public MedCase open(Caller caller, OpenMedCaseCommand command) {
+        if (command.role() == null || command.caseType() == null || command.endToEndId() == null || command.description() == null || command.description().isBlank()) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "Papel, tipo, endToEndId e descrição são obrigatórios.");
         }
-        int layer = c.layer() == null ? 1 : c.layer();
+        int layer = command.layer() == null ? 1 : command.layer();
         if (layer < 1) {
             throw new BadRequestException(ErrorCodes.INVALID_PAYLOAD, "A camada começa em 1.");
         }
@@ -108,15 +108,15 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
         UUID orderId = null;
         Money tracked;
         Instant transactionAt;
-        if (c.role() == MedRole.REPORTED) {
-            ReceivedPix pix = receivedPix.findByEndToEndId(c.endToEndId()).filter(p -> caller.canAccess(p.receiverAccountId()))
+        if (command.role() == MedRole.REPORTED) {
+            ReceivedPix pix = receivedPix.findByEndToEndId(command.endToEndId()).filter(candidatePix -> caller.canAccess(candidatePix.receiverAccountId()))
                     .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Pix recebido não encontrado."));
             accountId = pix.receiverAccountId();
             receivedId = pix.id();
             tracked = pix.amount();
             transactionAt = pix.settledAt();
         } else {
-            PaymentOrder order = orders.findByEndToEndId(c.endToEndId()).filter(o -> caller.canAccess(o.payerAccountId()))
+            PaymentOrder order = orders.findByEndToEndId(command.endToEndId()).filter(candidateOrder -> caller.canAccess(candidateOrder.payerAccountId()))
                     .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Pagamento não encontrado."));
             if (order.status() != PaymentStatus.SETTLED) {
                 throw new BusinessException(ErrorCodes.BUSINESS_RULE, "Só um pagamento liquidado pode ser reportado ao MED.");
@@ -129,18 +129,18 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
         if (now.isAfter(transactionAt.plus(policy.openWindow()))) {
             throw new BusinessException(ErrorCodes.MED_WINDOW_EXPIRED, "Prazo para abrir o caso MED (" + policy.openWindow().toDays() + " dias) excedido.");
         }
-        if (cases.existsLive(c.endToEndId(), c.role(), layer)) {
+        if (cases.existsLive(command.endToEndId(), command.role(), layer)) {
             throw new ConflictException(ErrorCodes.CONFLICT, "Já existe um caso MED em andamento para este Pix nesta camada.");
         }
-        String fundsRecoveryId = c.role() == MedRole.REPORTER ? gateway.report(c.endToEndId(), c.caseType(), c.description(), layer) : null;   // HTTP fora de TX
-        MedCase created = MedCase.open(ids.newId(), fundsRecoveryId, c.endToEndId(), receivedId, orderId, accountId, c.caseType(), c.role(), layer,
-                c.description(), now, now.plus(policy.analysis()), tracked);
-        tx.inTransaction(() -> {
+        String fundsRecoveryId = command.role() == MedRole.REPORTER ? gateway.report(command.endToEndId(), command.caseType(), command.description(), layer) : null;   // HTTP fora de TX
+        MedCase created = MedCase.open(ids.newId(), fundsRecoveryId, command.endToEndId(), receivedId, orderId, accountId, command.caseType(), command.role(), layer,
+                command.description(), now, now.plus(policy.analysis()), tracked);
+        transactionRunner.inTransaction(() -> {
             cases.insert(created);
             cases.appendHistory(created.id(), null, MedStatus.OPEN, caller.clientId(), "Caso aberto", now);
             events.publish(new MedCaseEvent("OPENED", created));
         });
-        log.info("Caso MED aberto: id={} e2eId={} papel={} camada={}", created.id(), c.endToEndId(), c.role(), layer);
+        log.info("Caso MED aberto: id={} e2eId={} papel={} camada={}", created.id(), command.endToEndId(), command.role(), layer);
         return created;
     }
 
@@ -166,7 +166,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     public MedCase accept(Caller caller, UUID id, String note) {
         MedCase current = requireRole(load(caller, id), MedRole.REPORTED);
         MedCase accepted = current.accepted();
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             MedCase saved = cases.save(accepted);
             reservations.request(blockKey(id), saved.accountId(), LedgerPurpose.MED_BLOCK, "MED_CASE", id, saved.trackedAmount());
             transition(current, saved, caller, note == null ? "Aceito; bloqueio cautelar solicitado" : note, "ACCEPTED");
@@ -177,7 +177,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     @Override
     public MedCase refuse(Caller caller, UUID id, String note) {
         MedCase current = requireRole(load(caller, id), MedRole.REPORTED);
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             MedCase saved = cases.save(current.refused());
             transition(current, saved, caller, note, "REFUSED");
             return saved;
@@ -195,7 +195,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
         if (current.role() == MedRole.REPORTED && current.status() == MedStatus.ACCEPTED) {
             ledger.cancel(blockKey(id));                                            // libera o valor no core (idempotente)
         }
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             MedCase saved = cases.save(hadBlock ? cancelled.released() : cancelled);
             if (hadBlock) {
                 cases.releaseBlock(id);
@@ -218,7 +218,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
         ledger.cancel(blockKey(id));          // libera o bloqueio ANTES: a devolução debita a mesma conta (HTTP fora de TX, idempotente)
         Money amount = current.blockedAmount();
         RefundNature nature = current.caseType() == MedCaseType.FRAUD ? RefundNature.MED_FRAUDE : RefundNature.MED_OPERACIONAL;
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             Refund refund = switch (refundUseCase.requestMed(Caller.system("med"), new RequestRefundCommand(current.endToEndId(),
                     "med" + id.toString().replace("-", ""), amount, nature, "MED " + current.caseType()))) {
                 case RequestRefundUseCase.RequestRefundResult.Created created -> created.refund();
@@ -234,7 +234,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     @Override
     public MedCase close(Caller caller, UUID id, String note) {
         MedCase current = requireRole(load(caller, id), MedRole.REPORTER);
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             MedCase saved = cases.save(current.closed());
             transition(current, saved, caller, note, "CLOSED");
             return saved;
@@ -259,7 +259,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
             throw new BusinessException(ErrorCodes.MED_CONTESTATION_EXPIRED, "Prazo de contestação (" + policy.contestationWindow().toDays() + " dias da devolução) excedido.");
         }
         MedContestation contestation = new MedContestation(ids.newId(), caseId, refund.id(), "OPEN", reason, refund.settledAt(), deadline, null, 0);
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             cases.insertContestation(contestation);
             cases.appendHistory(caseId, current.status(), current.status(), caller.clientId(), "Contestação aberta", now);
             events.publish(new MedCaseEvent("CONTESTATION_OPENED", current, null, deadline));
@@ -275,7 +275,7 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "A contestação já foi decidida.");
         }
         Instant now = clock.instant();
-        return tx.inTransaction(() -> {
+        return transactionRunner.inTransaction(() -> {
             MedContestation decided = cases.saveContestation(new MedContestation(contestation.id(), contestation.caseId(), contestation.refundId(),
                     accepted ? "ACCEPTED" : "REJECTED", contestation.reason(), contestation.refundedAt(), contestation.deadlineAt(), now, contestation.version()));
             MedCase saved = accepted ? cases.save(current.contested()) : current;
@@ -290,26 +290,26 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     @Override
     public int runCycle() {
         int moved = 0;
-        for (MedCase c : cases.findRefunding(50)) {
+        for (MedCase medCase : cases.findRefunding(50)) {
             try {
-                Refund refund = refunds.findById(c.refundId()).orElseThrow();
+                Refund refund = refunds.findById(medCase.refundId()).orElseThrow();
                 if (refund.status() == RefundStatus.DEVOLVIDO) {
-                    tx.inTransaction(() -> {
-                        MedCase saved = cases.save(c.closed());
-                        cases.appendHistory(c.id(), c.status(), saved.status(), "system", "Devolução liquidada", clock.instant());
+                    transactionRunner.inTransaction(() -> {
+                        MedCase saved = cases.save(medCase.closed());
+                        cases.appendHistory(medCase.id(), medCase.status(), saved.status(), "system", "Devolução liquidada", clock.instant());
                         events.publish(new MedCaseEvent("REFUND_SETTLED", saved, refund.amount(), saved.reportedAt().plus(policy.contestationWindow())));
                     });
                     moved++;
                 } else if (refund.status() == RefundStatus.NAO_REALIZADO) {
-                    tx.inTransaction(() -> {
-                        MedCase saved = cases.save(c.refundFailed());
-                        cases.appendHistory(c.id(), c.status(), saved.status(), "system", "Devolução não realizada: " + refund.statusReason(), clock.instant());
+                    transactionRunner.inTransaction(() -> {
+                        MedCase saved = cases.save(medCase.refundFailed());
+                        cases.appendHistory(medCase.id(), medCase.status(), saved.status(), "system", "Devolução não realizada: " + refund.statusReason(), clock.instant());
                         events.publish(new MedCaseEvent("REFUND_FAILED", saved));
                     });
                     moved++;
                 }
-            } catch (RuntimeException e) {
-                log.error("Erro ao acompanhar o caso MED {}", c.id(), e);
+            } catch (RuntimeException exception) {
+                log.error("Erro ao acompanhar o caso MED {}", medCase.id(), exception);
             }
         }
         return moved;
@@ -322,15 +322,15 @@ public class MedCaseService implements ManageMedCaseUseCase, FollowMedCasesUseCa
     }
 
     private MedCase load(Caller caller, UUID id) {
-        return cases.findById(id).filter(c -> caller.canAccess(c.accountId()))
+        return cases.findById(id).filter(medCase -> caller.canAccess(medCase.accountId()))
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Caso MED não encontrado."));
     }
 
-    private static MedCase requireRole(MedCase c, MedRole role) {
-        if (c.role() != role) {
-            throw new BusinessException(ErrorCodes.BUSINESS_RULE, "Esta operação é do papel " + role + "; o caso é " + c.role() + ".");
+    private static MedCase requireRole(MedCase medCase, MedRole role) {
+        if (medCase.role() != role) {
+            throw new BusinessException(ErrorCodes.BUSINESS_RULE, "Esta operação é do papel " + role + "; o caso é " + medCase.role() + ".");
         }
-        return c;
+        return medCase;
     }
 
     private void transition(MedCase from, MedCase to, Caller caller, String note, String action) {

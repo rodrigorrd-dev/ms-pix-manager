@@ -57,7 +57,7 @@ public class DueChargeControllerImpl implements DueChargeController {
     public ResponseEntity<ChargeResponse> find(String txid, String ifNoneMatch) {
         Caller caller = CallerContext.current();
         var details = find.findByTxid(caller, new TxId(txid))
-                .filter(d -> d.charge().type() == ChargeType.DUE)
+                .filter(dueCharge -> dueCharge.charge().type() == ChargeType.DUE)
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Cobrança não encontrada."));
         if (ETags.noneMatch(ifNoneMatch, details.charge().version())) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_MODIFIED).eTag(String.valueOf(details.charge().version())).build();

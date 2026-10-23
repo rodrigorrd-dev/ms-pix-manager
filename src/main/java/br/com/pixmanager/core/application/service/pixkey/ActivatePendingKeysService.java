@@ -27,17 +27,17 @@ public class ActivatePendingKeysService implements ActivatePendingKeysUseCase {
     private final PixKeyPersistencePortOut persistence;
     private final DictGatewayPortOut dict;
     private final DomainEventPublisherPortOut events;
-    private final TransactionRunnerPortOut tx;
+    private final TransactionRunnerPortOut transactionRunner;
     private final Clock clock;
     private final Duration minAge;
 
     public ActivatePendingKeysService(PixKeyPersistencePortOut persistence, DictGatewayPortOut dict,
-                                      DomainEventPublisherPortOut events, TransactionRunnerPortOut tx, Clock clock,
+                                      DomainEventPublisherPortOut events, TransactionRunnerPortOut transactionRunner, Clock clock,
                                       Duration minAge) {
         this.persistence = persistence;
         this.dict = dict;
         this.events = events;
-        this.tx = tx;
+        this.transactionRunner = transactionRunner;
         this.clock = clock;
         this.minAge = minAge;
     }
@@ -50,9 +50,9 @@ public class ActivatePendingKeysService implements ActivatePendingKeysUseCase {
                 if (activate(key)) {
                     activated++;
                 }
-            } catch (RuntimeException e) {
+            } catch (RuntimeException exception) {
                 // uma chave problemática não pode travar as demais (o job repete a cada poucos segundos)
-                log.error("Falha inesperada ao ativar a chave {}; segue para a próxima", key.id(), e);
+                log.error("Falha inesperada ao ativar a chave {}; segue para a próxima", key.id(), exception);
             }
         }
         return activated;
@@ -63,20 +63,20 @@ public class ActivatePendingKeysService implements ActivatePendingKeysUseCase {
         DictRegistration registration;
         try {
             registration = dict.register(key);                                     // HTTP via gateway, fora de TX
-        } catch (BusinessException e) {
-            log.info("DICT recusou a chave {} ({}): REJECTED", key.id(), e.getCode());
+        } catch (BusinessException exception) {
+            log.info("DICT recusou a chave {} ({}): REJECTED", key.id(), exception.getCode());
             persistAndPublish(key.rejected(), "PixKeyRejected");
             return false;
-        } catch (IntegrationException e) {
-            log.warn("DICT indisponível [{}] para a chave {}; tentará de novo: {}", e.getCode(), key.id(), e.getMessage());
+        } catch (IntegrationException exception) {
+            log.warn("DICT indisponível [{}] para a chave {}; tentará de novo: {}", exception.getCode(), key.id(), exception.getMessage());
             return false;
         }
-        persistAndPublish(key.activated(registration.cid(), registration.registeredAt()), "PixKeyActivated");
+        persistAndPublish(key.activated(registration.dictCid(), registration.registeredAt()), "PixKeyActivated");
         return true;
     }
 
     private void persistAndPublish(PixKey updated, String eventType) {
-        tx.inTransaction(() -> {
+        transactionRunner.inTransaction(() -> {
             PixKey saved = persistence.save(updated);
             events.publish(new PixKeyEvent(eventType, saved));
         });

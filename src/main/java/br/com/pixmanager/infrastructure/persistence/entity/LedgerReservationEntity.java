@@ -55,28 +55,28 @@ public class LedgerReservationEntity {
 
     public UUID getId() { return id; }
     public String getIdempotencyKey() { return idempotencyKey; }
-    public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public UUID getAccountId() { return accountId; }
-    public void setAccountId(UUID v) { this.accountId = v; }
+    public void setAccountId(UUID accountId) { this.accountId = accountId; }
     public String getPurpose() { return purpose; }
-    public void setPurpose(String v) { this.purpose = v; }
+    public void setPurpose(String purpose) { this.purpose = purpose; }
     public String getReferenceType() { return referenceType; }
-    public void setReferenceType(String v) { this.referenceType = v; }
+    public void setReferenceType(String referenceType) { this.referenceType = referenceType; }
     public UUID getReferenceId() { return referenceId; }
-    public void setReferenceId(UUID v) { this.referenceId = v; }
+    public void setReferenceId(UUID referenceId) { this.referenceId = referenceId; }
     public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal v) { this.amount = v; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
     public String getStatus() { return status; }
-    public void setStatus(String v) { this.status = v; }
+    public void setStatus(String status) { this.status = status; }
     public String getLedgerRef() { return ledgerRef; }
-    public void setLedgerRef(String v) { this.ledgerRef = v; }
+    public void setLedgerRef(String ledgerRef) { this.ledgerRef = ledgerRef; }
     public short getAttempts() { return attempts; }
-    public void setAttempts(short v) { this.attempts = v; }
+    public void setAttempts(short attempts) { this.attempts = attempts; }
     public Instant getNextAttemptAt() { return nextAttemptAt; }
-    public void setNextAttemptAt(Instant v) { this.nextAttemptAt = v; }
+    public void setNextAttemptAt(Instant nextAttemptAt) { this.nextAttemptAt = nextAttemptAt; }
     public String getLastError() { return lastError; }
-    public void setLastError(String v) { this.lastError = v; }
+    public void setLastError(String lastError) { this.lastError = lastError; }
     public Long getVersion() { return version; }
     public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant v) { this.updatedAt = v; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

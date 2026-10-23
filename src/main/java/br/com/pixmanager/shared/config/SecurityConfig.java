@@ -56,13 +56,13 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
+            .authorizeHttpRequests(authorize -> authorize
                     .requestMatchers(PUBLIC_PATHS).permitAll()
                     .requestMatchers(PUBLIC_QR_PATHS).permitAll()
                     .requestMatchers(openPaths.paths()).permitAll()
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .anyRequest().authenticated())
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
+            .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
             .oauth2ResourceServer(oauth -> oauth
                     .authenticationEntryPoint(entryPoint)
                     .accessDeniedHandler(accessDeniedHandler)
@@ -72,8 +72,8 @@ public class SecurityConfig {
 
     /** Swagger/Springwolf: abertos só quando {@code pix.docs.public=true} (fechado em hml/prd). */
     @Bean
-    SecurityOpenPaths securityOpenPaths(org.springframework.core.env.Environment env) {
-        boolean open = env.getProperty("pix.docs.public", Boolean.class, false);
+    SecurityOpenPaths securityOpenPaths(org.springframework.core.env.Environment environment) {
+        boolean open = environment.getProperty("pix.docs.public", Boolean.class, false);
         return open
                 ? new SecurityOpenPaths(new String[]{"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                         "/springwolf/**"})
@@ -95,21 +95,21 @@ public class SecurityConfig {
     /** Valida assinatura (JWKS), {@code iss}, {@code aud} e {@code exp}/{@code nbf}. Rejeita {@code alg=none} (Nimbus). */
     @Bean
     @ConditionalOnProperty(prefix = "pix.security.jwt", name = "jwk-set-uri")
-    JwtDecoder jwtDecoder(SecurityProperties props, org.springframework.core.env.Environment env) {
-        boolean strict = env.acceptsProfiles(org.springframework.core.env.Profiles.of("hml", "prd"));
-        if (strict && (isBlank(props.issuer()) || isBlank(props.audience()))) {
+    JwtDecoder jwtDecoder(SecurityProperties securityProperties, org.springframework.core.env.Environment environment) {
+        boolean strict = environment.acceptsProfiles(org.springframework.core.env.Profiles.of("hml", "prd"));
+        if (strict && (isBlank(securityProperties.issuer()) || isBlank(securityProperties.audience()))) {
             // sem issuer/audience qualquer token assinado pelo mesmo JWKS (outro cliente/ambiente) seria aceito
             throw new IllegalStateException("pix.security.jwt.issuer e pix.security.jwt.audience são obrigatórios em hml/prd");
         }
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(props.jwkSetUri())
-                .jwsAlgorithms(algs -> { algs.add(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256);
-                                         algs.add(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.ES256); })
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(securityProperties.jwkSetUri())
+                .jwsAlgorithms(algorithms -> { algorithms.add(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.RS256);
+                                         algorithms.add(org.springframework.security.oauth2.jose.jws.SignatureAlgorithm.ES256); })
                 .build();
-        OAuth2TokenValidator<Jwt> issuer = props.issuer() == null || props.issuer().isBlank()
-                ? JwtValidators.createDefault() : JwtValidators.createDefaultWithIssuer(props.issuer());
+        OAuth2TokenValidator<Jwt> issuer = securityProperties.issuer() == null || securityProperties.issuer().isBlank()
+                ? JwtValidators.createDefault() : JwtValidators.createDefaultWithIssuer(securityProperties.issuer());
         OAuth2TokenValidator<Jwt> audience = jwt -> {
-            if (props.audience() == null || props.audience().isBlank()
-                    || (jwt.getAudience() != null && jwt.getAudience().contains(props.audience()))) {
+            if (securityProperties.audience() == null || securityProperties.audience().isBlank()
+                    || (jwt.getAudience() != null && jwt.getAudience().contains(securityProperties.audience()))) {
                 return OAuth2TokenValidatorResult.success();
             }
             return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "audience inválida", null));

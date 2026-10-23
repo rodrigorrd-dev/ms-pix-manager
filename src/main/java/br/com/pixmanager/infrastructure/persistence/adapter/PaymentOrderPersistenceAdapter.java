@@ -42,7 +42,7 @@ public class PaymentOrderPersistenceAdapter implements PaymentOrderPersistencePo
         mapper.apply(order, entity, isNew);
         try {
             return mapper.toDomain(repository.saveAndFlush(entity));
-        } catch (OptimisticLockingFailureException e) {
+        } catch (OptimisticLockingFailureException exception) {
             throw new PreconditionFailedException("A ordem foi alterada por outra requisição (versão desatualizada).");
         }
     }

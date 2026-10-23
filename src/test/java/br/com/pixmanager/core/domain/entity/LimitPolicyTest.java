@@ -106,10 +106,10 @@ class LimitPolicyTest {
     @Test
     @DisplayName("Diário: padrão 5.000 (PF) / 50.000 (PJ); dia = America/Sao_Paulo (23h SP ainda é o MESMO dia)")
     void dailyDefaultsAndDayInLocalZone() {
-        var pf = LimitPolicy.dailyChecks(HolderType.INDIVIDUAL, at("2026-10-15T23:30:00"), true, Map.of(), CFG);
-        assertThat(pf.dailyLimit()).isEqualTo(Money.of("5000.00"));
-        assertThat(pf.day()).isEqualTo(LocalDate.of(2026, 10, 15));
-        assertThat(pf.deviceDailyLimit()).isEmpty();
+        var individualChecks = LimitPolicy.dailyChecks(HolderType.INDIVIDUAL, at("2026-10-15T23:30:00"), true, Map.of(), CFG);
+        assertThat(individualChecks.dailyLimit()).isEqualTo(Money.of("5000.00"));
+        assertThat(individualChecks.day()).isEqualTo(LocalDate.of(2026, 10, 15));
+        assertThat(individualChecks.deviceDailyLimit()).isEmpty();
         assertThat(LimitPolicy.dailyChecks(HolderType.BUSINESS, at("2026-10-15T10:00:00"), true, Map.of(), CFG).dailyLimit())
                 .isEqualTo(Money.of("50000.00"));
         assertThat(LimitPolicy.dailyChecks(HolderType.INDIVIDUAL, at("2026-10-15T10:00:00"), false, Map.of(), CFG).deviceDailyLimit())

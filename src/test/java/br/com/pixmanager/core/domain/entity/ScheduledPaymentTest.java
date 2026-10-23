@@ -21,16 +21,16 @@ class ScheduledPaymentTest {
 
     static final LocalDate TODAY = LocalDate.parse("2026-10-15");
 
-    static ScheduledPayment of(Recurrence r, String first, String end, Integer total) {
-        return ScheduledPayment.create(UUID.randomUUID(), UUID.randomUUID(), r, PaymentMethod.KEY, PixKeyType.EMAIL, "a@b.com", null, null, null,
+    static ScheduledPayment of(Recurrence recurrence, String first, String end, Integer total) {
+        return ScheduledPayment.create(UUID.randomUUID(), UUID.randomUUID(), recurrence, PaymentMethod.KEY, PixKeyType.EMAIL, "a@b.com", null, null, null,
                 null, null, null, Money.of("10.00"), null, LocalDate.parse(first), end == null ? null : LocalDate.parse(end), total, TODAY, true);
     }
 
     @ParameterizedTest(name = "{0} a partir de {1} ×{2} ⇒ última {3}")
     @CsvSource({"WEEKLY,2026-10-16,4,2026-11-06", "BIWEEKLY,2026-10-16,3,2026-11-13", "MONTHLY,2027-01-31,3,2027-03-31",
             "BIMONTHLY,2026-10-16,3,2027-02-16", "QUARTERLY,2026-10-16,2,2027-01-16", "SEMIANNUAL,2026-10-16,2,2027-04-16", "ANNUAL,2026-10-16,2,2027-10-16"})
-    void shouldComputeDatesFromTheFirstDate(Recurrence r, String first, int total, String last) {
-        List<LocalDate> dates = of(r, first, null, total).occurrenceDates();
+    void shouldComputeDatesFromTheFirstDate(Recurrence recurrence, String first, int total, String last) {
+        List<LocalDate> dates = of(recurrence, first, null, total).occurrenceDates();
 
         assertThat(dates).hasSize(total).endsWith(LocalDate.parse(last)).isSorted();
     }

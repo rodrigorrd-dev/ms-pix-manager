@@ -23,11 +23,11 @@ public class ReceivedPixMapper {
         this.refundMapper = refundMapper;
     }
 
-    public ReceivedPixResponse toResponse(ReceivedPix p, List<Refund> refunds, boolean fullDocument) {
-        return new ReceivedPixResponse(p.endToEndId().value(), p.txid(), p.amount().toBcb(), p.settledAt(),
-                payer(p.payer(), fullDocument), p.payerInfo(),
-                p.components().size() == 1 ? null : p.components().stream()
-                        .map(c -> new ReceivedPixResponse.Component(c.type().name(), c.amount().toBcb())).toList(),
+    public ReceivedPixResponse toResponse(ReceivedPix receivedPix, List<Refund> refunds, boolean fullDocument) {
+        return new ReceivedPixResponse(receivedPix.endToEndId().value(), receivedPix.txid(), receivedPix.amount().toBcb(), receivedPix.settledAt(),
+                payer(receivedPix.payer(), fullDocument), receivedPix.payerInfo(),
+                receivedPix.components().size() == 1 ? null : receivedPix.components().stream()
+                        .map(component -> new ReceivedPixResponse.Component(component.type().name(), component.amount().toBcb())).toList(),
                 refunds.isEmpty() ? null : refunds.stream().map(refundMapper::toResponse).toList());
     }
 
@@ -44,6 +44,6 @@ public class ReceivedPixMapper {
                                           Instant to, boolean fullDocument) {
         return new ReceivedPixPageResponse(new ReceivedPixPageResponse.Parameters(from, to,
                 new ReceivedPixPageResponse.Pagination(page.page(), page.size(), page.totalPages(), page.totalElements())),
-                page.content().stream().map(p -> toResponse(p, refunds.apply(p), fullDocument)).toList());
+                page.content().stream().map(receivedPix -> toResponse(receivedPix, refunds.apply(receivedPix), fullDocument)).toList());
     }
 }

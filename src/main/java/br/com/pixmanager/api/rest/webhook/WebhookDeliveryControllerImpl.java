@@ -21,8 +21,8 @@ public class WebhookDeliveryControllerImpl implements WebhookDeliveryController 
 
     @Override
     public ResponseEntity<WebhookDeliveryResponse> resend(UUID id) {
-        WebhookDelivery d = dispatch.resend(CallerContext.current(), id);
+        WebhookDelivery delivery = dispatch.resend(CallerContext.current(), id);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new WebhookDeliveryResponse(d.id(), d.status(), d.attempts(), d.nextAttemptAt(), d.lastHttpStatus(), d.lastError()));
+                .body(new WebhookDeliveryResponse(delivery.id(), delivery.status(), delivery.attempts(), delivery.nextAttemptAt(), delivery.lastHttpStatus(), delivery.lastError()));
     }
 }

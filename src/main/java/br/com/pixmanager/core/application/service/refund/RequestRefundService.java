@@ -38,62 +38,62 @@ public class RequestRefundService implements RequestRefundUseCase {
     private final RefundPersistencePortOut refunds;
     private final RequestReservationUseCase reservations;
     private final DomainEventPublisherPortOut events;
-    private final EndToEndIdGeneratorPortOut e2eIds;
+    private final EndToEndIdGeneratorPortOut endToEndIdGenerator;
     private final IdGeneratorPortOut ids;
     private final Clock clock;
     private final Duration refundWindow;
 
     public RequestRefundService(ReceivedPixPersistencePortOut receivedPix, RefundPersistencePortOut refunds,
                                 RequestReservationUseCase reservations, DomainEventPublisherPortOut events,
-                                EndToEndIdGeneratorPortOut e2eIds, IdGeneratorPortOut ids, Clock clock, Duration refundWindow) {
+                                EndToEndIdGeneratorPortOut endToEndIdGenerator, IdGeneratorPortOut ids, Clock clock, Duration refundWindow) {
         this.receivedPix = receivedPix;
         this.refunds = refunds;
         this.reservations = reservations;
         this.events = events;
-        this.e2eIds = e2eIds;
+        this.endToEndIdGenerator = endToEndIdGenerator;
         this.ids = ids;
         this.clock = clock;
         this.refundWindow = refundWindow;
     }
 
     @Override
-    public RequestRefundResult request(Caller caller, RequestRefundCommand cmd) {
-        RefundPolicy.assertNatureAllowedForClient(cmd.nature());
-        return doRequest(caller, cmd);
+    public RequestRefundResult request(Caller caller, RequestRefundCommand command) {
+        RefundPolicy.assertNatureAllowedForClient(command.nature());
+        return doRequest(caller, command);
     }
 
     @Override
-    public RequestRefundResult requestMed(Caller caller, RequestRefundCommand cmd) {
-        if (cmd.nature() == null || !cmd.nature().isMed()) {
+    public RequestRefundResult requestMed(Caller caller, RequestRefundCommand command) {
+        if (command.nature() == null || !command.nature().isMed()) {
             throw new BusinessException(ErrorCodes.BUSINESS_RULE, "O fluxo MED exige uma natureza MED.");
         }
-        return doRequest(caller, cmd);
+        return doRequest(caller, command);
     }
 
-    private RequestRefundResult doRequest(Caller caller, RequestRefundCommand cmd) {
-        EndToEndId e2e = new EndToEndId(cmd.endToEndId());
-        ReceivedPix pix = receivedPix.findByEndToEndId(e2e.value())
-                .filter(p -> caller.canAccess(p.receiverAccountId()))           // fora do escopo ⇒ 404
+    private RequestRefundResult doRequest(Caller caller, RequestRefundCommand command) {
+        EndToEndId endToEndId = new EndToEndId(command.endToEndId());
+        ReceivedPix pix = receivedPix.findByEndToEndId(endToEndId.value())
+                .filter(foundPix -> caller.canAccess(foundPix.receiverAccountId()))           // fora do escopo ⇒ 404
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Pix não encontrado."));
 
-        Optional<Refund> existing = refunds.findByEndToEndIdAndClientId(e2e.value(), cmd.clientRefundId());
+        Optional<Refund> existing = refunds.findByEndToEndIdAndClientId(endToEndId.value(), command.clientRefundId());
         if (existing.isPresent()) {
-            if (existing.get().sameRequestAs(cmd.amount(), cmd.nature(), cmd.description())) {
+            if (existing.get().sameRequestAs(command.amount(), command.nature(), command.description())) {
                 return new RequestRefundResult.Replayed(existing.get());
             }
             throw new BusinessException(ErrorCodes.IDEMPOTENCY_MISMATCH, "O id da devolução já foi usado com outro conteúdo.");
         }
         RefundPolicy.assertWithinWindow(pix.settledAt(), clock.instant(), refundWindow);
 
-        Refund refund = Refund.request(ids.newId(), cmd.clientRefundId(), pix.id(), e2e, e2eIds.nextReturnId(), cmd.amount(),
-                cmd.nature(), cmd.description(), clock.instant());
+        Refund refund = Refund.request(ids.newId(), command.clientRefundId(), pix.id(), endToEndId, endToEndIdGenerator.nextReturnId(), command.amount(),
+                command.nature(), command.description(), clock.instant());
         if (!receivedPix.reserveRefundable(pix.id(), refund.amount())) {
             throw new BusinessException(ErrorCodes.REFUND_EXCEEDS_AMOUNT, "O valor excede o saldo devolvível deste Pix.");
         }
         Refund saved = refunds.save(refund);
         reservations.request(saved.rtrId(), pix.receiverAccountId(), LedgerPurpose.REFUND, "REFUND", saved.id(), saved.amount());
         events.publish(new RefundEvent("RefundRequested", saved));
-        log.info("Devolução solicitada: id={} e2eId={} rtrId={}", saved.id(), e2e.value(), saved.rtrId());
+        log.info("Devolução solicitada: id={} e2eId={} rtrId={}", saved.id(), endToEndId.value(), saved.rtrId());
         return new RequestRefundResult.Created(saved);
     }
 }

@@ -86,7 +86,26 @@ Código de erro?                  → ErrorCodes primeiro, depois a constante
 Termo regulatório (CPF, txid…)?  → literal, independentemente do idioma padrão
 ```
 
-## 7. O que a skill apontou como armadilha — e como evitamos
+## 7. Nomes de variáveis, parâmetros e lambdas
+Todo identificador local diz **o que é**, em inglês — nunca uma letra solta nem uma abreviação sem sentido.
+
+| Em vez de | Use |
+|---|---|
+| `e`, `ex` (catch / lambda) | `exception` (ou `authException`, `businessException` quando houver mais de uma) |
+| `r`, `d`, `c`, `p` (lambda ou `var`) | o papel do objeto: `reservation`, `destination`, `charge`, `receivedPix` |
+| `rs`, `i`/`n` em `query((rs, i) -> …)` | `resultSet`, `rowNumber` |
+| `i` em `for` | `index` (ou o que ele conta: `attempt`, `position`) |
+| `cmd`, `cfg`, `props`, `doc`, `dest`, `env`, `tx` | `command`, `config`, `properties` (`securityProperties`…), `document`, `destination`, `environment`, `transactionRunner` |
+| `inv` (Mockito `thenAnswer`) | `invocation` |
+| `e2e`, `e2eId`, `e2eIds` | `endToEndId`, `endToEndIdGenerator` |
+
+Regras:
+- Setters de entidade usam o nome do campo: `setStatus(String status)`, nunca `v`.
+- `id`, `to`, `at` e siglas que **são** o nome do conceito (`jwt`, `url`, `sql`, `txid`, `ispb`, `cpf`, `cnpj`) ficam como estão.
+- Componente de `record` que vira JSON mantém o nome do fio via `@JsonProperty`; o nome Java segue esta mesma regra (`@JsonProperty("loc") Location locationInfo`).
+- Ao renomear, confira que o nome novo não colide com campo ou variável do mesmo método.
+
+## 8. O que a skill apontou como armadilha — e como evitamos
 | Armadilha (FINDING da skill) | Prevenção aqui |
 |---|---|
 | Adapter que foge do padrão de sufixo (`AuditAdapter`) | ArchUnit: `*PortOut` ↔ `*Adapter` 1:1 pelo prefixo |

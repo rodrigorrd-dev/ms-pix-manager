@@ -49,15 +49,15 @@ public class PaymentStatusConsumer {
     @AsyncListener(operation = @AsyncOperation(channelName = TOPIC, description = "Status do pagamento no SPI (pacs.002) via spi-gateway",
             payloadType = SpiPaymentStatus.class))
     public void onPaymentStatus(ConsumerRecord<String, byte[]> record) {
-        SpiPaymentStatus m = decoder.decode(record.topic(), record.value(), SpiPaymentStatus.class);
+        SpiPaymentStatus spiPaymentStatus = decoder.decode(record.topic(), record.value(), SpiPaymentStatus.class);
         SpiStatus status;
         try {
-            status = SpiStatus.valueOf(m.getStatus());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "Status de pagamento desconhecido: " + m.getStatus());
+            status = SpiStatus.valueOf(spiPaymentStatus.getStatus());
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCodes.INVALID_PAYLOAD, "Status de pagamento desconhecido: " + spiPaymentStatus.getStatus());
         }
-        RetryableConflicts.retryOnConflict(() -> apply.apply(CONSUMER_GROUP, m.getMessageId(), record.topic(), record.partition(),
-                record.offset(), m.getEndToEndId(), status, m.getReasonCode(), m.getOccurredAt()));
+        RetryableConflicts.retryOnConflict(() -> apply.apply(CONSUMER_GROUP, spiPaymentStatus.getMessageId(), record.topic(), record.partition(),
+                record.offset(), spiPaymentStatus.getEndToEndId(), status, spiPaymentStatus.getReasonCode(), spiPaymentStatus.getOccurredAt()));
     }
 
     @DltHandler

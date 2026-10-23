@@ -30,45 +30,45 @@ public class ChargeEntityMapper {
         return crypto.blindIndex(document.value());
     }
 
-    public Charge toDomain(ChargeEntity e, List<AdditionalInfo> info, PixLocation location) {
-        Debtor debtor = e.getDebtorDocumentEnc() == null ? null
-                : new Debtor(Document.of(crypto.decrypt(e.getDebtorDocumentEnc())), e.getDebtorName());
-        return new Charge(e.getId(), ChargeType.valueOf(e.getChargeType()), new TxId(e.getTxid()), e.getReceiverAccountId(),
-                e.getReceiverDocumentHash(), e.getPixKeyId(), ChargeStatus.valueOf(e.getStatus()), Money.of(e.getOriginalAmount()),
-                e.getExpirationSeconds(), e.getExpiresAt(), e.getDueDate(), e.getValidityAfterDueDays(), debtor,
-                e.getPayerRequest(), info, location, e.getRevision(), e.getPaidReceivedId(), e.getRemovedAt(),
-                e.getVersion(), e.getCreatedAt());
+    public Charge toDomain(ChargeEntity entity, List<AdditionalInfo> info, PixLocation location) {
+        Debtor debtor = entity.getDebtorDocumentEnc() == null ? null
+                : new Debtor(Document.of(crypto.decrypt(entity.getDebtorDocumentEnc())), entity.getDebtorName());
+        return new Charge(entity.getId(), ChargeType.valueOf(entity.getChargeType()), new TxId(entity.getTxid()), entity.getReceiverAccountId(),
+                entity.getReceiverDocumentHash(), entity.getPixKeyId(), ChargeStatus.valueOf(entity.getStatus()), Money.of(entity.getOriginalAmount()),
+                entity.getExpirationSeconds(), entity.getExpiresAt(), entity.getDueDate(), entity.getValidityAfterDueDays(), debtor,
+                entity.getPayerRequest(), info, location, entity.getRevision(), entity.getPaidReceivedId(), entity.getRemovedAt(),
+                entity.getVersion(), entity.getCreatedAt());
     }
 
-    public void apply(Charge d, ChargeEntity e, boolean isNew) {
+    public void apply(Charge charge, ChargeEntity entity, boolean isNew) {
         if (isNew) {
-            e.setChargeType(d.type().name());
-            e.setTxid(d.txid().value());
-            e.setReceiverAccountId(d.receiverAccountId());
-            e.setReceiverDocumentHash(d.receiverDocumentHash());
-            e.setPixKeyId(d.pixKeyId());
-            e.setDueDate(d.dueDate());
-            e.setValidityAfterDueDays(d.validityAfterDueDays());
+            entity.setChargeType(charge.type().name());
+            entity.setTxid(charge.txid().value());
+            entity.setReceiverAccountId(charge.receiverAccountId());
+            entity.setReceiverDocumentHash(charge.receiverDocumentHash());
+            entity.setPixKeyId(charge.pixKeyId());
+            entity.setDueDate(charge.dueDate());
+            entity.setValidityAfterDueDays(charge.validityAfterDueDays());
         }
-        e.setStatus(d.status().name());
-        e.setOriginalAmount(d.originalAmount().value());
-        e.setExpirationSeconds(d.expirationSeconds());
-        e.setExpiresAt(d.expiresAt());
-        if (d.debtor() == null) {
-            e.setDebtorType(null);
-            e.setDebtorDocumentEnc(null);
-            e.setDebtorDocumentHash(null);
-            e.setDebtorName(null);
+        entity.setStatus(charge.status().name());
+        entity.setOriginalAmount(charge.originalAmount().value());
+        entity.setExpirationSeconds(charge.expirationSeconds());
+        entity.setExpiresAt(charge.expiresAt());
+        if (charge.debtor() == null) {
+            entity.setDebtorType(null);
+            entity.setDebtorDocumentEnc(null);
+            entity.setDebtorDocumentHash(null);
+            entity.setDebtorName(null);
         } else {
-            e.setDebtorType(d.debtor().document().type());
-            e.setDebtorDocumentEnc(crypto.encrypt(d.debtor().document().value()));
-            e.setDebtorDocumentHash(hashOf(d.debtor().document()));
-            e.setDebtorName(d.debtor().name());
+            entity.setDebtorType(charge.debtor().document().type());
+            entity.setDebtorDocumentEnc(crypto.encrypt(charge.debtor().document().value()));
+            entity.setDebtorDocumentHash(hashOf(charge.debtor().document()));
+            entity.setDebtorName(charge.debtor().name());
         }
-        e.setPayerRequest(d.payerRequest());
-        e.setLocationId(d.location() == null ? null : d.location().id());
-        e.setRevision(d.revision());
-        e.setPaidReceivedId(d.paidReceivedId());
-        e.setRemovedAt(d.removedAt());
+        entity.setPayerRequest(charge.payerRequest());
+        entity.setLocationId(charge.location() == null ? null : charge.location().id());
+        entity.setRevision(charge.revision());
+        entity.setPaidReceivedId(charge.paidReceivedId());
+        entity.setRemovedAt(charge.removedAt());
     }
 }

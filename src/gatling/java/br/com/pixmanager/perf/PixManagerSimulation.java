@@ -166,27 +166,27 @@ public class PixManagerSimulation extends Simulation {
     }
 
     private static String randomTxid() {
-        StringBuilder sb = new StringBuilder(32);
+        StringBuilder builder = new StringBuilder(32);
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        for (int i = 0; i < 32; i++) {
-            sb.append(ALNUM.charAt(random.nextInt(ALNUM.length())));
+        for (int index = 0; index < 32; index++) {
+            builder.append(ALNUM.charAt(random.nextInt(ALNUM.length())));
         }
-        return sb.toString();
+        return builder.toString();
     }
 
     @Override
     public void before() {
         refreshTokens();                                   // falha cedo (e alto) se o Keycloak/seed não estiverem no ar
-        refresher = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "token-refresher");
-            t.setDaemon(true);
-            return t;
+        refresher = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "token-refresher");
+            thread.setDaemon(true);
+            return thread;
         });
         refresher.scheduleAtFixedRate(() -> {
             try {
                 refreshTokens();
-            } catch (RuntimeException e) {
-                System.err.println("Falha ao renovar token (mantém o anterior): " + e.getMessage());
+            } catch (RuntimeException exception) {
+                System.err.println("Falha ao renovar token (mantém o anterior): " + exception.getMessage());
             }
         }, 60, 60, TimeUnit.SECONDS);
         System.out.printf("PixManagerSimulation: %s rps=%.0f ramp=%ds hold=%ds%n", BASE_URL, RPS, RAMP_SECONDS, HOLD_SECONDS);
@@ -220,9 +220,9 @@ public class PixManagerSimulation extends Simulation {
             return matcher.group(1);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("não consegui o token de " + clientId + ": " + e.getMessage(), e);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
+            throw new IllegalStateException(exception);
         }
     }
 

@@ -23,38 +23,38 @@ class LiquibaseSchemaIT {
 
     @Test
     void shouldApplyRollbackEverythingAndApplyAgain() throws Exception {
-        var pg = PostgresContainerSupport.POSTGRES;
+        var postgres = PostgresContainerSupport.POSTGRES;
         // banco PRÓPRIO: o schema compartilhado pertence aos ITs de Spring, e o rollback total o destruiria
-        try (Connection admin = DriverManager.getConnection(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword());
-             var st = admin.createStatement()) {
-            st.execute("DROP DATABASE IF EXISTS liquibase_it");
-            st.execute("CREATE DATABASE liquibase_it");
+        try (Connection admin = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = admin.createStatement()) {
+            statement.execute("DROP DATABASE IF EXISTS liquibase_it");
+            statement.execute("CREATE DATABASE liquibase_it");
         }
-        String url = pg.getJdbcUrl().replaceFirst("/[^/?]+(\\?|$)", "/liquibase_it$1");
-        try (Connection conn = DriverManager.getConnection(url, pg.getUsername(), pg.getPassword())) {
-            Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(conn));
-            try (Liquibase liquibase = new Liquibase(MASTER, new ClassLoaderResourceAccessor(), db)) {
+        String url = postgres.getJdbcUrl().replaceFirst("/[^/?]+(\\?|$)", "/liquibase_it$1");
+        try (Connection connection = DriverManager.getConnection(url, postgres.getUsername(), postgres.getPassword())) {
+            Database database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection));
+            try (Liquibase liquibase = new Liquibase(MASTER, new ClassLoaderResourceAccessor(), database)) {
                 liquibase.update("");
-                assertThat(count(conn, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name NOT LIKE 'databasechangelog%'"))
+                assertThat(count(connection, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name NOT LIKE 'databasechangelog%'"))
                         .as("tabelas de domínio/infra criadas").isGreaterThanOrEqualTo(37);
-                assertThat(count(conn, "SELECT count(*) FROM pg_matviews WHERE matviewname='mv_pix_reconciliation_daily'")).isEqualTo(1);
+                assertThat(count(connection, "SELECT count(*) FROM pg_matviews WHERE matviewname='mv_pix_reconciliation_daily'")).isEqualTo(1);
 
-                int changesets = count(conn, "SELECT count(*) FROM databasechangelog");
+                int changesets = count(connection, "SELECT count(*) FROM databasechangelog");
                 liquibase.rollback(changesets, "");
-                assertThat(count(conn, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='pix_charge'"))
+                assertThat(count(connection, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='pix_charge'"))
                         .as("após rollback total").isZero();
 
                 liquibase.update("");
-                assertThat(count(conn, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='pix_charge'"))
+                assertThat(count(connection, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='pix_charge'"))
                         .isEqualTo(1);
             }
         }
     }
 
-    private static int count(Connection conn, String sql) throws Exception {
-        try (var st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-            rs.next();
-            return rs.getInt(1);
+    private static int count(Connection connection, String sql) throws Exception {
+        try (var statement = connection.createStatement(); ResultSet resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getInt(1);
         }
     }
 }

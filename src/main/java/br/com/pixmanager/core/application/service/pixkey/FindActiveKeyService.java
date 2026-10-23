@@ -23,13 +23,13 @@ public class FindActiveKeyService implements FindActiveKeyUseCase {
     public Optional<ActiveKeyView> findActive(String rawKey) {
         return PixKeyValue.infer(rawKey)
                 .flatMap(persistence::findLiveByValue)
-                .filter(k -> k.isActive())
+                .filter(pixKey -> pixKey.isActive())
                 .flatMap(key -> accounts.findById(key.accountId())
                         .map(account -> new ActiveKeyView(key.id(), account.id(), account.documentHash(), key.value().masked())));
     }
 
     @Override
     public Optional<String> findValueById(UUID keyId) {
-        return persistence.findById(keyId).map(k -> k.value().value());
+        return persistence.findById(keyId).map(pixKey -> pixKey.value().value());
     }
 }

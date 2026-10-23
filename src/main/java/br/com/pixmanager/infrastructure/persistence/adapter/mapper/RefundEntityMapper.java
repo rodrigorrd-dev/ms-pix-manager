@@ -15,33 +15,33 @@ import java.util.HexFormat;
 @Component
 public class RefundEntityMapper {
 
-    public Refund toDomain(RefundEntity e) {
-        return new Refund(e.getId(), e.getClientRefundId(), e.getReceivedId(), new EndToEndId(e.getEndToEndId()), e.getRtrId(),
-                Money.of(e.getAmount()), RefundNature.valueOf(e.getNature()), e.getDescription(), RefundStatus.valueOf(e.getStatus()),
-                e.getStatusReason(), e.getRequestedAt(), e.getSettledAt(), e.getVersion());
+    public Refund toDomain(RefundEntity entity) {
+        return new Refund(entity.getId(), entity.getClientRefundId(), entity.getReceivedId(), new EndToEndId(entity.getEndToEndId()), entity.getRtrId(),
+                Money.of(entity.getAmount()), RefundNature.valueOf(entity.getNature()), entity.getDescription(), RefundStatus.valueOf(entity.getStatus()),
+                entity.getStatusReason(), entity.getRequestedAt(), entity.getSettledAt(), entity.getVersion());
     }
 
-    public void apply(Refund d, RefundEntity e, boolean isNew) {
+    public void apply(Refund refund, RefundEntity entity, boolean isNew) {
         if (isNew) {
-            e.setClientRefundId(d.clientRefundId());
-            e.setReceivedId(d.receivedId());
-            e.setEndToEndId(d.endToEndId().value());
-            e.setAmount(d.amount().value());
-            e.setNature(d.nature().name());
-            e.setDescription(d.description());
-            e.setRequestHash(requestHash(d));
-            e.setRequestedAt(d.requestedAt());
+            entity.setClientRefundId(refund.clientRefundId());
+            entity.setReceivedId(refund.receivedId());
+            entity.setEndToEndId(refund.endToEndId().value());
+            entity.setAmount(refund.amount().value());
+            entity.setNature(refund.nature().name());
+            entity.setDescription(refund.description());
+            entity.setRequestHash(requestHash(refund));
+            entity.setRequestedAt(refund.requestedAt());
         }
-        e.setRtrId(d.rtrId());
-        e.setStatus(d.status().name());
-        e.setStatusReason(d.statusReason());
-        e.setSettledAt(d.settledAt());
+        entity.setRtrId(refund.rtrId());
+        entity.setStatus(refund.status().name());
+        entity.setStatusReason(refund.statusReason());
+        entity.setSettledAt(refund.settledAt());
     }
 
     /** SHA-256 do pedido (valor|natureza|descrição): trilha de auditoria da idempotência por {@code (e2eId, id)}. */
-    static String requestHash(Refund d) {
+    static String requestHash(Refund refund) {
         try {
-            String canonical = d.amount().toBcb() + "|" + d.nature() + "|" + (d.description() == null ? "" : d.description());
+            String canonical = refund.amount().toBcb() + "|" + refund.nature() + "|" + (refund.description() == null ? "" : refund.description());
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

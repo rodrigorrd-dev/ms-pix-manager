@@ -62,42 +62,42 @@ public class ReceivePixService implements ReceivePixUseCase {
     }
 
     @Override
-    public ReceivePixResult receive(ReceivePixCommand cmd) {
-        if (!inbox.firstTime(cmd.consumerGroup(), cmd.messageId(), cmd.topic(), cmd.partition(), cmd.offset())) {
+    public ReceivePixResult receive(ReceivePixCommand command) {
+        if (!inbox.firstTime(command.consumerGroup(), command.messageId(), command.topic(), command.partition(), command.offset())) {
             return new ReceivePixResult.Duplicate();
         }
-        EndToEndId e2e = new EndToEndId(cmd.endToEndId());
-        if (persistence.findByEndToEndId(e2e.value()).isPresent()) {
+        EndToEndId endToEndId = new EndToEndId(command.endToEndId());
+        if (persistence.findByEndToEndId(endToEndId.value()).isPresent()) {
             return new ReceivePixResult.Duplicate();          // outra mensagem, mesmo Pix (BR-PIX-01)
         }
-        AccountInfo receiver = accounts.findByIdentity(cmd.receiverIspb(), cmd.receiverBranch(), cmd.receiverAccount(),
-                        cmd.receiverAccountType())
+        AccountInfo receiver = accounts.findByIdentity(command.receiverIspb(), command.receiverBranch(), command.receiverAccount(),
+                        command.receiverAccountType())
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Conta recebedora não encontrada para o Pix."));
 
         UUID id = ids.newId();
-        ReceivedPix pix = ReceivedPix.receive(id, e2e, cmd.txid(), receiver.id(), cmd.amount(), payerOf(cmd), cmd.payerInfo(),
-                cmd.settledAt(), cmd.messageId(), cmd.components(), clock.instant());
+        ReceivedPix pix = ReceivedPix.receive(id, endToEndId, command.txid(), receiver.id(), command.amount(), payerOf(command), command.payerInfo(),
+                command.settledAt(), command.messageId(), command.components(), clock.instant());
         if (!pix.componentsMatchAmount()) {
-            log.warn("Composição do valor diverge do total do Pix {}; crédito mantido (alerta de conciliação)", e2e);
+            log.warn("Composição do valor diverge do total do Pix {}; crédito mantido (alerta de conciliação)", endToEndId);
         }
-        ChargeSettlement settlement = cmd.txid() == null ? new ChargeSettlement.NotFound()
-                : charges.settle(receiver.id(), cmd.txid(), id, cmd.amount(), cmd.settledAt());
+        ChargeSettlement settlement = command.txid() == null ? new ChargeSettlement.NotFound()
+                : charges.settle(receiver.id(), command.txid(), id, command.amount(), command.settledAt());
         ReceivedPix reconciled = switch (settlement) {
-            case ChargeSettlement.Settled s -> pix.reconciled(ReconciliationStatus.MATCHED, s.chargeId());
-            case ChargeSettlement.PaidAfterExpiration s -> pix.reconciled(ReconciliationStatus.MATCHED_AFTER_EXPIRATION, s.chargeId());
-            case ChargeSettlement.AmountMismatch s -> pix.reconciled(ReconciliationStatus.MISMATCH, s.chargeId());
-            case ChargeSettlement.NotPayable s -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
-            case ChargeSettlement.NotFound s -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
+            case ChargeSettlement.Settled settled -> pix.reconciled(ReconciliationStatus.MATCHED, settled.chargeId());
+            case ChargeSettlement.PaidAfterExpiration paidAfterExpiration -> pix.reconciled(ReconciliationStatus.MATCHED_AFTER_EXPIRATION, paidAfterExpiration.chargeId());
+            case ChargeSettlement.AmountMismatch amountMismatch -> pix.reconciled(ReconciliationStatus.MISMATCH, amountMismatch.chargeId());
+            case ChargeSettlement.NotPayable notPayable -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
+            case ChargeSettlement.NotFound notFound -> pix.reconciled(ReconciliationStatus.NO_CHARGE, null);
         };
         ReceivedPix saved = persistence.save(reconciled);
         events.publish(new PixReceivedEvent(saved));
-        webhooks.pixReceived(saved, cmd.receiverKeyHash());          // notificação ao recebedor: na mesma transação, e nunca derruba o crédito
+        webhooks.pixReceived(saved, command.receiverKeyHash());          // notificação ao recebedor: na mesma transação, e nunca derruba o crédito
         return new ReceivePixResult.Received(saved);
     }
 
     /** Documento do pagador inválido/mascarado não derruba o Pix: guarda sem documento (o SPI já liquidou). */
-    private static PixPayer payerOf(ReceivePixCommand cmd) {
-        Document document = cmd.payerDocument() == null ? null : Document.tryParse(cmd.payerDocument()).orElse(null);
-        return new PixPayer(document, cmd.payerName(), cmd.payerIspb(), cmd.payerBranch(), cmd.payerAccount(), cmd.payerAccountType());
+    private static PixPayer payerOf(ReceivePixCommand command) {
+        Document document = command.payerDocument() == null ? null : Document.tryParse(command.payerDocument()).orElse(null);
+        return new PixPayer(document, command.payerName(), command.payerIspb(), command.payerBranch(), command.payerAccount(), command.payerAccountType());
     }
 }

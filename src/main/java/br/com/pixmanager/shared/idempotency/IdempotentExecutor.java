@@ -26,12 +26,12 @@ public class IdempotentExecutor {
 
     private final IdempotencyService service;
     private final ObjectMapper mapper;
-    private final TransactionTemplate tx;
+    private final TransactionTemplate transactionTemplate;
 
-    public IdempotentExecutor(IdempotencyService service, ObjectMapper mapper, PlatformTransactionManager txManager) {
+    public IdempotentExecutor(IdempotencyService service, ObjectMapper mapper, PlatformTransactionManager transactionManager) {
         this.service = service;
         this.mapper = mapper;
-        this.tx = new TransactionTemplate(txManager);
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /** O que a operação devolve: status HTTP + corpo (qualquer objeto serializável). */
@@ -50,20 +50,20 @@ public class IdempotentExecutor {
                     "Requisição idêntica em andamento. Tente novamente em instantes.");
             case IdempotencyOutcome.Proceed proceed -> {
                 try {
-                    Result result = tx.execute(status -> {
+                    Result result = transactionTemplate.execute(status -> {
                         Response response = action.get();
                         String json = toJson(response.body());
                         service.complete(proceed.recordId(), response.status(), json);
                         return new Result(response.status(), parse(json), false);
                     });
                     yield result;
-                } catch (RuntimeException e) {
+                } catch (RuntimeException exception) {
                     try {
                         service.release(proceed.recordId());  // falha NÃO queima a chave
                     } catch (RuntimeException releaseFailure) {
-                        e.addSuppressed(releaseFailure);      // a exceção original é a que importa ao chamador
+                        exception.addSuppressed(releaseFailure);      // a exceção original é a que importa ao chamador
                     }
-                    throw e;
+                    throw exception;
                 }
             }
         };
@@ -72,16 +72,16 @@ public class IdempotentExecutor {
     private String toJson(Object value) {
         try {
             return mapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Falha ao serializar corpo para idempotência", e);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Falha ao serializar corpo para idempotência", exception);
         }
     }
 
     private JsonNode parse(String json) {
         try {
             return mapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Resposta idempotente armazenada ilegível", e);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Resposta idempotente armazenada ilegível", exception);
         }
     }
 }

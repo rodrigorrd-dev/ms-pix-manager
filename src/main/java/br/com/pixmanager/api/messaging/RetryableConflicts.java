@@ -19,8 +19,8 @@ public final class RetryableConflicts {
     public static <T> T retryOnConflict(Supplier<T> action) {
         try {
             return action.get();
-        } catch (PreconditionFailedException | ConflictException e) {
-            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "Conflito de concorrência; reprocessar: " + e.getMessage(), e);
+        } catch (PreconditionFailedException | ConflictException exception) {
+            throw new IntegrationException(ErrorCodes.DEPENDENCY_FAILURE, "Conflito de concorrência; reprocessar: " + exception.getMessage(), exception);
         }
     }
 

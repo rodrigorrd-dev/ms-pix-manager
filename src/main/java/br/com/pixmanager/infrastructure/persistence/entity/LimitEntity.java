@@ -43,18 +43,18 @@ public class LimitEntity extends AuditableEntity {
 
     public UUID getId() { return id; }
     public UUID getAccountId() { return accountId; }
-    public void setAccountId(UUID v) { this.accountId = v; }
+    public void setAccountId(UUID accountId) { this.accountId = accountId; }
     public String getScope() { return scope; }
-    public void setScope(String v) { this.scope = v; }
+    public void setScope(String scope) { this.scope = scope; }
     public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal v) { this.amount = v; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
     public BigDecimal getCeilingAmount() { return ceilingAmount; }
-    public void setCeilingAmount(BigDecimal v) { this.ceilingAmount = v; }
+    public void setCeilingAmount(BigDecimal ceilingAmount) { this.ceilingAmount = ceilingAmount; }
     public BigDecimal getPendingAmount() { return pendingAmount; }
-    public void setPendingAmount(BigDecimal v) { this.pendingAmount = v; }
+    public void setPendingAmount(BigDecimal pendingAmount) { this.pendingAmount = pendingAmount; }
     public Instant getPendingRequestedAt() { return pendingRequestedAt; }
-    public void setPendingRequestedAt(Instant v) { this.pendingRequestedAt = v; }
+    public void setPendingRequestedAt(Instant pendingRequestedAt) { this.pendingRequestedAt = pendingRequestedAt; }
     public Instant getPendingEffectiveAt() { return pendingEffectiveAt; }
-    public void setPendingEffectiveAt(Instant v) { this.pendingEffectiveAt = v; }
+    public void setPendingEffectiveAt(Instant pendingEffectiveAt) { this.pendingEffectiveAt = pendingEffectiveAt; }
     public Long getVersion() { return version; }
 }

@@ -27,39 +27,39 @@ public class ReceivedPixEntityMapper {
         return crypto.blindIndex(document.value());
     }
 
-    public ReceivedPix toDomain(ReceivedPixEntity e, List<ValueComponent> components) {
-        Document doc = e.getPayerDocumentEnc() == null ? null : Document.of(crypto.decrypt(e.getPayerDocumentEnc()));
-        PixPayer payer = new PixPayer(doc, e.getPayerName(), e.getPayerIspb(), e.getPayerBranch(), e.getPayerAccount(),
-                e.getPayerAccountType());
-        return new ReceivedPix(e.getId(), new EndToEndId(e.getEndToEndId()), e.getTxid(), e.getChargeId(), e.getReceiverAccountId(),
-                Money.of(e.getAmount()), Money.of(e.getRefundableAmount()), Money.of(e.getRefundedTotal()), payer, e.getPayerInfo(),
-                e.getSettledAt(), ReconciliationStatus.valueOf(e.getReconciliationStatus()), e.getSourceMessageId(), components,
-                e.getVersion(), e.getCreatedAt());
+    public ReceivedPix toDomain(ReceivedPixEntity entity, List<ValueComponent> components) {
+        Document document = entity.getPayerDocumentEnc() == null ? null : Document.of(crypto.decrypt(entity.getPayerDocumentEnc()));
+        PixPayer payer = new PixPayer(document, entity.getPayerName(), entity.getPayerIspb(), entity.getPayerBranch(), entity.getPayerAccount(),
+                entity.getPayerAccountType());
+        return new ReceivedPix(entity.getId(), new EndToEndId(entity.getEndToEndId()), entity.getTxid(), entity.getChargeId(), entity.getReceiverAccountId(),
+                Money.of(entity.getAmount()), Money.of(entity.getRefundableAmount()), Money.of(entity.getRefundedTotal()), payer, entity.getPayerInfo(),
+                entity.getSettledAt(), ReconciliationStatus.valueOf(entity.getReconciliationStatus()), entity.getSourceMessageId(), components,
+                entity.getVersion(), entity.getCreatedAt());
     }
 
-    public void apply(ReceivedPix d, ReceivedPixEntity e) {
-        e.setEndToEndId(d.endToEndId().value());
-        e.setTxid(d.txid());
-        e.setChargeId(d.chargeId());
-        e.setReceiverAccountId(d.receiverAccountId());
-        e.setAmount(d.amount().value());
-        e.setRefundableAmount(d.refundableAmount().value());
-        e.setRefundedTotal(d.refundedTotal().value());
-        PixPayer p = d.payer();
-        if (p.document() != null) {
-            e.setPayerType(p.document().type());
-            e.setPayerDocumentEnc(crypto.encrypt(p.document().value()));
-            e.setPayerDocumentHash(hashOf(p.document()));
-            e.setPayerDocumentMasked(p.document().masked());
+    public void apply(ReceivedPix receivedPix, ReceivedPixEntity entity) {
+        entity.setEndToEndId(receivedPix.endToEndId().value());
+        entity.setTxid(receivedPix.txid());
+        entity.setChargeId(receivedPix.chargeId());
+        entity.setReceiverAccountId(receivedPix.receiverAccountId());
+        entity.setAmount(receivedPix.amount().value());
+        entity.setRefundableAmount(receivedPix.refundableAmount().value());
+        entity.setRefundedTotal(receivedPix.refundedTotal().value());
+        PixPayer pixPayer = receivedPix.payer();
+        if (pixPayer.document() != null) {
+            entity.setPayerType(pixPayer.document().type());
+            entity.setPayerDocumentEnc(crypto.encrypt(pixPayer.document().value()));
+            entity.setPayerDocumentHash(hashOf(pixPayer.document()));
+            entity.setPayerDocumentMasked(pixPayer.document().masked());
         }
-        e.setPayerName(p.name());
-        e.setPayerIspb(p.ispb());
-        e.setPayerBranch(p.branch());
-        e.setPayerAccount(p.account());
-        e.setPayerAccountType(p.accountType());
-        e.setPayerInfo(d.payerInfo());
-        e.setSettledAt(d.settledAt());
-        e.setReconciliationStatus(d.reconciliationStatus().name());
-        e.setSourceMessageId(d.sourceMessageId());
+        entity.setPayerName(pixPayer.name());
+        entity.setPayerIspb(pixPayer.ispb());
+        entity.setPayerBranch(pixPayer.branch());
+        entity.setPayerAccount(pixPayer.account());
+        entity.setPayerAccountType(pixPayer.accountType());
+        entity.setPayerInfo(receivedPix.payerInfo());
+        entity.setSettledAt(receivedPix.settledAt());
+        entity.setReconciliationStatus(receivedPix.reconciliationStatus().name());
+        entity.setSourceMessageId(receivedPix.sourceMessageId());
     }
 }

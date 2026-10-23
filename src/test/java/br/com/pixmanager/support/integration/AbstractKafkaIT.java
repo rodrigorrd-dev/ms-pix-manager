@@ -85,9 +85,9 @@ public abstract class AbstractKafkaIT extends AbstractApplicationIT {
         return out;
     }
 
-    protected static SpiPaymentSettled settled(String messageId, String e2e, String txid, String amount, String receiverAccount) {
+    protected static SpiPaymentSettled settled(String messageId, String endToEndId, String txid, String amount, String receiverAccount) {
         return SpiPaymentSettled.newBuilder()
-                .setMessageId(messageId).setEndToEndId(e2e).setTxid(txid).setAmount(new BigDecimal(amount)).setSettledAt(Instant.now())
+                .setMessageId(messageId).setEndToEndId(endToEndId).setTxid(txid).setAmount(new BigDecimal(amount)).setSettledAt(Instant.now())
                 .setReceiverIspb("12345678").setReceiverBranch("0001").setReceiverAccount(receiverAccount).setReceiverAccountType("CACC")
                 .setReceiverKeyHash(null).setPayerDocumentType("CPF").setPayerDocument("11144477735").setPayerName("Maria Pagadora")
                 .setPayerIspb("87654321").setPayerBranch("0002").setPayerAccount("99887").setPayerAccountType("CACC").setPayerInfo("teste")

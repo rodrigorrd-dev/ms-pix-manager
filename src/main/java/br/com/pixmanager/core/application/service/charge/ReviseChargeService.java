@@ -31,17 +31,17 @@ public class ReviseChargeService implements ReviseChargeUseCase {
     }
 
     @Override
-    public ChargeDetails revise(Caller caller, TxId txid, ExpectedVersion expected, ReviseChargeCommand cmd) {
+    public ChargeDetails revise(Caller caller, TxId txid, ExpectedVersion expected, ReviseChargeCommand command) {
         Charge charge = finder.visible(caller, txid)
                 .orElseThrow(() -> new NotFoundException(ErrorCodes.NOT_FOUND, "Cobrança não encontrada."));
         if (!expected.matches(charge.version())) {
             throw new PreconditionFailedException("A cobrança foi alterada por outra requisição (versão desatualizada).");
         }
-        Charge changed = cmd.remove()
+        Charge changed = command.remove()
                 ? charge.removedByReceiver(clock.instant())
-                : charge.revised(cmd.amount(), cmd.debtor(), cmd.payerRequest(), cmd.expirationSeconds(), clock.instant());
+                : charge.revised(command.amount(), command.debtor(), command.payerRequest(), command.expirationSeconds(), clock.instant());
         Charge saved = persistence.save(changed);
-        events.publish(new ChargeEvent(cmd.remove() ? "ChargeRemoved" : "ChargeRevised", saved));
+        events.publish(new ChargeEvent(command.remove() ? "ChargeRemoved" : "ChargeRevised", saved));
         return finder.details(saved);
     }
 }

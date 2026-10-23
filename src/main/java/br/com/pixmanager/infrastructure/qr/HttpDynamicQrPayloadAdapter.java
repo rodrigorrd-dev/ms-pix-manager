@@ -129,11 +129,11 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
                 }
                 return new String(body, java.nio.charset.StandardCharsets.UTF_8).trim();
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new DependencyUnavailableException("Consulta ao recebedor do QR dinâmico interrompida", e);
-        } catch (IOException e) {
-            throw new DependencyUnavailableException("Recebedor do QR dinâmico indisponível: " + e.getClass().getSimpleName(), e);
+            throw new DependencyUnavailableException("Consulta ao recebedor do QR dinâmico interrompida", exception);
+        } catch (IOException exception) {
+            throw new DependencyUnavailableException("Recebedor do QR dinâmico indisponível: " + exception.getClass().getSimpleName(), exception);
         }
     }
 
@@ -160,12 +160,12 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
         try {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             var chain = new java.util.ArrayList<X509Certificate>();
-            for (Base64 der : x5c) {
-                chain.add((X509Certificate) factory.generateCertificate(new ByteArrayInputStream(der.decode())));
+            for (Base64 encodedCertificate : x5c) {
+                chain.add((X509Certificate) factory.generateCertificate(new ByteArrayInputStream(encodedCertificate.decode())));
             }
             chain.get(0).checkValidity();
             return chain;
-        } catch (java.security.GeneralSecurityException | RuntimeException e) {
+        } catch (java.security.GeneralSecurityException | RuntimeException exception) {
             throw invalid("Certificado do QR dinâmico inválido ou fora da validade.");
         }
     }
@@ -201,11 +201,11 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
 
     static DynamicQrPayload parsePayload(String json) {
         try {
-            JsonNode n = JSON.readTree(json);
-            String txid = text(n, "txid");
-            String key = text(n, "chave");
-            String status = text(n, "status");
-            JsonNode valor = n.path("valor");
+            JsonNode node = JSON.readTree(json);
+            String txid = text(node, "txid");
+            String key = text(node, "chave");
+            String status = text(node, "status");
+            JsonNode valor = node.path("valor");
             String amount = valor.hasNonNull("final") ? valor.get("final").asText() : text(valor, "original");
             if (txid == null || key == null || status == null || amount == null) {
                 throw invalid("O payload do QR dinâmico não traz txid, chave, status e valor.");
@@ -214,30 +214,30 @@ public class HttpDynamicQrPayloadAdapter implements DynamicQrPayloadPortOut {
             if (!money.isPositive()) {
                 throw invalid("O valor da cobrança do QR dinâmico deve ser maior que zero.");
             }
-            return new DynamicQrPayload(txid, key, money, status, expiry(n.path("calendario")));
-        } catch (IOException | RuntimeException e) {
-            if (e instanceof BusinessException be) {
-                throw be;
+            return new DynamicQrPayload(txid, key, money, status, expiry(node.path("calendario")));
+        } catch (IOException | RuntimeException exception) {
+            if (exception instanceof BusinessException businessException) {
+                throw businessException;
             }
             throw invalid("O payload do QR dinâmico é ilegível.");
         }
     }
 
     /** cob: criação + expiração (s, padrão 86400). cobv: vale até o fim do dia (Brasília) de vencimento + validadeAposVencimento. */
-    private static Instant expiry(JsonNode cal) {
-        if (cal.hasNonNull("dataDeVencimento")) {
-            LocalDate due = LocalDate.parse(cal.get("dataDeVencimento").asText());
-            long grace = cal.path("validadeAposVencimento").asLong(0);
+    private static Instant expiry(JsonNode calendar) {
+        if (calendar.hasNonNull("dataDeVencimento")) {
+            LocalDate due = LocalDate.parse(calendar.get("dataDeVencimento").asText());
+            long grace = calendar.path("validadeAposVencimento").asLong(0);
             return due.plusDays(grace + 1).atStartOfDay(BRASILIA).toInstant();
         }
-        if (cal.hasNonNull("criacao")) {
-            return Instant.parse(cal.get("criacao").asText()).plusSeconds(cal.path("expiracao").asLong(86_400));
+        if (calendar.hasNonNull("criacao")) {
+            return Instant.parse(calendar.get("criacao").asText()).plusSeconds(calendar.path("expiracao").asLong(86_400));
         }
         return null;
     }
 
-    private static String text(JsonNode n, String field) {
-        return n.hasNonNull(field) && !n.get(field).asText().isBlank() ? n.get(field).asText() : null;
+    private static String text(JsonNode node, String field) {
+        return node.hasNonNull(field) && !node.get(field).asText().isBlank() ? node.get(field).asText() : null;
     }
 
     private static BusinessException invalid(String message) {

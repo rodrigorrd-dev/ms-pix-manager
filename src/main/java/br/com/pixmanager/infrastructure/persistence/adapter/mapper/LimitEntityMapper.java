@@ -9,22 +9,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class LimitEntityMapper {
 
-    public AccountLimit toDomain(LimitEntity e) {
-        return new AccountLimit(e.getId(), e.getAccountId(), LimitScope.valueOf(e.getScope()), Money.of(e.getAmount()),
-                e.getCeilingAmount() == null ? null : Money.of(e.getCeilingAmount()),
-                e.getPendingAmount() == null ? null : Money.of(e.getPendingAmount()), e.getPendingRequestedAt(),
-                e.getPendingEffectiveAt(), e.getVersion());
+    public AccountLimit toDomain(LimitEntity entity) {
+        return new AccountLimit(entity.getId(), entity.getAccountId(), LimitScope.valueOf(entity.getScope()), Money.of(entity.getAmount()),
+                Money.ofNullable(entity.getCeilingAmount()),
+                Money.ofNullable(entity.getPendingAmount()), entity.getPendingRequestedAt(),
+                entity.getPendingEffectiveAt(), entity.getVersion());
     }
 
-    public void apply(AccountLimit d, LimitEntity e, boolean isNew) {
+    public void apply(AccountLimit accountLimit, LimitEntity entity, boolean isNew) {
         if (isNew) {
-            e.setAccountId(d.accountId());
-            e.setScope(d.scope().name());
+            entity.setAccountId(accountLimit.accountId());
+            entity.setScope(accountLimit.scope().name());
         }
-        e.setAmount(d.amount().value());
-        e.setCeilingAmount(d.ceiling() == null ? null : d.ceiling().value());
-        e.setPendingAmount(d.pendingAmount() == null ? null : d.pendingAmount().value());
-        e.setPendingRequestedAt(d.pendingRequestedAt());
-        e.setPendingEffectiveAt(d.pendingEffectiveAt());
+        entity.setAmount(accountLimit.amount().value());
+        entity.setCeilingAmount(Money.valueOrNull(accountLimit.ceiling()));
+        entity.setPendingAmount(Money.valueOrNull(accountLimit.pendingAmount()));
+        entity.setPendingRequestedAt(accountLimit.pendingRequestedAt());
+        entity.setPendingEffectiveAt(accountLimit.pendingEffectiveAt());
     }
 }
