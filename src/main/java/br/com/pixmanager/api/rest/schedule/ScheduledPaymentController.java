@@ -3,7 +3,7 @@ package br.com.pixmanager.api.rest.schedule;
 import br.com.pixmanager.api.rest.schedule.dto.request.CreateScheduledPaymentRequest;
 import br.com.pixmanager.api.rest.schedule.dto.response.ScheduledOccurrenceResponse;
 import br.com.pixmanager.api.rest.schedule.dto.response.ScheduledPaymentResponse;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.shared.model.dto.PageResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
