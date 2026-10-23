@@ -15,6 +15,7 @@ import br.com.pixmanager.shared.exception.PreconditionFailedException;
 import br.com.pixmanager.shared.model.document.Document;
 import br.com.pixmanager.shared.model.dto.PageQuery;
 import br.com.pixmanager.shared.model.dto.PageResult;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,10 +37,12 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
             + " customer_notified_at, payment_order_id, last_error_code, version";
 
     private final JdbcClient jdbc;
+    private final JdbcTemplate jdbcTemplate;
     private final CryptoService crypto;
 
-    public ScheduledPaymentPersistenceAdapter(JdbcClient jdbc, CryptoService crypto) {
+    public ScheduledPaymentPersistenceAdapter(JdbcClient jdbc, JdbcTemplate jdbcTemplate, CryptoService crypto) {
         this.jdbc = jdbc;
+        this.jdbcTemplate = jdbcTemplate;
         this.crypto = crypto;
     }
 
@@ -64,11 +67,14 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                 .param("accountType", scheduledPayment.accountType()).param("amount", scheduledPayment.amount().value()).param("message", scheduledPayment.payerMessage())
                 .param("first", scheduledPayment.firstDate()).param("end", scheduledPayment.endDate()).param("total", scheduledPayment.occurrencesTotal())
                 .param("status", scheduledPayment.status().name()).param("device", scheduledPayment.deviceRegistered()).param("actor", ACTOR).update();
-        for (ScheduledOccurrence occurrence : occurrences) {
-            jdbc.sql("INSERT INTO scheduled_payment_occurrence (id, scheduled_payment_id, sequence_no, due_date, status) VALUES (:id, :sp, :seq, :due, :status)")
-                    .param("id", occurrence.id()).param("sp", occurrence.scheduledPaymentId()).param("seq", occurrence.sequenceNo()).param("due", occurrence.dueDate())
-                    .param("status", occurrence.status().name()).update();
-        }
+        jdbcTemplate.batchUpdate("INSERT INTO scheduled_payment_occurrence (id, scheduled_payment_id, sequence_no, due_date, status) VALUES (?, ?, ?, ?, ?)", occurrences, occurrences.size(),
+                (statement, occurrence) -> {
+                    statement.setObject(1, occurrence.id());
+                    statement.setObject(2, occurrence.scheduledPaymentId());
+                    statement.setInt(3, occurrence.sequenceNo());
+                    statement.setObject(4, occurrence.dueDate());
+                    statement.setString(5, occurrence.status().name());
+                });
     }
 
     @Override
