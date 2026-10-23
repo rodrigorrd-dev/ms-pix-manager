@@ -1,6 +1,7 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
 import br.com.pixmanager.core.domain.entity.WebhookSubscription;
+import br.com.pixmanager.infrastructure.persistence.Pages;
 import br.com.pixmanager.core.domain.enums.WebhookStatus;
 import br.com.pixmanager.core.port.out.persistence.WebhookSubscriptionPortOut;
 import br.com.pixmanager.infrastructure.security.crypto.CryptoService;
@@ -73,10 +74,10 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
             count = count.param("accounts", accountIds);
             rows = rows.param("accounts", accountIds);
         }
-        long total = count.query(Long.class).single();
+        final var countQuery = count;
         List<WebhookView> content = rows.query((resultSet, rowNumber) -> new WebhookView(map(resultSet, rowNumber), resultSet.getObject("account_id", UUID.class),
                 crypto.decrypt(resultSet.getString("key_value_enc")))).list();
-        return new PageResult<>(content, page.page(), page.size(), total);
+        return new PageResult<>(content, page.page(), page.size(), Pages.total(page, content, () -> countQuery.query(Long.class).single()));
     }
 
     private static WebhookSubscription map(ResultSet resultSet, int row) throws SQLException {

@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Pages;
 import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.ScheduledOccurrence;
@@ -91,9 +92,10 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Override
     @Transactional(readOnly = true)
     public PageResult<ScheduledPayment> listByPayer(UUID payerAccountId, PageQuery page) {
-        long total = jdbc.sql("SELECT count(*) FROM scheduled_payment WHERE payer_account_id = :p").param("p", payerAccountId).query(Long.class).single();
         List<ScheduledPayment> content = jdbc.sql("SELECT * FROM scheduled_payment WHERE payer_account_id = :p ORDER BY created_at DESC, id LIMIT :l OFFSET :o")
                 .param("p", payerAccountId).param("l", page.size()).param("o", (long) page.page() * page.size()).query(this::payment).list();
+        long total = Pages.total(page, content,
+                () -> jdbc.sql("SELECT count(*) FROM scheduled_payment WHERE payer_account_id = :p").param("p", payerAccountId).query(Long.class).single());
         return new PageResult<>(content, page.page(), page.size(), total);
     }
 
