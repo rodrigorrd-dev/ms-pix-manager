@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -Dmaven.test.skip=true -Djacoc
  && cp target/ms-pix-manager-*.jar /build/app.jar
 
 # Runtime: só JRE, usuário sem privilégios.
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 RUN apk upgrade --no-cache \
  && addgroup -S pix && adduser -S pix -G pix
 WORKDIR /app
