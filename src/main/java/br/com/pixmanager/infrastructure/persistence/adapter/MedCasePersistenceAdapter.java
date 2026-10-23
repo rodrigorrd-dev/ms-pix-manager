@@ -1,6 +1,7 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
 import br.com.pixmanager.shared.util.Text;
+import br.com.pixmanager.infrastructure.persistence.Pages;
 import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.MedCase;
 import br.com.pixmanager.core.domain.entity.MedContestation;
@@ -97,8 +98,9 @@ public class MedCasePersistenceAdapter implements MedCasePersistencePortOut {
             count = count.param("status", status.name());
             rows = rows.param("status", status.name());
         }
-        long total = count.query(Long.class).single();
-        return new PageResult<>(rows.param("l", page.size()).param("o", (long) page.page() * page.size()).query(this::map).list(), page.page(), page.size(), total);
+        List<MedCase> content = rows.param("l", page.size()).param("o", (long) page.page() * page.size()).query(this::map).list();
+        final var countQuery = count;
+        return new PageResult<>(content, page.page(), page.size(), Pages.total(page, content, () -> countQuery.query(Long.class).single()));
     }
 
     @Override

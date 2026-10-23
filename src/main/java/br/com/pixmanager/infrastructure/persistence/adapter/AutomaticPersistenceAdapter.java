@@ -1,5 +1,6 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
+import br.com.pixmanager.infrastructure.persistence.Pages;
 import br.com.pixmanager.infrastructure.persistence.Timestamps;
 import br.com.pixmanager.core.domain.entity.AutomaticAttempt;
 import br.com.pixmanager.core.domain.entity.AutomaticAuthorization;
@@ -117,8 +118,9 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
             count = count.param("status", status);
             rows = rows.param("status", status);
         }
-        long total = count.query(Long.class).single();
-        return new PageResult<>(rows.param("l", page.size()).param("o", (long) page.page() * page.size()).query(this::authorization).list(), page.page(), page.size(), total);
+        List<AutomaticAuthorization> content = rows.param("l", page.size()).param("o", (long) page.page() * page.size()).query(this::authorization).list();
+        final var countQuery = count;
+        return new PageResult<>(content, page.page(), page.size(), Pages.total(page, content, () -> countQuery.query(Long.class).single()));
     }
 
     @Override
