@@ -1,4 +1,4 @@
-package br.com.pixmanager.api.rest.security;
+package br.com.pixmanager.shared.security;
 
 import br.com.pixmanager.core.domain.entity.Caller;
 

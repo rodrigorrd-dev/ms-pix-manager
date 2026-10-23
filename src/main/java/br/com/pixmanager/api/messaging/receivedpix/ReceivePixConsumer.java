@@ -1,6 +1,6 @@
 package br.com.pixmanager.api.messaging.receivedpix;
 
-import br.com.pixmanager.api.messaging.RetryableConflicts;
+import br.com.pixmanager.shared.messaging.RetryableConflicts;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.entity.ValueComponent;
 import br.com.pixmanager.core.domain.enums.ComponentType;
@@ -9,7 +9,7 @@ import br.com.pixmanager.core.port.in.receivedpix.ReceivePixUseCase.ReceivePixCo
 import br.com.pixmanager.core.port.in.receivedpix.ReceivePixUseCase.ReceivePixResult;
 import br.com.pixmanager.events.v1.SpiPaymentSettled;
 import br.com.pixmanager.events.v1.SpiValueComponent;
-import br.com.pixmanager.api.messaging.DltMetrics;
+import br.com.pixmanager.shared.messaging.DltMetrics;
 import br.com.pixmanager.api.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.util.AvroPayloadDecoder;
 import br.com.pixmanager.shared.exception.BusinessException;
