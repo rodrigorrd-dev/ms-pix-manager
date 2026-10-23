@@ -43,6 +43,9 @@ public interface AutomaticPersistencePortOut {
 
     void insertAttempt(AutomaticAttempt attempt);
 
+    /** Cancela, em lote, as cobranças ATIVA da autorização e suas tentativas AGENDADA (sem controle de versão: é o cancelamento da autorização inteira). */
+    void cancelLiveCharges(UUID authorizationId);
+
     AutomaticAttempt saveAttempt(AutomaticAttempt attempt);
 
     /**

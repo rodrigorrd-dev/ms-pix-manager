@@ -192,5 +192,12 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
                 resultSet.getObject("payment_order_id", UUID.class), resultSet.getString("last_error_code"), resultSet.getLong("version"));
     }
 
-
+    /** Cancela de uma vez as ocorrências SCHEDULED/RETRY_PENDING do agendamento (as que o worker já reivindicou ficam de fora, sem corrida). */
+    @Override
+    @Transactional
+    public List<ScheduledOccurrence> cancelOpenOccurrences(UUID scheduledPaymentId) {
+        return jdbc.sql("UPDATE scheduled_payment_occurrence SET status = 'CANCELLED', next_attempt_at = NULL, version = version + 1, updated_at = now() "
+                        + "WHERE scheduled_payment_id = :id AND status IN ('SCHEDULED', 'RETRY_PENDING') RETURNING " + OCCURRENCE_COLUMNS)
+                .param("id", scheduledPaymentId).query(this::occurrence).list();
+    }
 }

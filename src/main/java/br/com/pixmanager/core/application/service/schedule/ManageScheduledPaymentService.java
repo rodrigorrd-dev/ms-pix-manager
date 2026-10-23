@@ -107,11 +107,8 @@ public class ManageScheduledPaymentService implements ManageScheduledPaymentUseC
             throw new PreconditionFailedException("O agendamento foi alterado por outra requisição (versão desatualizada).");
         }
         ScheduledPayment cancelled = persistence.save(payment.cancelled());
-        for (ScheduledOccurrence occurrence : persistence.occurrencesOf(id)) {
-            if (occurrence.status().isCancellable()) {
-                ScheduledOccurrence saved = persistence.saveOccurrence(occurrence.cancelled());
-                publish("ScheduledOccurrenceCancelled", cancelled, saved, false);
-            }
+        for (ScheduledOccurrence saved : persistence.cancelOpenOccurrences(id)) {
+            publish("ScheduledOccurrenceCancelled", cancelled, saved, false);
         }
         events.publish(new ScheduledPaymentEvent("ScheduledPaymentCancelled", id, null, cancelled.payerAccountId(), cancelled.status().name(),
                 null, cancelled.amount(), null, false, null));
