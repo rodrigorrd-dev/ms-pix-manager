@@ -1,6 +1,6 @@
 package br.com.pixmanager.api.rest.webhook;
 
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.api.rest.webhook.dto.response.WebhookDeliveryResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;

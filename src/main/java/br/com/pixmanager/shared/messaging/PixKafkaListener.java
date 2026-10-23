@@ -1,4 +1,4 @@
-package br.com.pixmanager.api.messaging;
+package br.com.pixmanager.shared.messaging;
 
 import br.com.pixmanager.shared.exception.BusinessException;
 import org.springframework.core.annotation.AliasFor;

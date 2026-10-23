@@ -1,7 +1,7 @@
 package br.com.pixmanager.api.rest.automatic;
 
 import br.com.pixmanager.api.rest.automatic.dto.AutomaticDtos;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.AutomaticAttempt;
 import br.com.pixmanager.core.domain.entity.AutomaticAuthorization;
 import br.com.pixmanager.core.domain.entity.AutomaticCharge;
