@@ -12,8 +12,6 @@ import br.com.pixmanager.shared.util.AvroPayloadDecoder;
 import io.github.springwolf.core.asyncapi.annotations.AsyncListener;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +21,6 @@ public class PaymentStatusConsumer {
 
     public static final String TOPIC = "pix.spi.payment-status.v1";
     public static final String CONSUMER_GROUP = "ms-pix-manager.payment-status";
-    private static final Logger log = LoggerFactory.getLogger(PaymentStatusConsumer.class);
 
     private final ApplyPaymentStatusUseCase apply;
     private final AvroPayloadDecoder decoder;
