@@ -158,16 +158,16 @@ class ScheduleServicesTest {
     }
 
     @Test
-    @DisplayName("cancel: versão errada ⇒ 412; ok cancela o agendamento e só as ocorrências canceláveis")
+    @DisplayName("cancel: versão errada ⇒ 412; ok cancela o agendamento e as ocorrências canceláveis num único UPDATE")
     void shouldCancelOnlyCancellableOccurrences() {
         when(schedules.findById(SequentialIds.id(1))).thenReturn(Optional.of(payment(ScheduleStatus.ACTIVE)));
-        when(schedules.occurrencesOf(SequentialIds.id(1))).thenReturn(List.of(occurrence(OccurrenceStatus.SCHEDULED, 0, null), occurrence(OccurrenceStatus.EXECUTED, 1, null)));
+        when(schedules.cancelOpenOccurrences(SequentialIds.id(1))).thenReturn(List.of(occurrence(OccurrenceStatus.CANCELLED, 0, null)));
 
         assertThatThrownBy(() -> manage.cancel(caller, SequentialIds.id(1), new ExpectedVersion.Exact(9))).isInstanceOf(PreconditionFailedException.class);
         ScheduledPayment cancelled = manage.cancel(caller, SequentialIds.id(1), new ExpectedVersion.Exact(0));
 
         assertThat(cancelled.status()).isEqualTo(ScheduleStatus.CANCELLED);
-        verify(schedules, org.mockito.Mockito.times(1)).saveOccurrence(any());
+        verify(schedules, org.mockito.Mockito.times(1)).cancelOpenOccurrences(SequentialIds.id(1));
     }
 
     @Test

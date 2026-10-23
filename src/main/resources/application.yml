@@ -220,6 +220,12 @@ pix:
   outbox:
     retention: ${PIX_OUTBOX_RETENTION:P7D}          # linhas da outbox_event mais antigas que isto são apagadas (o Debezium lê o WAL, não a tabela)
     cleanup-delay: ${PIX_OUTBOX_CLEANUP_DELAY:PT10M}
+  retention:
+    inbox: ${PIX_RETENTION_INBOX:P14D}                       # inbox_message: > retenção do tópico (idempotência do consumidor)
+    webhook-delivered: ${PIX_RETENTION_WEBHOOK_DELIVERED:P30D}
+    webhook-dead: ${PIX_RETENTION_WEBHOOK_DEAD:P90D}         # mortas ficam mais: o back-office pode reenviar
+    cleanup-delay: ${PIX_RETENTION_CLEANUP_DELAY:PT1H}
+    cleanup-batch: ${PIX_RETENTION_CLEANUP_BATCH:5000}
   metrics:
     stuck-after: ${PIX_METRICS_STUCK_AFTER:PT5M}      # após quanto tempo sem avançar a ordem/chave/reserva conta como PRESA (alertas)
   policy: {}                                            # defaults em PixPolicyProperties; sobrescreva por pix.policy.*
