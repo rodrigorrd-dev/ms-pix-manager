@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,11 +37,13 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
     private final ReceivedPixRepository repository;
     private final ReceivedPixEntityMapper mapper;
     private final JdbcClient jdbc;
+    private final JdbcTemplate jdbcTemplate;
 
-    public ReceivedPixPersistenceAdapter(ReceivedPixRepository repository, ReceivedPixEntityMapper mapper, JdbcClient jdbc) {
+    public ReceivedPixPersistenceAdapter(ReceivedPixRepository repository, ReceivedPixEntityMapper mapper, JdbcClient jdbc, JdbcTemplate jdbcTemplate) {
         this.repository = repository;
         this.mapper = mapper;
         this.jdbc = jdbc;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** Só INSERT: um Pix liquidado não é alterado depois (devolução mexe em {@code refunded_total} por UPDATE atômico). */
@@ -50,20 +53,23 @@ public class ReceivedPixPersistenceAdapter implements ReceivedPixPersistencePort
         ReceivedPixEntity entity = new ReceivedPixEntity(pix.id());
         mapper.apply(pix, entity);
         try {
-            repository.saveAndFlush(entity);
+            entity = repository.saveAndFlush(entity);
         } catch (DataIntegrityViolationException exception) {
             // corrida entre dois consumidores com o mesmo endToEndId: o índice único decide (BR-PIX-01)
             throw new ConflictException(ErrorCodes.CONFLICT, "Pix já registrado para este endToEndId.");
         }
-        for (ValueComponent valueComponent : pix.components()) {
-            jdbc.sql("""
+        if (!pix.components().isEmpty()) {
+            jdbcTemplate.batchUpdate("""
                     INSERT INTO pix_received_component (received_id, component_type, amount, agent_modality, withdrawal_provider_ispb)
-                    VALUES (:id, :type, :amount, :modality, :provider)
-                    """)
-                    .param("id", pix.id()).param("type", valueComponent.type().name()).param("amount", valueComponent.amount().value())
-                    .param("modality", valueComponent.agentModality()).param("provider", valueComponent.withdrawalProviderIspb()).update();
+                    VALUES (?, ?, ?, ?, ?)""", pix.components(), pix.components().size(), (statement, valueComponent) -> {
+                statement.setObject(1, pix.id());
+                statement.setString(2, valueComponent.type().name());
+                statement.setBigDecimal(3, valueComponent.amount().value());
+                statement.setString(4, valueComponent.agentModality());
+                statement.setString(5, valueComponent.withdrawalProviderIspb());
+            });
         }
-        return repository.findById(pix.id()).map(savedEntity -> mapper.toDomain(savedEntity, pix.components())).orElseThrow();
+        return mapper.toDomain(entity, pix.components());
     }
 
     @Override
