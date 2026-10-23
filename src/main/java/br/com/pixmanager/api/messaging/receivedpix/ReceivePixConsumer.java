@@ -10,7 +10,7 @@ import br.com.pixmanager.core.port.in.receivedpix.ReceivePixUseCase.ReceivePixRe
 import br.com.pixmanager.events.v1.SpiPaymentSettled;
 import br.com.pixmanager.events.v1.SpiValueComponent;
 import br.com.pixmanager.shared.messaging.DltMetrics;
-import br.com.pixmanager.api.messaging.PixKafkaListener;
+import br.com.pixmanager.shared.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.util.AvroPayloadDecoder;
 import br.com.pixmanager.shared.exception.BusinessException;
 import io.github.springwolf.bindings.kafka.annotations.KafkaAsyncOperationBinding;
