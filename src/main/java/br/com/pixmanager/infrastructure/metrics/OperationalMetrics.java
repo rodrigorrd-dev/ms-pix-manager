@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class OperationalMetrics implements MeterBinder {
 
     private static final Logger log = LoggerFactory.getLogger(OperationalMetrics.class);
+    /** Teto da contagem da outbox (o alerta dispara em 200 mil): evita varrer a tabela inteira a cada 30 s quando o Debezium para. */
+    private static final int OUTBOX_ROWS_CAP = 250_000;
     private static final List<String> PAYMENT_STATUSES = List.of("VALIDATED", "RESERVED", "SENT_TO_SPI");
 
     private final JdbcClient jdbc;
@@ -99,7 +101,7 @@ public class OperationalMetrics implements MeterBinder {
             medOverdue.set(jdbc.sql("SELECT count(*) FROM med_case WHERE role = 'REPORTED' AND status = 'OPEN' AND analysis_deadline_at < now()").query(Long.class).single());
             automaticOverdue.set(jdbc.sql("SELECT count(*) FROM pix_automatic_attempt WHERE status = 'AGENDADA' AND settlement_date < (now() AT TIME ZONE 'America/Sao_Paulo')::date AND updated_at < :c")
                     .param("c", java.sql.Timestamp.from(cutoff)).query(Long.class).single());
-            outboxRows.set(jdbc.sql("SELECT count(*) FROM outbox_event").query(Long.class).single());
+            outboxRows.set(jdbc.sql("SELECT count(*) FROM (SELECT 1 FROM outbox_event LIMIT :cap) capped").param("cap", OUTBOX_ROWS_CAP).query(Long.class).single());
         } catch (RuntimeException exception) {
             log.warn("Falha ao atualizar métricas operacionais: {}", exception.getMessage());
         }
