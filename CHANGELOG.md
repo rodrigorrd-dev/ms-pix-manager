@@ -1,6 +1,22 @@
 # Changelog
 Formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.2](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.1...v0.2.2) (2026-10-23)
+
+
+### Desempenho
+
+* **metrics:** limita a contagem da outbox_event ([ec84ddc](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/ec84ddc020e9df111e4bfa62b384ff1905bacf1a))
+* **metrics:** limita a contagem da outbox_event ([84ab35c](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/84ab35c936e5dc1aa007569c8c1cf192236a7afb))
+* **persistence:** cancela cobranças e ocorrências em lote ([5232877](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/5232877e89ec5b4bcf1f075fbaaf243cbff1b463))
+* **persistence:** evita count(*) quando a própria página já revela o total ([cd3a81d](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/cd3a81d8b56882abc90eb9e28c1a9045ca663852))
+* **persistence:** evita count(*) quando a própria página já revela o total ([51520ec](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/51520ecd6555282bf172f236b375f516a0830d73))
+* **persistence:** insere filhos em lote com batchUpdate ([b6e20be](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/b6e20beb573c1ed6bc5920c2b61c99e1fc4991d7))
+* **persistence:** insere filhos em lote com batchUpdate ([fd02db4](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/fd02db467662aadb339af74d3df86688c138e4b1))
+* **persistence:** usa UPDATE ... RETURNING em vez de atualizar e reler ([9b89a12](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/9b89a125211808efeef7754106c09c514071c886))
+* **persistence:** usa UPDATE ... RETURNING em vez de atualizar e reler ([68f6caa](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/68f6caad36eeef00757cf3006c28107b7f9201ca))
+* **schedule,automatic:** cancela cobranças e ocorrências em lote ([2cf6977](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/2cf697788797b2bfe28f28c7d3721bf3749fac5a))
+
 ## [0.2.1](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.0...v0.2.1) (2026-10-22)
 
 
