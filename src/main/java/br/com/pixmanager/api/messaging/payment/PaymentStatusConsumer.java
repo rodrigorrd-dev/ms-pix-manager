@@ -1,10 +1,10 @@
 package br.com.pixmanager.api.messaging.payment;
 
-import br.com.pixmanager.api.messaging.RetryableConflicts;
+import br.com.pixmanager.shared.messaging.RetryableConflicts;
 import br.com.pixmanager.core.port.in.payment.ApplyPaymentStatusUseCase;
 import br.com.pixmanager.core.port.in.payment.ApplyPaymentStatusUseCase.SpiStatus;
 import br.com.pixmanager.events.v1.SpiPaymentStatus;
-import br.com.pixmanager.api.messaging.DltMetrics;
+import br.com.pixmanager.shared.messaging.DltMetrics;
 import br.com.pixmanager.api.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.constant.ErrorCodes;
 import br.com.pixmanager.shared.exception.BusinessException;

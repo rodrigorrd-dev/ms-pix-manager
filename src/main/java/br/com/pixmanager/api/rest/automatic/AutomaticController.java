@@ -1,7 +1,7 @@
 package br.com.pixmanager.api.rest.automatic;
 
 import br.com.pixmanager.api.rest.automatic.dto.AutomaticDtos;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.shared.model.dto.PageResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;

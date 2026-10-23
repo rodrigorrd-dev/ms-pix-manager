@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.med;
 
 import br.com.pixmanager.api.rest.med.dto.request.MedRequests;
 import br.com.pixmanager.api.rest.med.dto.response.MedResponses;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.core.domain.enums.MedStatus;
 import br.com.pixmanager.shared.model.dto.PageResult;
 import jakarta.validation.Valid;

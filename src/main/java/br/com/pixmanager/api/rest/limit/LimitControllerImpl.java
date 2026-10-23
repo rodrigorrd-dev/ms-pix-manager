@@ -3,7 +3,7 @@ package br.com.pixmanager.api.rest.limit;
 import br.com.pixmanager.api.rest.limit.dto.request.ChangeLimitRequest;
 import br.com.pixmanager.api.rest.limit.dto.response.LimitResponse;
 import br.com.pixmanager.api.rest.limit.dto.response.LimitsResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.AccountLimit;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.domain.enums.LimitScope;

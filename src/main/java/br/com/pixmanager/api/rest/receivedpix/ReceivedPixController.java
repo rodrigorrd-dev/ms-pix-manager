@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.receivedpix;
 
 import br.com.pixmanager.api.rest.receivedpix.dto.response.ReceivedPixPageResponse;
 import br.com.pixmanager.api.rest.receivedpix.dto.response.ReceivedPixResponse;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.format.annotation.DateTimeFormat;

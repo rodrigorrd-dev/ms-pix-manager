@@ -1,6 +1,6 @@
 package br.com.pixmanager.api.rest.webhook;
 
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.api.rest.webhook.dto.response.WebhookDeliveryResponse;
 import br.com.pixmanager.core.domain.entity.WebhookDelivery;
 import br.com.pixmanager.core.port.in.webhook.DispatchWebhooksUseCase;
