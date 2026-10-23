@@ -48,25 +48,25 @@ public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut
 
     @Override
     public List<DueDelivery> findDue(Instant now, int limit) {
-        return jdbc.sql("SELECT " + COLUMNS + ", s.url, d.payload::text AS payload_json FROM webhook_delivery d "
-                        + "JOIN webhook_subscription s ON s.id = d.subscription_id "
-                        + "WHERE d.status IN ('PENDING','RETRYING') AND d.next_attempt_at <= :now AND s.status = 'ACTIVE' "
-                        + "ORDER BY d.next_attempt_at, d.id LIMIT :n")
+        return jdbc.sql("SELECT " + COLUMNS + ", subscription.url, delivery.payload::text AS payload_json FROM webhook_delivery delivery "
+                        + "JOIN webhook_subscription subscription ON subscription.id = delivery.subscription_id "
+                        + "WHERE delivery.status IN ('PENDING','RETRYING') AND delivery.next_attempt_at <= :now AND subscription.status = 'ACTIVE' "
+                        + "ORDER BY delivery.next_attempt_at, delivery.id LIMIT :n")
                 .param("now", Timestamp.from(now)).param("n", limit)
                 .query((resultSet, rowNumber) -> new DueDelivery(map(resultSet), resultSet.getString("url"), resultSet.getString("payload_json"))).list();
     }
 
     @Override
     public Optional<WebhookDelivery> findById(UUID id) {
-        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_delivery d WHERE d.id = :id").param("id", id).query((resultSet, rowNumber) -> map(resultSet)).optional();
+        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_delivery delivery WHERE delivery.id = :id").param("id", id).query((resultSet, rowNumber) -> map(resultSet)).optional();
     }
 
     @Override
     public WebhookDelivery save(WebhookDelivery delivery) {
         return jdbc.sql("""
-                UPDATE webhook_delivery d SET status = :status, attempts = :attempts, next_attempt_at = COALESCE(:next, next_attempt_at),
+                UPDATE webhook_delivery delivery SET status = :status, attempts = :attempts, next_attempt_at = COALESCE(:next, next_attempt_at),
                        last_http_status = :http, last_error = :error, delivered_at = :delivered, version = version + 1, updated_at = now()
-                 WHERE d.id = :id AND d.version = :version""" + " RETURNING " + COLUMNS)
+                 WHERE delivery.id = :id AND delivery.version = :version""" + " RETURNING " + COLUMNS)
                 .param("status", delivery.status().name()).param("attempts", delivery.attempts())
                 .param("next", Timestamps.from(delivery.nextAttemptAt()))
                 .param("http", delivery.lastHttpStatus()).param("error", delivery.lastError())

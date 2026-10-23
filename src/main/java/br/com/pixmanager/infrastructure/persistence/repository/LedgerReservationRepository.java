@@ -16,6 +16,6 @@ public interface LedgerReservationRepository extends JpaRepository<LedgerReserva
 
     Optional<LedgerReservationEntity> findByIdempotencyKey(String idempotencyKey);
 
-    @Query("select r from LedgerReservationEntity r where r.status = 'PENDING' and r.nextAttemptAt <= :now order by r.nextAttemptAt")
+    @Query("select reservation from LedgerReservationEntity reservation where reservation.status = 'PENDING' and reservation.nextAttemptAt <= :now order by reservation.nextAttemptAt")
     List<LedgerReservationEntity> findDuePending(@Param("now") Instant now, Pageable pageable);
 }

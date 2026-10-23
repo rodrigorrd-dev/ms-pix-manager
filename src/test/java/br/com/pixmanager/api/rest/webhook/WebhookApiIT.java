@@ -114,8 +114,8 @@ class WebhookApiIT extends AbstractApplicationIT {
     }
 
     JsonNode onlyDelivery(String endToEndId) {
-        var rows = jdbc.sql("SELECT d.id, d.status, d.attempts, d.last_http_status, d.last_error, d.payload::text AS payload FROM webhook_delivery d "
-                + "JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e").param("e", endToEndId)
+        var rows = jdbc.sql("SELECT delivery.id, delivery.status, delivery.attempts, delivery.last_http_status, delivery.last_error, delivery.payload::text AS payload FROM webhook_delivery delivery "
+                + "JOIN pix_received received ON received.id = delivery.source_event_id WHERE received.end_to_end_id = :e").param("e", endToEndId)
                 .query((resultSet, rowNumber) -> json.createObjectNode().put("id", resultSet.getString("id")).put("status", resultSet.getString("status")).put("attempts", resultSet.getInt("attempts"))
                         .put("lastHttp", resultSet.getInt("last_http_status")).put("lastError", resultSet.getString("last_error")).put("payload", resultSet.getString("payload"))).list();
         assertThat(rows).hasSize(1);
@@ -222,7 +222,7 @@ class WebhookApiIT extends AbstractApplicationIT {
         String semChave = newEndToEndId();
         receivePix.receive(pixCommand(semChave, null, null));                       // sem hash e sem cobrança
         for (String endToEndId : new String[]{semWebhook, removido, semChave}) {
-            assertThat(jdbc.sql("SELECT count(*) FROM webhook_delivery d JOIN pix_received r ON r.id = d.source_event_id WHERE r.end_to_end_id = :e")
+            assertThat(jdbc.sql("SELECT count(*) FROM webhook_delivery delivery JOIN pix_received received ON received.id = delivery.source_event_id WHERE received.end_to_end_id = :e")
                     .param("e", endToEndId).query(Integer.class).single()).as(endToEndId).isZero();
         }
     }
