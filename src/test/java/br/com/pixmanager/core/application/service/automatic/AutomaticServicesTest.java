@@ -184,12 +184,9 @@ class AutomaticServicesTest {
         verify(gateway).reject(REC_R, "AP13");
 
         AutomaticAuthorization approved = authorization("APROVADA", REC_R);
-        AutomaticCharge live = new AutomaticCharge(SequentialIds.id(5), approved.id(), "t".repeat(30), LocalDate.parse("2026-10-18"), Money.of("50.00"), "12345678", "0001", "9", "CACC", "ATIVA", 0);
-        when(persistence.chargesOf(approved.id())).thenReturn(List.of(live));
-        when(persistence.attemptsOf(live.id())).thenReturn(List.of(new AutomaticAttempt(SequentialIds.id(6), live.id(), "AGND", "AGENDADA", E2E, live.dueDate(), null, null, 0)));
         assertThat(manage.cancel(caller, approved.id(), "RECEIVER").status()).isEqualTo("CANCELADA");
         verify(gateway, never()).cancel(any(), eq("RECEIVER"));
-        verify(persistence).saveCharge(org.mockito.ArgumentMatchers.argThat(charge -> charge.status().equals("CANCELADA")));
+        verify(persistence).cancelLiveCharges(approved.id());
         manage.cancel(caller, approved.id(), "PAYER");
         verify(gateway).cancel(REC_R, "PAYER");
         assertThat(manage.adjustLimit(caller, approved.id(), Money.of("60.00")).payerMaxAmount()).isEqualTo(Money.of("60.00"));

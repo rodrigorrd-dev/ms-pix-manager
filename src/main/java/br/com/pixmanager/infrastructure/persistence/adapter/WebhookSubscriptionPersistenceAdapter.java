@@ -1,6 +1,7 @@
 package br.com.pixmanager.infrastructure.persistence.adapter;
 
 import br.com.pixmanager.core.domain.entity.WebhookSubscription;
+import br.com.pixmanager.infrastructure.persistence.Pages;
 import br.com.pixmanager.core.domain.enums.WebhookStatus;
 import br.com.pixmanager.core.port.out.persistence.WebhookSubscriptionPortOut;
 import br.com.pixmanager.infrastructure.security.crypto.CryptoService;
@@ -35,15 +36,15 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
 
     @Override
     public WebhookSubscription save(WebhookSubscription webhookSubscription) {
-        jdbc.sql("""
-                INSERT INTO webhook_subscription (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
+        return jdbc.sql("""
+                INSERT INTO webhook_subscription AS s (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
                 SELECT :id, k.id, k.key_hash, :url, :status, 0, :created, :by, now(), :by FROM pix_key k WHERE k.id = :key
                 ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, status = EXCLUDED.status,
-                    version = webhook_subscription.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
-                """)
+                    version = s.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
+                RETURNING """ + " " + COLUMNS)
                 .param("id", webhookSubscription.id()).param("key", webhookSubscription.pixKeyId()).param("url", webhookSubscription.url()).param("status", webhookSubscription.status().name())
-                .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy()).update();
-        return findByPixKeyId(webhookSubscription.pixKeyId()).orElseThrow();
+                .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy())
+                .query(WebhookSubscriptionPersistenceAdapter::map).optional().orElseThrow();
     }
 
     @Override
@@ -73,10 +74,10 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
             count = count.param("accounts", accountIds);
             rows = rows.param("accounts", accountIds);
         }
-        long total = count.query(Long.class).single();
+        final var countQuery = count;
         List<WebhookView> content = rows.query((resultSet, rowNumber) -> new WebhookView(map(resultSet, rowNumber), resultSet.getObject("account_id", UUID.class),
                 crypto.decrypt(resultSet.getString("key_value_enc")))).list();
-        return new PageResult<>(content, page.page(), page.size(), total);
+        return new PageResult<>(content, page.page(), page.size(), Pages.total(page, content, () -> countQuery.query(Long.class).single()));
     }
 
     private static WebhookSubscription map(ResultSet resultSet, int row) throws SQLException {
