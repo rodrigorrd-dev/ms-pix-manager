@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '21', cache: maven }
       - name: Unit + slice + contrato + ArchUnit (Surefire, sem Docker)
         run: mvn -B test
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '21', cache: maven }
       - name: Integração (Failsafe + Testcontainers)
         run: mvn -B test-compile jacoco:prepare-agent failsafe:integration-test failsafe:verify
@@ -56,7 +56,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '21', cache: maven }
       - uses: actions/download-artifact@v4
         with: { name: jacoco-unit, path: jacoco-unit }
@@ -140,7 +140,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '21', cache: maven }
       - uses: github/codeql-action/init@v3
         with: { languages: java-kotlin, build-mode: manual }
@@ -215,7 +215,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '21', cache: maven }
       - name: Testes de concorrência
         run: mvn -B -Pconcurrency test
