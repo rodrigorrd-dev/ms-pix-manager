@@ -244,7 +244,16 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
                 resultSet.getString("last_error_code"), resultSet.getLong("version"));
     }
 
-
-
-
+    /** Cancela, em 2 UPDATEs (sem laço por cobrança), as tentativas AGENDADA e as cobranças ATIVA da autorização. */
+    @Override
+    @Transactional
+    public void cancelLiveCharges(UUID authorizationId) {
+        jdbc.sql("""
+                UPDATE pix_automatic_attempt a SET status = 'CANCELADA', last_error_code = NULL, version = a.version + 1, updated_at = now()
+                  FROM pix_automatic_charge c
+                 WHERE a.charge_id = c.id AND c.authorization_id = :auth AND c.status = 'ATIVA' AND a.status = 'AGENDADA'""")
+                .param("auth", authorizationId).update();
+        jdbc.sql("UPDATE pix_automatic_charge SET status = 'CANCELADA', version = version + 1, updated_at = now() WHERE authorization_id = :auth AND status = 'ATIVA'")
+                .param("auth", authorizationId).update();
+    }
 }

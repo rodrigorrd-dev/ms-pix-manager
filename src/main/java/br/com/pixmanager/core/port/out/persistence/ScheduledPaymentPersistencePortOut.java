@@ -30,6 +30,9 @@ public interface ScheduledPaymentPersistencePortOut {
     /** Versão desatualizada ⇒ {@code PreconditionFailedException}. */
     ScheduledOccurrence saveOccurrence(ScheduledOccurrence occurrence);
 
+    /** Cancela, num único UPDATE, as ocorrências canceláveis (SCHEDULED/RETRY_PENDING) e devolve as canceladas. */
+    List<ScheduledOccurrence> cancelOpenOccurrences(UUID scheduledPaymentId);
+
     /**
      * Reivindica, ATOMICAMENTE (FOR UPDATE SKIP LOCKED), as ocorrências vencidas de agendamentos ACTIVE: já as devolve em
      * {@code PROCESSING} com a tentativa contada. Duas instâncias nunca recebem a mesma.

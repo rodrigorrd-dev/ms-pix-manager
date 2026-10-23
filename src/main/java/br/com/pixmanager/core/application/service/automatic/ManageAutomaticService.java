@@ -122,11 +122,7 @@ public class ManageAutomaticService implements ManageAutomaticUseCase {
         AutomaticAuthorization cancelled = current.cancelled(cancelledBy, clock.instant());
         AutomaticAuthorization saved = transactionRunner.inTransaction(() -> {
             AutomaticAuthorization authorization = persistence.saveAuthorization(cancelled);
-            for (AutomaticCharge charge : persistence.chargesOf(id)) {
-                if (charge.isLive()) {
-                    cancelChargeRows(charge);
-                }
-            }
+            persistence.cancelLiveCharges(id);
             events.publish(new AutomaticAuthorizationEvent("AutomaticAuthorizationCancelled", authorization));
             return authorization;
         });
