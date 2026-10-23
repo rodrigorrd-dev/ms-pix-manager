@@ -5,6 +5,7 @@ import br.com.pixmanager.core.port.in.payment.ApplyPaymentStatusUseCase;
 import br.com.pixmanager.core.port.in.payment.ApplyPaymentStatusUseCase.SpiStatus;
 import br.com.pixmanager.events.v1.SpiPaymentStatus;
 import br.com.pixmanager.api.messaging.DltMetrics;
+import br.com.pixmanager.api.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.constant.ErrorCodes;
 import br.com.pixmanager.shared.exception.BusinessException;
 import br.com.pixmanager.shared.util.AvroPayloadDecoder;
@@ -14,11 +15,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.DltHandler;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.annotation.RetryableTopic;
-import org.springframework.kafka.retrytopic.TopicSuffixingStrategy;
-import org.springframework.kafka.support.serializer.DeserializationException;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 /** Resultado do pacs.002 do pagamento. Mesma política: negócio/poison ⇒ DLT direta; técnica ⇒ retry com backoff + jitter. */
@@ -39,13 +35,7 @@ public class PaymentStatusConsumer {
         this.dltMetrics = dltMetrics;
     }
 
-    @RetryableTopic(attempts = "${pix.kafka.retry.attempts:4}", numPartitions = "${pix.kafka.retry.partitions:12}",
-            backoff = @Backoff(delayExpression = "${pix.kafka.retry.delay-ms:5000}", multiplierExpression = "${pix.kafka.retry.multiplier:6}",
-                    maxDelayExpression = "${pix.kafka.retry.max-delay-ms:180000}", random = true),
-            exclude = {BusinessException.class, DeserializationException.class},
-            topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE, retryTopicSuffix = "-retry", dltTopicSuffix = ".dlt",
-            autoCreateTopics = "${pix.kafka.auto-create-retry-topics:false}")
-    @KafkaListener(topics = TOPIC, groupId = CONSUMER_GROUP)
+    @PixKafkaListener(topic = TOPIC, group = CONSUMER_GROUP)
     @AsyncListener(operation = @AsyncOperation(channelName = TOPIC, description = "Status do pagamento no SPI (pacs.002) via spi-gateway",
             payloadType = SpiPaymentStatus.class))
     public void onPaymentStatus(ConsumerRecord<String, byte[]> record) {
@@ -62,7 +52,6 @@ public class PaymentStatusConsumer {
 
     @DltHandler
     public void onDeadLetter(ConsumerRecord<String, byte[]> record) {
-        dltMetrics.count(record.topic());
-        log.error("Mensagem na DLT: topic={} partition={} offset={} key={}", record.topic(), record.partition(), record.offset(), record.key());
+        dltMetrics.onDeadLetter(record);
     }
 }
