@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.charge;
 
 import br.com.pixmanager.api.rest.charge.dto.request.CobvRequest;
 import br.com.pixmanager.api.rest.charge.dto.response.ChargeResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.Caller;
 import br.com.pixmanager.core.domain.entity.TxId;
 import br.com.pixmanager.core.domain.enums.ChargeType;

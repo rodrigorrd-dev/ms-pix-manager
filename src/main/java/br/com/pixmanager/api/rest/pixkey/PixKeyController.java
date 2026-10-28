@@ -9,7 +9,7 @@ import br.com.pixmanager.api.rest.pixkey.dto.request.VerifyOwnershipRequest;
 import br.com.pixmanager.api.rest.pixkey.dto.response.OwnershipChallengeResponse;
 import br.com.pixmanager.core.domain.enums.PixKeyStatus;
 import br.com.pixmanager.shared.model.dto.PageResult;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
