@@ -9,7 +9,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <!-- Pendência E1 (docs/10): 3.5.x é a última linha 3.x; confirmar suporte OSS ou migrar para 4.x. -->
-        <version>3.5.16</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
