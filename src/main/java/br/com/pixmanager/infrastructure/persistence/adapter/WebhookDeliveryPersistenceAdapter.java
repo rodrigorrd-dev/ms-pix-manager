@@ -24,8 +24,8 @@ import java.util.UUID;
 @Component
 public class WebhookDeliveryPersistenceAdapter implements WebhookDeliveryPortOut {
 
-    private static final String COLUMNS = "d.id, d.subscription_id, d.source_event_id, d.event_type, d.status, d.attempts, d.next_attempt_at, "
-            + "d.last_http_status, d.last_error, d.delivered_at, d.version";
+    private static final String COLUMNS = "delivery.id, delivery.subscription_id, delivery.source_event_id, delivery.event_type, delivery.status, delivery.attempts, delivery.next_attempt_at, "
+            + "delivery.last_http_status, delivery.last_error, delivery.delivered_at, delivery.version";
 
     private final JdbcClient jdbc;
     private final ObjectMapper json;
