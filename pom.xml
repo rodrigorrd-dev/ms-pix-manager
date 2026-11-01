@@ -26,7 +26,7 @@
         <tomcat.version>10.1.61</tomcat.version>              <!-- CVE-2026-41293/43512/43515/65182/65905/68525 (CRITICAL) e outros; o 10.1.58 não existe no Central -->
         <jackson-bom.version>2.21.7</jackson-bom.version>     <!-- CVE-2026-68494/89407/89425/54512/54513/68497/91776/91777 (HIGH) -->
         <postgresql.version>42.7.12</postgresql.version>      <!-- CVE-2026-42198, CVE-2026-54291 (HIGH) -->
-        <lz4-java.version>1.11.4</lz4-java.version>           <!-- CVE-2026-106451 (HIGH), vem do kafka-clients -->
+        <lz4-java.version>1.12.1</lz4-java.version>           <!-- CVE-2026-106451 (HIGH), vem do kafka-clients -->
         <snappy-java.version>1.1.10.9</snappy-java.version>   <!-- CVE-2026-108106, CVE-2026-93451 (HIGH), vem do kafka-clients; fora do BOM do Spring Boot -->
         <guava.version>33.7.2-jre</guava.version>             <!-- CVE-2026-102554 (HIGH), transitiva (32.0.1-jre); fora do BOM do Spring Boot -->
         <!-- fora do BOM do Spring Boot: toda versão pinada tem motivo (docs/03 §9) -->
