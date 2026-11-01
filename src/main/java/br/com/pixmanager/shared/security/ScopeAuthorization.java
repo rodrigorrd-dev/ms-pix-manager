@@ -1,4 +1,4 @@
-package br.com.pixmanager.api.rest.security;
+package br.com.pixmanager.shared.security;
 
 /** Escopos OAuth do BCB (API Pix 2.10.0) e de gestão. Constantes para {@code @PreAuthorize} — typo vira erro de build/teste. */
 public final class ScopeAuthorization {

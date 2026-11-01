@@ -1,4 +1,4 @@
-package br.com.pixmanager.api.messaging;
+package br.com.pixmanager.shared.messaging;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

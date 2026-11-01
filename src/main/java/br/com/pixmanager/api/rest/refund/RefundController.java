@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.refund;
 
 import br.com.pixmanager.api.rest.refund.dto.request.RefundRequest;
 import br.com.pixmanager.api.rest.refund.dto.response.RefundResponse;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
