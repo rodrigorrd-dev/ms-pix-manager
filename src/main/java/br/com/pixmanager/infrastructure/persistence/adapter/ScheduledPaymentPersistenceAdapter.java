@@ -138,17 +138,17 @@ public class ScheduledPaymentPersistenceAdapter implements ScheduledPaymentPersi
     @Transactional
     public List<ScheduledOccurrence> claimDue(LocalDate today, Instant now, int limit) {
         return jdbc.sql("""
-                UPDATE scheduled_payment_occurrence o
-                   SET status = 'PROCESSING', attempt_count = o.attempt_count + 1, next_attempt_at = NULL, payment_order_id = NULL,
-                       version = o.version + 1, updated_at = now()
-                 WHERE o.id IN (SELECT o2.id FROM scheduled_payment_occurrence o2
-                                  JOIN scheduled_payment sp ON sp.id = o2.scheduled_payment_id
-                                 WHERE o2.status IN ('SCHEDULED', 'RETRY_PENDING') AND o2.due_date <= :today
-                                   AND (o2.next_attempt_at IS NULL OR o2.next_attempt_at <= :now) AND sp.status = 'ACTIVE'
-                                 ORDER BY o2.due_date, o2.sequence_no LIMIT :limit
-                                 FOR UPDATE OF o2 SKIP LOCKED)
-                RETURNING o.id, o.scheduled_payment_id, o.sequence_no, o.due_date, o.status, o.attempt_count, o.next_attempt_at,
-                          o.customer_notified_at, o.payment_order_id, o.last_error_code, o.version""")
+                UPDATE scheduled_payment_occurrence occurrence
+                   SET status = 'PROCESSING', attempt_count = occurrence.attempt_count + 1, next_attempt_at = NULL, payment_order_id = NULL,
+                       version = occurrence.version + 1, updated_at = now()
+                 WHERE occurrence.id IN (SELECT due_occurrence.id FROM scheduled_payment_occurrence due_occurrence
+                                  JOIN scheduled_payment schedule ON schedule.id = due_occurrence.scheduled_payment_id
+                                 WHERE due_occurrence.status IN ('SCHEDULED', 'RETRY_PENDING') AND due_occurrence.due_date <= :today
+                                   AND (due_occurrence.next_attempt_at IS NULL OR due_occurrence.next_attempt_at <= :now) AND schedule.status = 'ACTIVE'
+                                 ORDER BY due_occurrence.due_date, due_occurrence.sequence_no LIMIT :limit
+                                 FOR UPDATE OF due_occurrence SKIP LOCKED)
+                RETURNING occurrence.id, occurrence.scheduled_payment_id, occurrence.sequence_no, occurrence.due_date, occurrence.status, occurrence.attempt_count, occurrence.next_attempt_at,
+                          occurrence.customer_notified_at, occurrence.payment_order_id, occurrence.last_error_code, occurrence.version""")
                 .param("today", today).param("now", Timestamps.from(now)).param("limit", limit).query(this::occurrence).list();
     }
 

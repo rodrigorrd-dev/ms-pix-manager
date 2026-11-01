@@ -54,7 +54,7 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
                     INSERT INTO pix_automatic_authorization (id, id_rec, allow_retry, payer_account_id, payer_document_hash, receiver_document_enc,
                         receiver_document_hash, receiver_document_masked, receiver_name, contract, object_description, periodicity, start_date, end_date,
                         fixed_amount, receiver_min_amount, payer_max_amount, status, request_status, request_expires_at, created_by, updated_by)
-                    VALUES (:id, :idRec, :retry, :payer, (SELECT h.document_hash FROM payment_account pa JOIN account_holder h ON h.id = pa.holder_id WHERE pa.id = :payer),
+                    VALUES (:id, :idRec, :retry, :payer, (SELECT holder.document_hash FROM payment_account payer_account JOIN account_holder holder ON holder.id = payer_account.holder_id WHERE payer_account.id = :payer),
                         :docEnc, :docHash, :docMasked, :name, :contract, :object, :periodicity, :start, :end, :fixed, :min, :max, :status, :requestStatus,
                         :expires, :actor, :actor)""")
                     .param("id", authorization.id()).param("idRec", authorization.idRec()).param("retry", authorization.allowRetry())
@@ -197,11 +197,11 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Transactional
     public List<AutomaticAttempt> claimDue(LocalDate today, Instant notUpdatedSince, int limit) {
         return jdbc.sql("""
-                UPDATE pix_automatic_attempt t SET status = 'SOLICITADA', version = t.version + 1, updated_at = now()
-                 WHERE t.id IN (SELECT t2.id FROM pix_automatic_attempt t2 JOIN pix_automatic_charge c ON c.id = t2.charge_id
-                                 WHERE t2.status = 'AGENDADA' AND t2.settlement_date <= :today AND c.status = 'ATIVA' AND t2.updated_at <= :since
-                                 ORDER BY t2.settlement_date, t2.created_at LIMIT :limit FOR UPDATE OF t2 SKIP LOCKED)
-                RETURNING t.id, t.charge_id, t.attempt_type, t.status, t.end_to_end_id, t.settlement_date, t.payment_order_id, t.last_error_code, t.version""")
+                UPDATE pix_automatic_attempt attempt SET status = 'SOLICITADA', version = attempt.version + 1, updated_at = now()
+                 WHERE attempt.id IN (SELECT due_attempt.id FROM pix_automatic_attempt due_attempt JOIN pix_automatic_charge charge ON charge.id = due_attempt.charge_id
+                                 WHERE due_attempt.status = 'AGENDADA' AND due_attempt.settlement_date <= :today AND charge.status = 'ATIVA' AND due_attempt.updated_at <= :since
+                                 ORDER BY due_attempt.settlement_date, due_attempt.created_at LIMIT :limit FOR UPDATE OF due_attempt SKIP LOCKED)
+                RETURNING attempt.id, attempt.charge_id, attempt.attempt_type, attempt.status, attempt.end_to_end_id, attempt.settlement_date, attempt.payment_order_id, attempt.last_error_code, attempt.version""")
                 .param("today", today).param("since", Timestamp.from(notUpdatedSince)).param("limit", limit).query(this::attempt).list();
     }
 
@@ -249,9 +249,9 @@ public class AutomaticPersistenceAdapter implements AutomaticPersistencePortOut 
     @Transactional
     public void cancelLiveCharges(UUID authorizationId) {
         jdbc.sql("""
-                UPDATE pix_automatic_attempt a SET status = 'CANCELADA', last_error_code = NULL, version = a.version + 1, updated_at = now()
-                  FROM pix_automatic_charge c
-                 WHERE a.charge_id = c.id AND c.authorization_id = :auth AND c.status = 'ATIVA' AND a.status = 'AGENDADA'""")
+                UPDATE pix_automatic_attempt attempt SET status = 'CANCELADA', last_error_code = NULL, version = attempt.version + 1, updated_at = now()
+                  FROM pix_automatic_charge charge
+                 WHERE attempt.charge_id = charge.id AND charge.authorization_id = :auth AND charge.status = 'ATIVA' AND attempt.status = 'AGENDADA'""")
                 .param("auth", authorizationId).update();
         jdbc.sql("UPDATE pix_automatic_charge SET status = 'CANCELADA', version = version + 1, updated_at = now() WHERE authorization_id = :auth AND status = 'ATIVA'")
                 .param("auth", authorizationId).update();

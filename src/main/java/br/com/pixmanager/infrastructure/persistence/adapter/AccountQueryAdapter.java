@@ -26,21 +26,21 @@ public class AccountQueryAdapter implements AccountQueryPortOut {
     }
 
     private static final String SELECT = """
-            SELECT a.id, a.holder_id, a.ispb, a.branch, a.account_number, a.account_type, a.status AS account_status,
-                   h.holder_type, h.document_enc, h.document_hash, h.name
-              FROM payment_account a JOIN account_holder h ON h.id = a.holder_id
+            SELECT account.id, account.holder_id, account.ispb, account.branch, account.account_number, account.account_type, account.status AS account_status,
+                   holder.holder_type, holder.document_enc, holder.document_hash, holder.name
+              FROM payment_account account JOIN account_holder holder ON holder.id = account.holder_id
             """;
 
     @Override
     @Transactional(readOnly = true)
     public Optional<AccountInfo> findById(UUID accountId) {
-        return jdbc.sql(SELECT + " WHERE a.id = :id").param("id", accountId).query(this::map).optional();
+        return jdbc.sql(SELECT + " WHERE account.id = :id").param("id", accountId).query(this::map).optional();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<AccountInfo> findByIdentity(String ispb, String branch, String number, String accountType) {
-        return jdbc.sql(SELECT + " WHERE a.ispb = :ispb AND a.branch = :branch AND a.account_number = :number AND a.account_type = :type")
+        return jdbc.sql(SELECT + " WHERE account.ispb = :ispb AND account.branch = :branch AND account.account_number = :number AND account.account_type = :type")
                 .param("ispb", ispb).param("branch", branch).param("number", number).param("type", accountType)
                 .query(this::map).optional();
     }

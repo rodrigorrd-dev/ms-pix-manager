@@ -133,7 +133,7 @@ class AutomaticPixApiIT extends AbstractApplicationIT {
     }
 
     UUID reservationOfOrder(String chargeId) {
-        return jdbc.sql("SELECT r.id FROM pix_automatic_attempt t JOIN payment_order o ON o.id = t.payment_order_id JOIN ledger_reservation r ON r.idempotency_key = o.end_to_end_id WHERE t.charge_id = :c AND t.status = 'SOLICITADA'")
+        return jdbc.sql("SELECT reservation.id FROM pix_automatic_attempt attempt JOIN payment_order payment ON payment.id = attempt.payment_order_id JOIN ledger_reservation reservation ON reservation.idempotency_key = payment.end_to_end_id WHERE attempt.charge_id = :c AND attempt.status = 'SOLICITADA'")
                 .param("c", UUID.fromString(chargeId)).query(UUID.class).single();
     }
 

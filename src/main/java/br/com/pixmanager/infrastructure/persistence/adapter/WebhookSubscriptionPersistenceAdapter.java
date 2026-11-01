@@ -24,7 +24,7 @@ import java.util.UUID;
 @Component
 public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptionPortOut {
 
-    private static final String COLUMNS = "s.id, s.pix_key_id, s.url, s.status, s.version, s.created_at, s.created_by";
+    private static final String COLUMNS = "subscription.id, subscription.pix_key_id, subscription.url, subscription.status, subscription.version, subscription.created_at, subscription.created_by";
 
     private final JdbcClient jdbc;
     private final CryptoService crypto;
@@ -37,10 +37,10 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
     @Override
     public WebhookSubscription save(WebhookSubscription webhookSubscription) {
         return jdbc.sql("""
-                INSERT INTO webhook_subscription AS s (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
-                SELECT :id, k.id, k.key_hash, :url, :status, 0, :created, :by, now(), :by FROM pix_key k WHERE k.id = :key
+                INSERT INTO webhook_subscription AS subscription (id, pix_key_id, key_hash, url, status, version, created_at, created_by, updated_at, updated_by)
+                SELECT :id, pix_key.id, pix_key.key_hash, :url, :status, 0, :created, :by, now(), :by FROM pix_key WHERE pix_key.id = :key
                 ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, status = EXCLUDED.status,
-                    version = s.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
+                    version = subscription.version + 1, updated_at = now(), updated_by = EXCLUDED.updated_by
                 RETURNING """ + " " + COLUMNS)
                 .param("id", webhookSubscription.id()).param("key", webhookSubscription.pixKeyId()).param("url", webhookSubscription.url()).param("status", webhookSubscription.status().name())
                 .param("created", Timestamp.from(webhookSubscription.createdAt())).param("by", webhookSubscription.createdBy())
@@ -49,7 +49,7 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
 
     @Override
     public Optional<WebhookSubscription> findByPixKeyId(UUID pixKeyId) {
-        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_subscription s WHERE s.pix_key_id = :key").param("key", pixKeyId)
+        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_subscription subscription WHERE subscription.pix_key_id = :key").param("key", pixKeyId)
                 .query(WebhookSubscriptionPersistenceAdapter::map).optional();
     }
 
@@ -65,10 +65,10 @@ public class WebhookSubscriptionPersistenceAdapter implements WebhookSubscriptio
         if (!allAccounts && accountIds.isEmpty()) {
             return new PageResult<>(List.of(), page.page(), page.size(), 0);
         }
-        String scope = allAccounts ? "" : " AND k.account_id IN (:accounts)";
-        String where = " FROM webhook_subscription s JOIN pix_key k ON k.id = s.pix_key_id WHERE s.created_at >= :from AND s.created_at <= :to" + scope;
+        String scope = allAccounts ? "" : " AND pix_key.account_id IN (:accounts)";
+        String where = " FROM webhook_subscription subscription JOIN pix_key ON pix_key.id = subscription.pix_key_id WHERE subscription.created_at >= :from AND subscription.created_at <= :to" + scope;
         var count = jdbc.sql("SELECT count(*)" + where).param("from", Timestamp.from(from)).param("to", Timestamp.from(to));
-        var rows = jdbc.sql("SELECT " + COLUMNS + ", k.account_id, k.key_value_enc" + where + " ORDER BY s.created_at DESC, s.id LIMIT :n OFFSET :o")
+        var rows = jdbc.sql("SELECT " + COLUMNS + ", pix_key.account_id, pix_key.key_value_enc" + where + " ORDER BY subscription.created_at DESC, subscription.id LIMIT :n OFFSET :o")
                 .param("from", Timestamp.from(from)).param("to", Timestamp.from(to)).param("n", page.size()).param("o", (long) page.page() * page.size());
         if (!allAccounts) {
             count = count.param("accounts", accountIds);
