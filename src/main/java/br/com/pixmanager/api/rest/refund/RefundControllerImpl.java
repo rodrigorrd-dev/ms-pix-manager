@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.refund;
 
 import br.com.pixmanager.api.rest.refund.dto.request.RefundRequest;
 import br.com.pixmanager.api.rest.refund.dto.response.RefundResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.Money;
 import br.com.pixmanager.core.port.in.refund.FindRefundUseCase;
 import br.com.pixmanager.core.port.in.refund.RequestRefundUseCase;

@@ -4,7 +4,7 @@ import br.com.pixmanager.api.rest.charge.dto.request.CobRequest;
 import br.com.pixmanager.api.rest.charge.dto.request.CobRevisionRequest;
 import br.com.pixmanager.api.rest.charge.dto.response.ChargePageResponse;
 import br.com.pixmanager.api.rest.charge.dto.response.ChargeResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.Caller;
 import br.com.pixmanager.core.domain.entity.TxId;
 import br.com.pixmanager.core.domain.enums.ChargeStatus;

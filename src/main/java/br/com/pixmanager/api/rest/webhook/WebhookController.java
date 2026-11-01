@@ -1,6 +1,6 @@
 package br.com.pixmanager.api.rest.webhook;
 
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.api.rest.webhook.dto.request.WebhookRequest;
 import br.com.pixmanager.api.rest.webhook.dto.response.WebhookPageResponse;
 import br.com.pixmanager.api.rest.webhook.dto.response.WebhookResponse;

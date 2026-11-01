@@ -4,7 +4,7 @@ import br.com.pixmanager.api.rest.payment.dto.request.CreatePaymentOrderRequest;
 import br.com.pixmanager.api.rest.payment.dto.request.DecodeBrCodeRequest;
 import br.com.pixmanager.api.rest.payment.dto.response.BrCodeResponse;
 import br.com.pixmanager.api.rest.payment.dto.response.PaymentOrderResponse;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.shared.model.dto.PageResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;

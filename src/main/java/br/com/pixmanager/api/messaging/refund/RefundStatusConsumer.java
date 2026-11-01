@@ -1,10 +1,10 @@
 package br.com.pixmanager.api.messaging.refund;
 
-import br.com.pixmanager.api.messaging.RetryableConflicts;
+import br.com.pixmanager.shared.messaging.RetryableConflicts;
 import br.com.pixmanager.core.port.in.refund.SettleRefundUseCase;
 import br.com.pixmanager.events.v1.SpiRefundStatus;
-import br.com.pixmanager.api.messaging.DltMetrics;
-import br.com.pixmanager.api.messaging.PixKafkaListener;
+import br.com.pixmanager.shared.messaging.DltMetrics;
+import br.com.pixmanager.shared.messaging.PixKafkaListener;
 import br.com.pixmanager.shared.util.AvroPayloadDecoder;
 import io.github.springwolf.core.asyncapi.annotations.AsyncListener;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;

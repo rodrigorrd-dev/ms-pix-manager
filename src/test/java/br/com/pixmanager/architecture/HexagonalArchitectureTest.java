@@ -62,10 +62,11 @@ class HexagonalArchitectureTest {
     }
 
     @Test
-    @DisplayName("A5: shared (fora de config, mappers e handler) não depende de core, infrastructure nem api")
+    @DisplayName("A5: shared (fora de config, mappers e do CallerContext) não depende de core, infrastructure nem api")
     void sharedIsIndependent() {
         noClasses().that().resideInAPackage("..shared..")
                 .and().resideOutsideOfPackages("..shared.config..", "..shared.mappers..")
+                .and().doNotHaveSimpleName("CallerContext")      // traduz o JWT no Caller do domínio: única ponte de shared.security para o core
                 .should().dependOnClassesThat().resideInAnyPackage(BASE + ".core..", BASE + ".infrastructure..", BASE + ".api..").check(classes);
     }
 
@@ -118,7 +119,7 @@ class HexagonalArchitectureTest {
     @Test
     @DisplayName("Todo literal de escopo em @PreAuthorize usa as constantes de ScopeAuthorization (typo vira erro de build)")
     void scopesComeFromTheCatalog() throws Exception {
-        List<String> catalog = java.util.Arrays.stream(br.com.pixmanager.api.rest.security.ScopeAuthorization.class.getFields())
+        List<String> catalog = java.util.Arrays.stream(br.com.pixmanager.shared.security.ScopeAuthorization.class.getFields())
                 .filter(field -> field.getType() == String.class).map(field -> {
                     try {
                         return (String) field.get(null);

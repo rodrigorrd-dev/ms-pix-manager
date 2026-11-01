@@ -4,7 +4,7 @@ import br.com.pixmanager.api.rest.charge.dto.request.CobRequest;
 import br.com.pixmanager.api.rest.charge.dto.request.CobRevisionRequest;
 import br.com.pixmanager.api.rest.charge.dto.response.ChargePageResponse;
 import br.com.pixmanager.api.rest.charge.dto.response.ChargeResponse;
-import br.com.pixmanager.api.rest.security.ScopeAuthorization;
+import br.com.pixmanager.shared.security.ScopeAuthorization;
 import br.com.pixmanager.core.domain.enums.ChargeStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
