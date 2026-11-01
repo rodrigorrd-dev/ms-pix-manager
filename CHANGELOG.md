@@ -1,6 +1,17 @@
 # Changelog
 Formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.3](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.2...v0.2.3) (2026-11-01)
+
+
+### Correções
+
+* **deps:** atualiza guava para 33.7.2-jre (CVE-2026-102554) ([222a79b](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/222a79b03fbbffd93408fbf59e3f7239d4367864))
+* **deps:** atualiza snappy-java para 1.1.10.9 (CVE-2026-108106, CVE-2026-93451) ([10ee042](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/10ee0428c6d70336c1d9d2663ff4d14e11c09d25))
+* **ledger:** adia a 1ª execução do sweeper de reservas pendentes ([d57fa35](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/d57fa356d7925d0f1b7f65c056712bc31cc0937f))
+* **ledger:** adia a 1ª execução do sweeper de reservas pendentes ([d3fa7ef](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/d3fa7efce8114342c09f505adf50587799dd904c))
+* **persistence:** corrige alias das colunas em WebhookDeliveryPersistenceAdapter ([281db7b](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/281db7b3fb068df28de1f54bc47284740075da39))
+
 ## [0.2.2](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.1...v0.2.2) (2026-10-23)
 
 
