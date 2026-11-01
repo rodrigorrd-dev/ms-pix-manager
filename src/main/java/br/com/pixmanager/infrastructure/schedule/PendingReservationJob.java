@@ -28,7 +28,7 @@ public class PendingReservationJob {
         this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${pix.ledger.sweeper-delay:PT2S}")
+    @Scheduled(initialDelayString = "${pix.ledger.sweeper-delay:PT2S}", fixedDelayString = "${pix.ledger.sweeper-delay:PT2S}")   // 1ª execução só depois do atraso: não corre junto com o início dos ITs
     @SchedulerLock(name = "ledger-pending-reservations", lockAtMostFor = "PT5M", lockAtLeastFor = "PT1S")
     void run() {
         for (LedgerReservation due : persistence.findDue(clock.instant(), 100)) {
