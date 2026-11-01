@@ -1,4 +1,4 @@
-package br.com.pixmanager.api.messaging;
+package br.com.pixmanager.shared.messaging;
 
 import br.com.pixmanager.shared.constant.ErrorCodes;
 import br.com.pixmanager.shared.exception.ConflictException;

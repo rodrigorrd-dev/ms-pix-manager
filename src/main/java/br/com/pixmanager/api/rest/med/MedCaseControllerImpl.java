@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.med;
 
 import br.com.pixmanager.api.rest.med.dto.request.MedRequests;
 import br.com.pixmanager.api.rest.med.dto.response.MedResponses;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.MedCase;
 import br.com.pixmanager.core.domain.entity.MedContestation;
 import br.com.pixmanager.core.domain.enums.MedStatus;

@@ -2,7 +2,7 @@ package br.com.pixmanager.api.rest.receivedpix;
 
 import br.com.pixmanager.api.rest.receivedpix.dto.response.ReceivedPixPageResponse;
 import br.com.pixmanager.api.rest.receivedpix.dto.response.ReceivedPixResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.Caller;
 import br.com.pixmanager.core.domain.entity.EndToEndId;
 import br.com.pixmanager.core.domain.entity.ReceivedPix;

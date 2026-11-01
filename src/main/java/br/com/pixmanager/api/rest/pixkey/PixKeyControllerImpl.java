@@ -22,7 +22,7 @@ import br.com.pixmanager.shared.idempotency.IdempotentExecutor;
 import br.com.pixmanager.shared.model.dto.PageQuery;
 import br.com.pixmanager.shared.model.dto.PageResult;
 import br.com.pixmanager.core.domain.entity.Caller;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.shared.model.ExpectedVersion;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.CacheControl;

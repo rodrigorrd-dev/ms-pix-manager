@@ -3,7 +3,7 @@ package br.com.pixmanager.api.rest.schedule;
 import br.com.pixmanager.api.rest.schedule.dto.request.CreateScheduledPaymentRequest;
 import br.com.pixmanager.api.rest.schedule.dto.response.ScheduledOccurrenceResponse;
 import br.com.pixmanager.api.rest.schedule.dto.response.ScheduledPaymentResponse;
-import br.com.pixmanager.api.rest.security.CallerContext;
+import br.com.pixmanager.shared.security.CallerContext;
 import br.com.pixmanager.core.domain.entity.ScheduledPayment;
 import br.com.pixmanager.core.port.in.schedule.ManageScheduledPaymentUseCase;
 import br.com.pixmanager.shared.idempotency.IdempotentExecutor;
