@@ -10,5 +10,6 @@ paths = [
   '''^src/test/''',
   '''^scripts/''',
   '''^docker/seed/''',
+  '''^docker/mocks/dev-key\.pem$''',   # chave autoassinada do mock de dev (CN=mocks), pública por design
   '''^docs/''',
 ]
