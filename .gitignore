@@ -97,6 +97,8 @@ replay_pid*
 *.env
 *.pem
 *.key
+!docker/mocks/dev-cert.pem
+!docker/mocks/dev-key.pem
 *.p12
 !src/test/resources/qr/*.p12
 !src/test/resources/tls/*.p12

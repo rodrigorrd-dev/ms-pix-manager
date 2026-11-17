@@ -101,6 +101,7 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
           skip-dirs: target,docs,docker/keycloak
+          skip-files: docker/mocks/dev-key.pem   # chave autoassinada SÓ de dev do mock (CN=mocks)
       - name: SAST — Semgrep (Java + OWASP Top 10), falha em achados
         run: |
           docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.97.0 \
