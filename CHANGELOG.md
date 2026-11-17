@@ -1,6 +1,16 @@
 # Changelog
 Formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [0.2.4](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.3...v0.2.4) (2026-11-17)
+
+
+### Correções
+
+* **ci:** ignora a chave privada de dev do mock no Gitleaks e no Trivy ([83d0071](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/83d00717b8c52d372e6e499bf47c02e467b8bf70))
+* **ci:** versiona o certificado e a chave de dev do pix-mocks ([a7b0a4b](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/a7b0a4bae868cd56b5a8efc2401f751e949d64e3))
+* **ci:** versiona o certificado e a chave de dev do pix-mocks ([56a9eb3](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/56a9eb3fbae08d9d8a0573ea01efe46f2fd8d61f))
+* **ci:** versiona o certificado e a chave de dev do pix-mocks ([bbf47df](https://github.com/rodrigorrd-dev/ms-pix-manager/commit/bbf47dfefeabeccf3e520d018343e748b39ceec1))
+
 ## [0.2.3](https://github.com/rodrigorrd-dev/ms-pix-manager/compare/v0.2.2...v0.2.3) (2026-11-01)
 
 
